@@ -121,7 +121,24 @@ Build the Tournament Engine in C# as a console application with clean components
 
 ---
 
-### 9. Implement Minimal Game Modules
+### 9. Implement Multi-Tournament Orchestrator
+
+**Location:** `TournamentEngine.Core/Tournament/TournamentSeriesManager.cs`
+
+**Responsibilities:**
+- Run multiple tournaments sequentially
+- Each tournament uses existing `TournamentManager` logic
+- Support per-round game selection (same or different games)
+- Aggregate overall bot scoring across all games
+- Produce a combined series summary
+
+**Notes:**
+- Keep per-tournament results independent
+- Provide series-level standings and statistics
+
+---
+
+### 10. Implement Minimal Game Modules
 
 **Location:** `TournamentEngine.Core/Games/`
 
@@ -138,7 +155,27 @@ Build the Tournament Engine in C# as a console application with clean components
 
 ---
 
-### 10. Implement Bot Loader
+### 11. Add Parallel Match Execution
+
+**Location:**
+- `TournamentEngine.Core/Tournament/TournamentManager.cs`
+- `TournamentEngine.Core/Tournament/TournamentSeriesManager.cs`
+- `TournamentEngine.Core/Scoring/ScoringSystem.cs`
+
+**Responsibilities:**
+- Execute matches in parallel per round/phase
+- Ensure deterministic aggregation of results
+- Keep scoring and standings updates thread-safe
+- Limit degree of parallelism
+- Preserve cancellation behavior
+
+**Notes:**
+- Collect results concurrently, then apply updates in a single-threaded pass
+- Avoid shared mutable state during match execution
+
+---
+
+### 12. Implement Bot Loader
 
 **Location:** `TournamentEngine.Core/BotLoader/BotLoader.cs`
 
@@ -154,7 +191,7 @@ Build the Tournament Engine in C# as a console application with clean components
 
 ---
 
-### 11. Optional API Skeleton
+### 13. Optional API Skeleton
 
 **Location:** `TournamentEngine.Api/`
 
@@ -170,7 +207,7 @@ Build the Tournament Engine in C# as a console application with clean components
 
 ---
 
-### 12. Add Documentation and Configuration
+### 14. Add Documentation and Configuration
 
 **Documentation:**
 - `README.md` - Project overview and usage

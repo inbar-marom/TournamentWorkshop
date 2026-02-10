@@ -9,7 +9,7 @@ using TournamentEngine.Core.Tournament;
 using TournamentEngine.Tests.Helpers;
 
 [TestClass]
-public class TournamentManagerIntegrationTests
+public class TournamentIntegrationTests
 {
     private MockGameRunner _gameRunner = null!;
     private ScoringSystem _scoringSystem = null!;
