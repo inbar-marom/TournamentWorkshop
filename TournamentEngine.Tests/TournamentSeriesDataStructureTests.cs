@@ -18,15 +18,13 @@ public class TournamentSeriesDataStructureTests
         // Arrange & Act
         var config = new TournamentSeriesConfig
         {
-            GameTypes = new List<GameType> { GameType.RPSLS },
-            TournamentsCount = 3,
+            GameTypes = new List<GameType> { GameType.RPSLS, GameType.ColonelBlotto, GameType.RPSLS },
             BaseConfig = TestHelpers.CreateDefaultConfig()
         };
 
         // Assert
         Assert.IsNotNull(config);
-        Assert.AreEqual(1, config.GameTypes.Count);
-        Assert.AreEqual(3, config.TournamentsCount);
+        Assert.AreEqual(3, config.GameTypes.Count);
         Assert.IsTrue(config.AggregateScores);
     }
 
@@ -37,7 +35,6 @@ public class TournamentSeriesDataStructureTests
         var config = new TournamentSeriesConfig
         {
             GameTypes = new List<GameType> { GameType.RPSLS, GameType.ColonelBlotto },
-            TournamentsCount = 5,
             BaseConfig = TestHelpers.CreateDefaultConfig()
         };
 
@@ -52,96 +49,12 @@ public class TournamentSeriesDataStructureTests
         var config = new TournamentSeriesConfig
         {
             GameTypes = new List<GameType>(),
-            TournamentsCount = 1,
             BaseConfig = TestHelpers.CreateDefaultConfig()
         };
 
         // Act & Assert
         var ex = Assert.ThrowsException<ArgumentException>(() => config.Validate());
         StringAssert.Contains(ex.Message, "game type");
-    }
-
-    [TestMethod]
-    public void TournamentSeriesConfig_Validate_WithZeroTournaments_ThrowsArgumentException()
-    {
-        // Arrange
-        var config = new TournamentSeriesConfig
-        {
-            GameTypes = new List<GameType> { GameType.RPSLS },
-            TournamentsCount = 0,
-            BaseConfig = TestHelpers.CreateDefaultConfig()
-        };
-
-        // Act & Assert
-        var ex = Assert.ThrowsException<ArgumentException>(() => config.Validate());
-        StringAssert.Contains(ex.Message, "Tournament count");
-    }
-
-    [TestMethod]
-    public void TournamentSeriesConfig_Validate_WithNegativeTournaments_ThrowsArgumentException()
-    {
-        // Arrange
-        var config = new TournamentSeriesConfig
-        {
-            GameTypes = new List<GameType> { GameType.RPSLS },
-            TournamentsCount = -1,
-            BaseConfig = TestHelpers.CreateDefaultConfig()
-        };
-
-        // Act & Assert
-        Assert.ThrowsException<ArgumentException>(() => config.Validate());
-    }
-
-    [TestMethod]
-    public void TournamentSeriesConfig_GetGameTypeForTournament_WithSingleGame_ReturnsSameGameForAllTournaments()
-    {
-        // Arrange
-        var config = new TournamentSeriesConfig
-        {
-            GameTypes = new List<GameType> { GameType.RPSLS },
-            TournamentsCount = 5,
-            BaseConfig = TestHelpers.CreateDefaultConfig()
-        };
-
-        // Act & Assert
-        Assert.AreEqual(GameType.RPSLS, config.GetGameTypeForTournament(0));
-        Assert.AreEqual(GameType.RPSLS, config.GetGameTypeForTournament(1));
-        Assert.AreEqual(GameType.RPSLS, config.GetGameTypeForTournament(4));
-    }
-
-    [TestMethod]
-    public void TournamentSeriesConfig_GetGameTypeForTournament_WithMultipleGames_CyclesThrough()
-    {
-        // Arrange
-        var config = new TournamentSeriesConfig
-        {
-            GameTypes = new List<GameType> { GameType.RPSLS, GameType.ColonelBlotto },
-            TournamentsCount = 5,
-            BaseConfig = TestHelpers.CreateDefaultConfig()
-        };
-
-        // Act & Assert
-        Assert.AreEqual(GameType.RPSLS, config.GetGameTypeForTournament(0));
-        Assert.AreEqual(GameType.ColonelBlotto, config.GetGameTypeForTournament(1));
-        Assert.AreEqual(GameType.RPSLS, config.GetGameTypeForTournament(2));
-        Assert.AreEqual(GameType.ColonelBlotto, config.GetGameTypeForTournament(3));
-        Assert.AreEqual(GameType.RPSLS, config.GetGameTypeForTournament(4));
-    }
-
-    [TestMethod]
-    public void TournamentSeriesConfig_GetGameTypeForTournament_WithNegativeIndex_ThrowsArgumentOutOfRangeException()
-    {
-        // Arrange
-        var config = new TournamentSeriesConfig
-        {
-            GameTypes = new List<GameType> { GameType.RPSLS },
-            TournamentsCount = 1,
-            BaseConfig = TestHelpers.CreateDefaultConfig()
-        };
-
-        // Act & Assert
-        Assert.ThrowsException<ArgumentOutOfRangeException>(() => 
-            config.GetGameTypeForTournament(-1));
     }
 
     [TestMethod]
@@ -202,7 +115,6 @@ public class TournamentSeriesDataStructureTests
         var config = new TournamentSeriesConfig
         {
             GameTypes = new List<GameType> { GameType.RPSLS },
-            TournamentsCount = 1,
             BaseConfig = TestHelpers.CreateDefaultConfig()
         };
 
@@ -232,7 +144,6 @@ public class TournamentSeriesDataStructureTests
         var config = new TournamentSeriesConfig
         {
             GameTypes = new List<GameType> { GameType.RPSLS },
-            TournamentsCount = 1,
             BaseConfig = TestHelpers.CreateDefaultConfig()
         };
 
@@ -257,7 +168,6 @@ public class TournamentSeriesDataStructureTests
         var config = new TournamentSeriesConfig
         {
             GameTypes = new List<GameType> { GameType.RPSLS },
-            TournamentsCount = 1,
             BaseConfig = TestHelpers.CreateDefaultConfig()
         };
 
