@@ -86,10 +86,13 @@ public class GroupStageTournamentEngine : ITournamentEngine
 
     public List<(IBot bot1, IBot bot2)> GetNextMatches()
     {
-        if (_currentPhase == TournamentPhase.NotStarted)
-            throw new InvalidOperationException("Tournament not initialized");
+        lock (_stateLock)
+        {
+            if (_currentPhase == TournamentPhase.NotStarted)
+                throw new InvalidOperationException("Tournament not initialized");
 
-        return new List<(IBot bot1, IBot bot2)>(_pendingMatches);
+            return new List<(IBot bot1, IBot bot2)>(_pendingMatches);
+        }
     }
 
     public TournamentInfo RecordMatchResult(MatchResult matchResult)
@@ -448,10 +451,13 @@ public class GroupStageTournamentEngine : ITournamentEngine
 
     public GroupStageSummary GetCurrentPhaseSummary()
     {
-        if (_currentPhase == TournamentPhase.NotStarted)
-            throw new InvalidOperationException("Tournament not initialized");
+        lock (_stateLock)
+        {
+            if (_currentPhase == TournamentPhase.NotStarted)
+                throw new InvalidOperationException("Tournament not initialized");
 
-        return BuildPhaseSummary(_currentPhase, _currentGroups);
+            return BuildPhaseSummary(_currentPhase, _currentGroups);
+        }
     }
 
     public string ExportPhaseSummaryJson(bool indented = true)
@@ -462,58 +468,70 @@ public class GroupStageTournamentEngine : ITournamentEngine
 
     public string ExportMatchResultsJson(bool indented = true)
     {
-        var options = new JsonSerializerOptions { WriteIndented = indented };
-        return JsonSerializer.Serialize(_tournamentInfo.MatchResults, options);
+        lock (_stateLock)
+        {
+            var options = new JsonSerializerOptions { WriteIndented = indented };
+            return JsonSerializer.Serialize(_tournamentInfo.MatchResults, options);
+        }
     }
 
     public IReadOnlyList<string> GetEventLog()
     {
-        return _eventLog.AsReadOnly();
+        lock (_stateLock)
+        {
+            return new List<string>(_eventLog).AsReadOnly();
+        }
     }
 
     public List<IBot> GetRemainingBots()
     {
-        if (_currentPhase == TournamentPhase.NotStarted)
-            throw new InvalidOperationException("Tournament not initialized");
-
-        var remaining = new List<IBot>();
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var group in _currentGroups)
+        lock (_stateLock)
         {
-            foreach (var bot in group.Bots)
+            if (_currentPhase == TournamentPhase.NotStarted)
+                throw new InvalidOperationException("Tournament not initialized");
+
+            var remaining = new List<IBot>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var group in _currentGroups)
             {
-                if (seen.Add(bot.TeamName))
-                    remaining.Add(bot);
+                foreach (var bot in group.Bots)
+                {
+                    if (seen.Add(bot.TeamName))
+                        remaining.Add(bot);
+                }
             }
-        }
 
-        if (remaining.Count == 0 && !string.IsNullOrWhiteSpace(_tournamentInfo?.Champion))
-        {
-            remaining.Add(ResolveBotByName(_tournamentInfo.Champion));
-        }
+            if (remaining.Count == 0 && !string.IsNullOrWhiteSpace(_tournamentInfo?.Champion))
+            {
+                remaining.Add(ResolveBotByName(_tournamentInfo.Champion));
+            }
 
-        return remaining;
+            return remaining;
+        }
     }
 
     public List<(IBot bot, int placement)> GetFinalRankings()
     {
-        if (_currentPhase == TournamentPhase.NotStarted)
-            throw new InvalidOperationException("Tournament not initialized");
-        if (_tournamentInfo.State != TournamentState.Completed)
-            throw new InvalidOperationException("Tournament is not complete");
-
-        var rankings = _scoringSystem.GenerateFinalRankings(_tournamentInfo);
-        var ordered = rankings.OrderBy(r => r.FinalPlacement).ToList();
-
-        var results = new List<(IBot bot, int placement)>(ordered.Count);
-        foreach (var ranking in ordered)
+        lock (_stateLock)
         {
-            var bot = ResolveBotByName(ranking.BotName);
-            results.Add((bot, ranking.FinalPlacement));
-        }
+            if (_currentPhase == TournamentPhase.NotStarted)
+                throw new InvalidOperationException("Tournament not initialized");
+            if (_tournamentInfo.State != TournamentState.Completed)
+                throw new InvalidOperationException("Tournament is not complete");
 
-        return results;
+            var rankings = _scoringSystem.GenerateFinalRankings(_tournamentInfo);
+            var ordered = rankings.OrderBy(r => r.FinalPlacement).ToList();
+
+            var results = new List<(IBot bot, int placement)>(ordered.Count);
+            foreach (var ranking in ordered)
+            {
+                var bot = ResolveBotByName(ranking.BotName);
+                results.Add((bot, ranking.FinalPlacement));
+            }
+
+            return results;
+        }
     }
 
     // Helper methods
