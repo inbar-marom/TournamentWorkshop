@@ -47,9 +47,10 @@ dotnet test TournamentEngine.Tests
    - .NET 8.0 target framework via Directory.Build.props
 
 2. **Shared Contracts**
-   - Complete domain models and interfaces
+   - Complete domain models and interfaces in separate files
    - Game types: RPSLS, Colonel Blotto, Penalty Kicks, Security Game
    - Bot interface with async methods and cancellation token support
+   - Component interfaces: IGameRunner, ITournamentManager, IGame, IBotLoader, IScoringSystem
    - Exception handling classes
    - Tournament state management classes
 
@@ -71,7 +72,13 @@ dotnet test TournamentEngine.Tests
 The tournament engine follows a clean architecture pattern with:
 
 - **Core Domain Models**: Game state, match results, bot information
-- **Interfaces**: IBot for all bot implementations
+- **Bot Interface**: IBot for all bot implementations
+- **Component Interfaces**: 
+  - IGameRunner: Game execution engine
+  - ITournamentManager: Tournament bracket management
+  - IGame: Specific game rule implementations
+  - IBotLoader: Bot loading and validation
+  - IScoringSystem: Scoring and ranking calculations
 - **Configuration**: Tournament settings and timeouts
 - **Error Handling**: Custom exceptions for different failure scenarios
 
