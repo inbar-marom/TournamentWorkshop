@@ -264,16 +264,55 @@ TournamentSeriesManager.RunSeriesAsync()
 
 ## Thread Safety
 
-### Series Manager
-- No shared mutable state between tournaments
-- Each tournament runs sequentially with its own `TournamentInfo`
-- Aggregation happens after all tournaments complete
-- **Thread-safe** as long as underlying `ITournamentManager` is thread-safe
+### Current Design: Sequential Tournament Execution
+- **No shared mutable state** between tournaments
+- Each tournament runs **sequentially** with its own `TournamentInfo` instance
+- Aggregation happens **after all tournaments complete**
+- **Thread-safe** because there is no concurrent access to shared state
+- Underlying `ITournamentManager` and `IScoringSystem` are stateless and thread-safe
 
 ### Parallel Matches Within Tournaments
 - Each tournament inherits `MaxParallelMatches` from `BaseConfig`
 - Parallel execution happens **within** each tournament, not across tournaments
-- Safe because each tournament has isolated state
+- Safe because each tournament has isolated state managed by `GroupStageTournamentEngine`
+
+### Future Enhancement: Parallel Tournament Execution
+**If you modify `TournamentSeriesManager` to run tournaments in parallel, you MUST:**
+
+1. **Synchronize Tournament Collection Access**
+   - Use a thread-safe collection (e.g., `ConcurrentBag<TournamentInfo>`) for `seriesInfo.Tournaments`
+   - OR add lock synchronization around `Tournaments.Add(tournamentInfo)`
+
+2. **Ensure Aggregation Happens After All Tournaments**
+   - Use `Task.WhenAll()` to await all parallel tournament tasks
+   - Only call `CalculateSeriesStandings()` and `CalculateSeriesStatistics()` after all tasks complete
+
+3. **Example Pattern for Parallel Execution:**
+   ```csharp
+   var tournamentTasks = config.GameTypes.Select(async gameType =>
+   {
+       var tournamentInfo = await _tournamentManager.RunTournamentAsync(
+           bots, gameType, config.BaseConfig, cancellationToken);
+       
+       lock (seriesInfo.Tournaments) // Synchronize collection access
+       {
+           seriesInfo.Tournaments.Add(tournamentInfo);
+       }
+   });
+   
+   await Task.WhenAll(tournamentTasks); // Wait for all to complete
+   
+   // Now safe to aggregate
+   CalculateSeriesStandings(seriesInfo);
+   CalculateSeriesStatistics(seriesInfo);
+   ```
+
+4. **Why This Is Safe:**
+   - `ITournamentManager` and `IScoringSystem` have no shared mutable state
+   - Each tournament operates on its own `TournamentInfo` instance
+   - Only the series-level collection access needs synchronization
+
+**Note:** Code comments in `TournamentSeriesManager.cs` document these requirements for future developers.
 
 ---
 
@@ -292,10 +331,17 @@ TournamentSeriesManager.RunSeriesAsync()
 
 ## Future Enhancements (Out of Scope)
 
-1. **Weighted Scoring:** Different tournaments contribute different weights to series score
-2. **Bot Eliminations:** Bots can be eliminated after poor performance
-3. **Dynamic Game Selection:** Choose next game based on current standings
-4. **Parallel Tournament Execution:** Run independent tournaments in parallel
+1. **Parallel Tournament Execution:** Run independent tournaments in parallel
+   - See "Thread Safety" section above for implementation requirements
+   - Would reduce total series execution time
+   - Requires synchronization around `seriesInfo.Tournaments` collection
+
+2. **Weighted Scoring:** Different tournaments contribute different weights to series score
+
+3. **Bot Eliminations:** Bots can be eliminated after poor performance
+
+4. **Dynamic Game Selection:** Choose next game based on current standings
+
 5. **Series Formats:** Round-robin of tournaments, playoffs, etc.
 
 ---

@@ -4,7 +4,10 @@ using System;
 using System.Collections.Generic;
 
 /// <summary>
-/// Configuration for a tournament series
+/// Configuration for a tournament series.
+/// 
+/// THREAD SAFETY: This class is immutable after construction (all properties are init-only),
+/// making it safe to share across threads without synchronization.
 /// </summary>
 public class TournamentSeriesConfig
 {

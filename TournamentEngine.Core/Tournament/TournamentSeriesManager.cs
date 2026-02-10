@@ -8,7 +8,22 @@ using System.Threading.Tasks;
 using TournamentEngine.Core.Common;
 
 /// <summary>
-/// Orchestrates multiple tournaments in a series
+/// Orchestrates multiple tournaments in a series.
+/// 
+/// THREAD SAFETY:
+/// This class runs tournaments SEQUENTIALLY (one after another), which is inherently thread-safe
+/// because there is no shared mutable state between tournament executions. Each tournament
+/// gets its own TournamentInfo instance, and aggregation happens only after all tournaments complete.
+/// 
+/// IMPORTANT - If you modify this to run tournaments in PARALLEL:
+/// 1. You MUST add synchronization around seriesInfo.Tournaments.Add() (use lock or concurrent collection)
+/// 2. You MUST ensure CalculateSeriesStandings() and CalculateSeriesStatistics() only run after ALL tournaments complete
+/// 3. Consider using Task.WhenAll() instead of sequential await
+/// 4. The underlying ITournamentManager and IScoringSystem are thread-safe for concurrent tournament execution,
+///    but this class currently does not take advantage of that capability.
+/// 
+/// Note: Parallel MATCH execution within each tournament is already supported via BaseConfig.MaxParallelMatches.
+///       This comment is about parallel TOURNAMENT execution at the series level.
 /// </summary>
 public class TournamentSeriesManager
 {
@@ -41,7 +56,11 @@ public class TournamentSeriesManager
             Config = config
         };
 
-        // Run each tournament in the series
+        // Run each tournament in the series SEQUENTIALLY
+        // THREAD SAFETY: Sequential execution means no concurrent access to seriesInfo.Tournaments
+        // If changing to parallel execution (e.g., Task.WhenAll), you must:
+        // - Use a thread-safe collection or lock around Tournaments.Add()
+        // - Ensure aggregation methods only run after all tournaments complete
         for (int i = 0; i < config.GameTypes.Count; i++)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -66,6 +85,10 @@ public class TournamentSeriesManager
 
     private void CalculateSeriesStandings(TournamentSeriesInfo seriesInfo)
     {
+        // THREAD SAFETY: This method assumes all tournaments have completed and seriesInfo.Tournaments
+        // is not being modified concurrently. Safe because called after sequential tournament execution.
+        // If tournaments run in parallel, ensure this is only called after Task.WhenAll() completes.
+        
         // Get all unique bot names
         var botNames = seriesInfo.Tournaments
             .SelectMany(t => t.Bots.Select(b => b.TeamName))
@@ -126,6 +149,10 @@ public class TournamentSeriesManager
 
     private void CalculateSeriesStatistics(TournamentSeriesInfo seriesInfo)
     {
+        // THREAD SAFETY: This method assumes all tournaments have completed and seriesInfo.Tournaments
+        // is not being modified concurrently. Safe because called after sequential tournament execution.
+        // If tournaments run in parallel, ensure this is only called after Task.WhenAll() completes.
+        
         // Calculate total matches
         seriesInfo.TotalMatches = seriesInfo.Tournaments.Sum(t => t.MatchResults.Count);
 
