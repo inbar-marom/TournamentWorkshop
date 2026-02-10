@@ -49,39 +49,42 @@ public class GroupStageTournamentEngine : ITournamentEngine
         if (config == null)
             throw new ArgumentNullException(nameof(config));
 
-        // Create tournament info with unique ID
-        var tournamentId = Guid.NewGuid().ToString();
-        var startTime = DateTime.UtcNow;
-
-        _tournamentInfo = new TournamentInfo
+        lock (_stateLock)
         {
-            TournamentId = tournamentId,
-            GameType = gameType,
-            State = TournamentState.InProgress,
-            Bots = bots,
-            MatchResults = new List<MatchResult>(),
-            Bracket = new Dictionary<int, List<string>>(),
-            Champion = null,
-            StartTime = startTime,
-            EndTime = null,
-            CurrentRound = 1,
-            TotalRounds = CalculateTotalRounds(bots.Count)
-        };
+            // Create tournament info with unique ID
+            var tournamentId = Guid.NewGuid().ToString();
+            var startTime = DateTime.UtcNow;
 
-        _currentPhase = TournamentPhase.InitialGroups;
-        _matchHistory.Clear();
-        _eventLog.Clear();
-        Log($"Tournament initialized with {bots.Count} bots for {gameType}");
+            _tournamentInfo = new TournamentInfo
+            {
+                TournamentId = tournamentId,
+                GameType = gameType,
+                State = TournamentState.InProgress,
+                Bots = bots,
+                MatchResults = new List<MatchResult>(),
+                Bracket = new Dictionary<int, List<string>>(),
+                Champion = null,
+                StartTime = startTime,
+                EndTime = null,
+                CurrentRound = 1,
+                TotalRounds = CalculateTotalRounds(bots.Count)
+            };
 
-        var botAdapters = CreateBotAdapters(bots, gameType);
-        _currentGroups = CreateInitialGroups(botAdapters);
-        _groupStandings = BuildStandingsIndex(_currentGroups);
-        var allMatches = GenerateAllGroupMatches(_currentGroups);
-        _pendingMatches = new Queue<(IBot bot1, IBot bot2)>(allMatches);
-        _currentPhaseExpectedMatches = allMatches.Count;
-        _currentPhaseRecordedResults = 0;
+            _currentPhase = TournamentPhase.InitialGroups;
+            _matchHistory.Clear();
+            _eventLog.Clear();
+            Log($"Tournament initialized with {bots.Count} bots for {gameType}");
 
-        return _tournamentInfo;
+            var botAdapters = CreateBotAdapters(bots, gameType);
+            _currentGroups = CreateInitialGroups(botAdapters);
+            _groupStandings = BuildStandingsIndex(_currentGroups);
+            var allMatches = GenerateAllGroupMatches(_currentGroups);
+            _pendingMatches = new Queue<(IBot bot1, IBot bot2)>(allMatches);
+            _currentPhaseExpectedMatches = allMatches.Count;
+            _currentPhaseRecordedResults = 0;
+
+            return _tournamentInfo;
+        }
     }
 
     public List<(IBot bot1, IBot bot2)> GetNextMatches()
@@ -436,17 +439,26 @@ public class GroupStageTournamentEngine : ITournamentEngine
 
     public bool IsTournamentComplete()
     {
-        return _tournamentInfo?.State == TournamentState.Completed;
+        lock (_stateLock)
+        {
+            return _tournamentInfo?.State == TournamentState.Completed;
+        }
     }
 
     public TournamentInfo GetTournamentInfo()
     {
-        return _tournamentInfo;
+        lock (_stateLock)
+        {
+            return _tournamentInfo;
+        }
     }
 
     public int GetCurrentRound()
     {
-        return _tournamentInfo?.CurrentRound ?? 0;
+        lock (_stateLock)
+        {
+            return _tournamentInfo?.CurrentRound ?? 0;
+        }
     }
 
     public GroupStageSummary GetCurrentPhaseSummary()
