@@ -5,6 +5,7 @@
 /// </summary>
 public enum MatchOutcome
 {
+    Unknown = 0,
     Player1Wins,
     Player2Wins,
     Draw,
