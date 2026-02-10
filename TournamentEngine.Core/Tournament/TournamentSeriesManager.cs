@@ -56,6 +56,9 @@ public class TournamentSeriesManager
         // Calculate series standings and champion
         CalculateSeriesStandings(seriesInfo);
 
+        // Calculate series statistics
+        CalculateSeriesStatistics(seriesInfo);
+
         seriesInfo.EndTime = DateTime.UtcNow;
 
         return seriesInfo;
@@ -118,6 +121,21 @@ public class TournamentSeriesManager
         if (seriesInfo.SeriesStandings.Count > 0)
         {
             seriesInfo.SeriesChampion = seriesInfo.SeriesStandings[0].BotName;
+        }
+    }
+
+    private void CalculateSeriesStatistics(TournamentSeriesInfo seriesInfo)
+    {
+        // Calculate total matches
+        seriesInfo.TotalMatches = seriesInfo.Tournaments.Sum(t => t.MatchResults.Count);
+
+        // Calculate matches by game type
+        foreach (var tournament in seriesInfo.Tournaments)
+        {
+            if (!seriesInfo.MatchesByGameType.ContainsKey(tournament.GameType))
+                seriesInfo.MatchesByGameType[tournament.GameType] = 0;
+
+            seriesInfo.MatchesByGameType[tournament.GameType] += tournament.MatchResults.Count;
         }
     }
 }

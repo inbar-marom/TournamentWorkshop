@@ -42,4 +42,14 @@ public class TournamentSeriesInfo
     /// Configuration used for the series
     /// </summary>
     public required TournamentSeriesConfig Config { get; init; }
+
+    /// <summary>
+    /// Total number of matches across all tournaments
+    /// </summary>
+    public int TotalMatches { get; set; }
+
+    /// <summary>
+    /// Breakdown of matches by game type
+    /// </summary>
+    public Dictionary<GameType, int> MatchesByGameType { get; init; } = new();
 }
