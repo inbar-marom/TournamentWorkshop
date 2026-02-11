@@ -1,4 +1,4 @@
-﻿using System.Linq;
+using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using TournamentEngine.Core.Common;
 using TournamentEngine.Tests.DummyBots;

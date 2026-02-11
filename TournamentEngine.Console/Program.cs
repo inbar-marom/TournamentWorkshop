@@ -1,4 +1,4 @@
-﻿namespace TournamentEngine.Console;
+namespace TournamentEngine.Console;
 
 using System;
 using System.Threading.Tasks;

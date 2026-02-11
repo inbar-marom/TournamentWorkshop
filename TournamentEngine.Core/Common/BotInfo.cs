@@ -1,4 +1,4 @@
-﻿namespace TournamentEngine.Core.Common;
+namespace TournamentEngine.Core.Common;
 
 /// <summary>
 /// Represents a bot loaded from source code.

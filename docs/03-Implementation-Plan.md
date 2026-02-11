@@ -6,11 +6,11 @@ Build the Tournament Engine in C# as a console application with clean components
 
 ## Implementation Progress
 
-**Overall Status:** 7/14 steps completed, 4 partially completed, 3 not started
+**Overall Status:** 9/15 steps completed, 2 partially completed, 4 not started
 
 - ✅ **Completed (7):** Steps 1, 2, 3, 4, 5, 6, 9, 11, 12
 - ⏳ **Partial (4):** Steps 8, 14  
-- ❌ **Not Started (3):** Steps 7, 10, 13
+- ❌ **Not Started (4):** Steps 7, 10, 13, 15
 
 **Latest Achievement:** Multi-Tournament Orchestrator (Step 9) with comprehensive thread-safety documentation and 124 passing tests.
 
@@ -284,6 +284,67 @@ Build the Tournament Engine in C# as a console application with clean components
   - Resource limits
   - Logging settings
   - Game settings
+
+---
+
+### ❌ 15. Implement Bot Submission Dashboard
+
+**Status:** NOT STARTED (Depends on Step 13 completion)
+
+**Location:** `TournamentEngine.Console/Dashboard/` or `TournamentEngine.Api/Dashboard/` (Razor Pages/Blazor)
+
+**Purpose:**
+Display and manage submitted bots from Step 13 with real-time status visibility
+
+**Features:**
+
+**View Modes:**
+- List view: All submitted bots with key metadata
+- Detail view: Individual bot information and validation results
+- Submission timeline: Latest submissions in chronological order
+- Filter by status: Valid, Invalid, Pending validation
+
+**Display Information:**
+- Bot name (Team name)
+- Submission timestamp
+- Last updated time
+- Validation status (Valid ✅ / Invalid ❌ / Pending ⏳)
+- File count
+- Total size
+- Compilation errors (if invalid)
+- Bot author (if available)
+- Version history (all versions submitted by team)
+
+**Functionality:**
+- Real-time updates when new bots are submitted
+- Refresh/re-validate individual bots
+- Download bot source code
+- View compilation error details with line numbers
+- Sort by: Name, Date Submitted, Validation Status
+- Search/filter by team name
+- Delete invalid submissions
+- Mark bots as "do not use" for tournament
+
+**UI Components:**
+- Dashboard header with stats (Total bots, Valid count, Invalid count)
+- Recent submissions widget (last 5-10 bots)
+- Status indicators with color coding
+- Error message panels with copy-to-clipboard
+- Grid/table view with pagination
+- Responsive design for desktop/mobile
+
+**Integration:**
+- Calls Step 13 API endpoints to fetch bot data
+- Calls Step 12 (BotLoader) to re-validate bots
+- Displays real-time validation results
+- Caches bot metadata for performance
+
+**Optional Enhancements:**
+- Export bot list to CSV
+- Bot performance metrics (if tournament has run)
+- Comparison view (compare bots side-by-side)
+- Visual bot health score
+- Notification system for validation failures
 
 ---
 

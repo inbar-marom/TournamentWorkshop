@@ -61,7 +61,7 @@ Build a real-time web dashboard service that provides live tournament visualizat
 
 **Implementation Options:**
 
-**Option A: SignalR Hub** (Recommended)
+**SignalR Hub** (Recommended)
 ```csharp
 public class TournamentHubPublisher : ITournamentEventPublisher
 {
@@ -77,29 +77,6 @@ public class TournamentHubPublisher : ITournamentEventPublisher
         await _hubContext.Clients.All.SendAsync("StandingsUpdated", evt);
     }
 }
-```
-
-**Option B: In-Memory Shared State**
-```csharp
-public class SharedTournamentState
-{
-    private static readonly SemaphoreSlim _lock = new(1, 1);
-    public static TournamentSnapshot Current { get; private set; }
-    
-    public static async Task UpdateState(TournamentSnapshot snapshot)
-    {
-        await _lock.WaitAsync();
-        try
-        {
-            Current = snapshot;
-        }
-        finally
-        {
-            _lock.Release();
-        }
-    }
-}
-```
 
 ---
 
