@@ -1,0 +1,77 @@
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+using TournamentEngine.Core.Common;
+using TournamentEngine.Core.BotLoader;
+
+namespace TournamentEngine.Tests;
+
+[TestClass]
+public class BotLoaderTests
+{
+    private string _testBotsDirectory = null!;
+
+    [TestInitialize]
+    public void Setup()
+    {
+        // Create a temp directory for test bots
+        _testBotsDirectory = Path.Combine(Path.GetTempPath(), $"BotLoaderTests_{Guid.NewGuid()}");
+        Directory.CreateDirectory(_testBotsDirectory);
+    }
+
+    [TestCleanup]
+    public void Cleanup()
+    {
+        // Clean up test directory
+        if (Directory.Exists(_testBotsDirectory))
+        {
+            Directory.Delete(_testBotsDirectory, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public async Task LoadBotFromFolder_SingleFile_CompilesSuccessfully()
+    {
+        // Arrange
+        var teamName = "TestTeam";
+        var botFolder = Path.Combine(_testBotsDirectory, $"{teamName}_v1");
+        Directory.CreateDirectory(botFolder);
+
+        // Create a simple valid bot that implements IBot and handles all game types
+        var botCode = @"
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+using TournamentEngine.Core.Common;
+
+public class TestBot : IBot
+{
+    public string TeamName => ""TestTeam"";
+
+    public async Task<string> GetMoveAsync(GameState state, CancellationToken cancellationToken)
+    {
+        // Simple bot that handles all game types
+        return state.GameType switch
+        {
+            GameType.RPSLS => ""Rock"",
+            GameType.ColonelBlotto => ""10,10,10,10,10,10,10,10,10,10"",
+            GameType.PenaltyKick => ""Left"",
+            GameType.Security => ""Scan"",
+            _ => ""Unknown""
+        };
+    }
+}";
+
+        var botFilePath = Path.Combine(botFolder, "TestBot.cs");
+        await File.WriteAllTextAsync(botFilePath, botCode);
+
+        var botLoader = new Core.BotLoader.BotLoader();
+
+        // Act
+        var result = await botLoader.LoadBotFromFolderAsync(botFolder);
+
+        // Assert
+        Assert.IsTrue(result.IsValid, $"Bot should be valid. Errors: {string.Join(", ", result.ValidationErrors)}");
+        Assert.IsNotNull(result.BotInstance, "BotInstance should not be null for valid bot");
+        Assert.AreEqual(teamName, result.TeamName);
+        Assert.AreEqual(0, result.ValidationErrors.Count, "Valid bot should have no validation errors");
+    }
+}

@@ -1,53 +1,41 @@
 ﻿namespace TournamentEngine.Core.Common;
 
 /// <summary>
-/// Interface for bot loading and validation services
+/// Interface for loading and compiling bot code from files or directories.
+/// Uses Roslyn to compile C# source files into executable bots.
 /// </summary>
 public interface IBotLoader
 {
     /// <summary>
-    /// Load a bot from a file path
+    /// Loads all bots from the specified directory.
+    /// Scans for team folders, each containing one or more .cs files.
+    /// Each bot handles all game types through a single IBot implementation.
     /// </summary>
-    /// <param name="filePath">Path to the bot source file</param>
-    /// <param name="gameType">Game type the bot should support</param>
+    /// <param name="directory">Directory containing team folders with bot source files</param>
     /// <param name="cancellationToken">Cancellation token for timeout handling</param>
-    /// <returns>Bot information with validation results</returns>
-    Task<BotInfo> LoadBot(string filePath, GameType gameType, CancellationToken cancellationToken);
-
+    /// <returns>List of bot information (both valid and invalid bots)</returns>
+    Task<List<BotInfo>> LoadBotsFromDirectoryAsync(
+        string directory,
+        CancellationToken cancellationToken = default);
+    
     /// <summary>
-    /// Load all bots from a directory
+    /// Loads a single bot from a team folder.
+    /// Compiles all .cs files in the folder together into one assembly.
+    /// Bot must implement IBot interface and handle all game types.
     /// </summary>
-    /// <param name="botsDirectory">Directory containing bot files</param>
-    /// <param name="gameType">Game type the bots should support</param>
+    /// <param name="teamFolder">Path to team folder containing bot source files</param>
     /// <param name="cancellationToken">Cancellation token for timeout handling</param>
-    /// <returns>List of bot information with validation results</returns>
-    Task<List<BotInfo>> LoadBotsFromDirectory(string botsDirectory, GameType gameType, CancellationToken cancellationToken);
-
+    /// <returns>Bot information with populated BotInstance if valid</returns>
+    Task<BotInfo> LoadBotFromFolderAsync(
+        string teamFolder,
+        CancellationToken cancellationToken = default);
+    
     /// <summary>
-    /// Validate that a bot implements the required methods for a game
+    /// Validates bot code files without compiling.
+    /// Checks syntax, IBot implementation, namespace restrictions, and size limits.
+    /// Accepts multiple file contents for multi-file bots.
     /// </summary>
-    /// <param name="bot">Bot to validate</param>
-    /// <param name="gameType">Game type to validate against</param>
+    /// <param name="files">Dictionary of filename to file content</param>
     /// <returns>Validation result with any errors</returns>
-    Task<(bool isValid, List<string> errors)> ValidateBot(IBot bot, GameType gameType);
-
-    /// <summary>
-    /// Create a bot instance from loaded code
-    /// </summary>
-    /// <param name="botInfo">Bot information from loading process</param>
-    /// <param name="cancellationToken">Cancellation token for timeout handling</param>
-    /// <returns>Instantiated bot ready for tournament</returns>
-    Task<IBot> CreateBotInstance(BotInfo botInfo, CancellationToken cancellationToken);
-
-    /// <summary>
-    /// Get allowed namespaces for bot code
-    /// </summary>
-    /// <returns>List of allowed namespace patterns</returns>
-    List<string> GetAllowedNamespaces();
-
-    /// <summary>
-    /// Get blocked namespaces for bot code
-    /// </summary>
-    /// <returns>List of blocked namespace patterns</returns>
-    List<string> GetBlockedNamespaces();
+    BotValidationResult ValidateBotCode(Dictionary<string, string> files);
 }
