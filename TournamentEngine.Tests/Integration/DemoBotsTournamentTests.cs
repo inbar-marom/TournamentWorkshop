@@ -4,7 +4,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using TournamentEngine.Core.Common;
-using TournamentEngine.Core.GameRunner;
 using TournamentEngine.Core.Scoring;
 using TournamentEngine.Core.Tournament;
 
@@ -29,31 +28,29 @@ public class DemoBotsTournamentTests
     [TestMethod]
     public async Task RpslsTournament_TeamPaperBeatsTeamRock()
     {
-        // Arrange: two demo bots
+        // Arrange: two demo bots instantiated directly
         var bots = new List<BotInfo>
         {
             new BotInfo
             {
                 TeamName = "TeamRock",
-                GameType = GameType.RPSLS,
-                FilePath = "workshop/demo_bots/TeamRock.cs",
                 IsValid = true,
                 ValidationErrors = new List<string>(),
-                LoadTime = DateTime.UtcNow
+                LoadTime = DateTime.UtcNow,
+                BotInstance = new TeamRockBot()
             },
             new BotInfo
             {
                 TeamName = "TeamPaper",
-                GameType = GameType.RPSLS,
-                FilePath = "workshop/demo_bots/TeamPaper.cs",
                 IsValid = true,
                 ValidationErrors = new List<string>(),
-                LoadTime = DateTime.UtcNow
+                LoadTime = DateTime.UtcNow,
+                BotInstance = new TeamPaperBot()
             }
         };
 
         var config = CreateConfig();
-        var runner = new GameRunner(config);
+        var runner = new TournamentEngine.Core.GameRunner.GameRunner(config);
         var scoring = new ScoringSystem();
         var engine = new GroupStageTournamentEngine(runner, scoring);
         var manager = new TournamentManager(engine, runner);
