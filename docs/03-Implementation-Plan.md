@@ -6,11 +6,11 @@ Build the Tournament Engine in C# as a console application with clean components
 
 ## Implementation Progress
 
-**Overall Status:** 7/14 steps completed, 3 partially completed, 4 not started
+**Overall Status:** 7/14 steps completed, 4 partially completed, 3 not started
 
 - ✅ **Completed (7):** Steps 1, 2, 3, 5, 6, 9, 11
-- ⏳ **Partial (3):** Steps 4, 8, 14  
-- ❌ **Not Started (4):** Steps 7, 10, 12, 13
+- ⏳ **Partial (4):** Steps 4, 8, 12, 14  
+- ❌ **Not Started (3):** Steps 7, 10, 13
 
 **Latest Achievement:** Multi-Tournament Orchestrator (Step 9) with comprehensive thread-safety documentation and 124 passing tests.
 
@@ -207,39 +207,67 @@ Build the Tournament Engine in C# as a console application with clean components
 
 ---
 
-### ❌ 12. Implement Bot Loader
+### ⏳ 12. Implement Local Bot Loader
 
-**Status:** NOT STARTED
+**Status:** PARTIALLY COMPLETED (Steps 1.1-1.3 done, 1.4-1.5 in progress)
 
 **Location:** `TournamentEngine.Core/BotLoader/BotLoader.cs`
 
-**Implementation Options:**
-- **Option A:** Roslyn scripting
-- **Option B:** External process isolation
+**Documentation:** See [12-Step12-Local-Bot-Loader-Plan.md](12-Step12-Local-Bot-Loader-Plan.md)
+
+**Approach:** Roslyn compilation with multi-file support
 
 **Features:**
-- Enforce allowed/blocked namespaces
-- Size limits
-- Signature checks
-- Batch team load
+- ✅ Single-file bot compilation (Step 1.1)
+- ✅ Multi-file bot compilation (Step 1.1b)
+- ✅ Size validation (per-file 50KB, total 200KB) (Step 1.2)
+- ✅ Multiple IBot detection (Step 1.2)
+- ✅ Namespace restriction enforcement (Step 1.3)
+- 🔄 Batch directory loading (Step 1.4 - TDD tests created)
+- 🔄 Parallel loading with concurrency control (Step 1.5 - TDD tests created)
+
+**Current Progress:**
+- 9/13 tests passing (Steps 1.1-1.3 complete)
+- 4 tests in RED phase (Steps 1.4-1.5 awaiting implementation)
+
+**Next Steps:**
+- Implement `LoadBotsFromDirectoryAsync()` method
+- Add parallel loading with `Parallel.ForEachAsync`
+- Add MaxDegreeOfParallelism configuration
+- Verify thread safety
 
 ---
 
-### ❌ 13. Optional API Skeleton
+### ❌ 13. Implement Remote Bot Registration API
 
-**Status:** NOT STARTED (Optional)
+**Status:** NOT STARTED (Depends on Step 12 completion)
 
-**Location:** `TournamentEngine.Api/`
+**Location:** `TournamentEngine.Api/` (New project)
 
-**Stack:** ASP.NET Core minimal API
+**Documentation:** See [13-Step13-Remote-Bot-API-Plan.md](13-Step13-Remote-Bot-API-Plan.md)
+
+**Stack:** ASP.NET Core Minimal API (.NET 8)
 
 **Features:**
-- Endpoints
-- Request/response schemas
-- API key auth
-- Rate limiting middleware
+- RESTful bot submission endpoints
+- Multi-file bot upload support
+- Thread-safe concurrent submissions
+- Team version management (overwrite support)
+- Batch submission endpoint
+- List and delete operations
+- Integration with Step 12 (Local Bot Loader)
 
-**Status:** Optional for POC
+**API Endpoints:**
+- `POST /api/bots/submit` - Submit single bot
+- `POST /api/bots/submit-batch` - Submit multiple bots
+- `GET /api/bots/list` - List all submissions
+- `DELETE /api/bots/{teamName}` - Remove bot
+
+**Storage:**
+- Local directory storage (`bots/`)
+- Version tracking per team
+- Metadata JSON files
+- Delegates to Step 12 for compilation
 
 ---
 

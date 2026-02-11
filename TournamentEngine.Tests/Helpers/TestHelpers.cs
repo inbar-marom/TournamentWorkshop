@@ -16,8 +16,7 @@ public static class TestHelpers
             bots.Add(new BotInfo
             {
                 TeamName = $"Team{i + 1}",
-                GameType = gameType,
-                FilePath = $"bots/team{i + 1}/bot.cs",
+                FolderPath = $"bots/team{i + 1}",
                 IsValid = true,
                 ValidationErrors = new List<string>(),
                 LoadTime = DateTime.UtcNow

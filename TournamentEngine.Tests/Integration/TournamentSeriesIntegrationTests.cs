@@ -10,6 +10,7 @@ using TournamentEngine.Core.Common;
 using TournamentEngine.Core.GameRunner;
 using TournamentEngine.Core.Scoring;
 using TournamentEngine.Core.Tournament;
+using TournamentEngine.Core.BotLoader;
 using TournamentEngine.Tests.Helpers;
 
 /// <summary>
@@ -41,7 +42,7 @@ public class TournamentSeriesIntegrationTests
     public async Task FullSeries_WithThreeTournamentsSameGame_CompletesSuccessfully()
     {
         // Arrange
-        var bots = CreateDemoBots(10);
+        var bots = await CreateDemoBots(10);
         var seriesConfig = new TournamentSeriesConfig
         {
             GameTypes = new List<GameType> { GameType.RPSLS, GameType.RPSLS, GameType.RPSLS },
@@ -108,7 +109,7 @@ public class TournamentSeriesIntegrationTests
     public async Task FullSeries_WithMultipleGameTypes_CompletesSuccessfully()
     {
         // Arrange
-        var bots = CreateDemoBots(10);
+        var bots = await CreateDemoBots(10);
         var seriesConfig = new TournamentSeriesConfig
         {
             GameTypes = new List<GameType> 
@@ -161,7 +162,7 @@ public class TournamentSeriesIntegrationTests
     public async Task FullSeries_VerifiesSeriesStandingsAggregation()
     {
         // Arrange
-        var bots = CreateDemoBots(5);
+        var bots = await CreateDemoBots(5);
         var seriesConfig = new TournamentSeriesConfig
         {
             GameTypes = new List<GameType> { GameType.RPSLS, GameType.RPSLS },
@@ -212,7 +213,7 @@ public class TournamentSeriesIntegrationTests
     public async Task FullSeries_WithLargeBotCount_CompletesSuccessfully()
     {
         // Arrange
-        var bots = CreateDemoBots(50);
+        var bots = await CreateDemoBots(50);
         var seriesConfig = new TournamentSeriesConfig
         {
             GameTypes = new List<GameType> { GameType.RPSLS, GameType.ColonelBlotto },
@@ -243,7 +244,7 @@ public class TournamentSeriesIntegrationTests
     public async Task FullSeries_WithCancellation_ThrowsOperationCanceledException()
     {
         // Arrange
-        var bots = CreateDemoBots(10);
+        var bots = await CreateDemoBots(10);
         var seriesConfig = new TournamentSeriesConfig
         {
             GameTypes = new List<GameType> { GameType.RPSLS, GameType.RPSLS, GameType.RPSLS },
@@ -264,7 +265,7 @@ public class TournamentSeriesIntegrationTests
     public async Task FullSeries_PreservesIndividualTournamentResults()
     {
         // Arrange
-        var bots = CreateDemoBots(8);
+        var bots = await CreateDemoBots(8);
         var seriesConfig = new TournamentSeriesConfig
         {
             GameTypes = new List<GameType> { GameType.RPSLS, GameType.ColonelBlotto },
@@ -304,7 +305,7 @@ public class TournamentSeriesIntegrationTests
     public async Task FullSeries_TournamentWinsTracking_IsAccurate()
     {
         // Arrange
-        var bots = CreateDemoBots(10);
+        var bots = await CreateDemoBots(10);
         var seriesConfig = new TournamentSeriesConfig
         {
             GameTypes = new List<GameType> 
@@ -340,22 +341,83 @@ public class TournamentSeriesIntegrationTests
         }
     }
 
-    private static List<BotInfo> CreateDemoBots(int count)
+    private static async Task<List<BotInfo>> CreateDemoBots(int count)
     {
-        var bots = new List<BotInfo>();
-        for (int i = 1; i <= count; i++)
+        var testBotsDirectory = Path.Combine(Path.GetTempPath(), $"SeriesIntegrationTestBots_{Guid.NewGuid()}");
+        Directory.CreateDirectory(testBotsDirectory);
+
+        try
         {
-            bots.Add(new BotInfo
+            // Create bot folders with code files
+            for (int i = 1; i <= count; i++)
             {
-                TeamName = $"Team{i}",
-                GameType = GameType.RPSLS,
-                FilePath = $"demo/team{i}.cs",
-                IsValid = true,
-                ValidationErrors = new List<string>(),
-                LoadTime = DateTime.UtcNow
-            });
+                var teamName = $"Team{i}";
+                var botFolder = Path.Combine(testBotsDirectory, $"{teamName}_v1");
+                Directory.CreateDirectory(botFolder);
+                var botCode = GetBotCode(i, teamName);
+                await File.WriteAllTextAsync(Path.Combine(botFolder, "Bot.cs"), botCode);
+            }
+
+            // Load bots using BotLoader
+            var botLoader = new BotLoader();
+            var bots = await botLoader.LoadBotsFromDirectoryAsync(testBotsDirectory);
+            
+            // Filter to valid bots only
+            var validBots = bots.Where(b => b.IsValid).ToList();
+            
+            return validBots;
         }
-        return bots;
+        finally
+        {
+            // Cleanup test directory
+            if (Directory.Exists(testBotsDirectory))
+            {
+                try
+                {
+                    Directory.Delete(testBotsDirectory, recursive: true);
+                }
+                catch { /* Ignore cleanup errors */ }
+            }
+        }
+    }
+
+    private static string GetBotCode(int botNumber, string teamName)
+    {
+        return $@"using System;
+using System.Threading;
+using System.Threading.Tasks;
+using TournamentEngine.Core.Common;
+
+public class Bot{botNumber} : IBot
+{{
+    public string TeamName => ""{teamName}"";
+    public GameType GameType => GameType.RPSLS;
+
+    public async Task<string> MakeMove(GameState gameState, CancellationToken cancellationToken)
+    {{
+        await Task.CompletedTask;
+        var moves = new[] {{ ""Rock"", ""Paper"", ""Scissors"" }};
+        return moves[gameState.CurrentRound % 3];
+    }}
+
+    public async Task<int[]> AllocateTroops(GameState gameState, CancellationToken cancellationToken)
+    {{
+        await Task.CompletedTask;
+        return new int[] {{ 20, 20, 20, 20, 20 }};
+    }}
+
+    public async Task<string> MakePenaltyDecision(GameState gameState, CancellationToken cancellationToken)
+    {{
+        await Task.CompletedTask;
+        return ""Left"";
+    }}
+
+    public async Task<string> MakeSecurityMove(GameState gameState, CancellationToken cancellationToken)
+    {{
+        await Task.CompletedTask;
+        return ""Scan"";
+    }}
+}}";
     }
 
     private static TournamentConfig CreateConfig()

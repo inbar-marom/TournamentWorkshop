@@ -118,16 +118,14 @@ public class ContractsTests
         var botInfo = new BotInfo
         {
             TeamName = "TestTeam",
-            GameType = GameType.RPSLS,
-            FilePath = "test/path/bot.cs",
+            FolderPath = "test/path/bot",
             IsValid = true,
             LoadTime = DateTime.Now
         };
         
         // Assert
         Assert.AreEqual("TestTeam", botInfo.TeamName);
-        Assert.AreEqual(GameType.RPSLS, botInfo.GameType);
-        Assert.AreEqual("test/path/bot.cs", botInfo.FilePath);
+        Assert.AreEqual("test/path/bot", botInfo.FolderPath);
         Assert.IsTrue(botInfo.IsValid);
         Assert.IsNotNull(botInfo.ValidationErrors);
         Assert.AreEqual(0, botInfo.ValidationErrors.Count);
