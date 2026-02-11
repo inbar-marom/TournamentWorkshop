@@ -20,6 +20,11 @@ builder.Services.AddCors(options =>
 
 // Register dashboard services
 builder.Services.AddSingleton<StateManagerService>();
+builder.Services.AddSingleton<LeaderboardService>();
+builder.Services.AddSingleton<MatchFeedService>();
+builder.Services.AddSingleton<TournamentStatusService>();
+builder.Services.AddSingleton<RealtimeUIUpdateService>();
+builder.Services.AddSingleton<SignalREventPublisher>();
 
 // Configure to listen on all network interfaces for remote access
 builder.WebHost.UseUrls("http://0.0.0.0:5000", "https://0.0.0.0:5001");
