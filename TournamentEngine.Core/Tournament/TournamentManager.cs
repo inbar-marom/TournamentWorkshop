@@ -5,6 +5,8 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using TournamentEngine.Core.Common;
+using TournamentEngine.Core.Common.Dashboard;
+using TournamentEngine.Core.Events;
 
 /// <summary>
 /// High-level tournament manager that orchestrates entire tournament execution
@@ -14,11 +16,13 @@ public class TournamentManager : ITournamentManager
 {
     private readonly ITournamentEngine _engine;
     private readonly IGameRunner _gameRunner;
+    private readonly ITournamentEventPublisher? _eventPublisher;
 
-    public TournamentManager(ITournamentEngine engine, IGameRunner gameRunner)
+    public TournamentManager(ITournamentEngine engine, IGameRunner gameRunner, ITournamentEventPublisher? eventPublisher = null)
     {
         _engine = engine ?? throw new ArgumentNullException(nameof(engine));
         _gameRunner = gameRunner ?? throw new ArgumentNullException(nameof(gameRunner));
+        _eventPublisher = eventPublisher;
     }
 
     public async Task<TournamentInfo> RunTournamentAsync(
@@ -35,6 +39,20 @@ public class TournamentManager : ITournamentManager
         // Initialize tournament
         _engine.InitializeTournament(bots, gameType, config);
 
+        // Publish tournament started event
+        if (_eventPublisher != null)
+        {
+            var startedEvent = new TournamentStartedDto
+            {
+                GameType = gameType,
+                TotalBots = bots.Count,
+                StartedAt = DateTime.UtcNow,
+                TotalGroups = 1,
+                TournamentNumber = 1
+            };
+            await _eventPublisher.PublishTournamentStartedAsync(startedEvent);
+        }
+
         // Main tournament loop - runs until engine signals completion
         while (!_engine.IsTournamentComplete())
         {
@@ -47,6 +65,19 @@ public class TournamentManager : ITournamentManager
             {
                 // No matches available - let engine advance to next phase/round
                 _engine.AdvanceToNextRound();
+                
+                // Publish round started event
+                if (_eventPublisher != null)
+                {
+                    var roundEvent = new RoundStartedDto
+                    {
+                        RoundNumber = _engine.GetCurrentRound(),
+                        TotalMatches = 0,
+                        StartedAt = DateTime.UtcNow,
+                        Stage = "Regular"
+                    };
+                    await _eventPublisher.PublishRoundStartedAsync(roundEvent);
+                }
                 continue;
             }
 
@@ -70,6 +101,24 @@ public class TournamentManager : ITournamentManager
                 foreach (var result in results)
                 {
                     _engine.RecordMatchResult(result);
+                    
+                    // Publish match completed event
+                    if (_eventPublisher != null)
+                    {
+                        var matchEvent = new MatchCompletedDto
+                        {
+                            Bot1Name = result.Bot1Name,
+                            Bot2Name = result.Bot2Name,
+                            Outcome = result.Outcome,
+                            GameType = gameType,
+                            CompletedAt = DateTime.UtcNow,
+                            Bot1Score = result.Bot1Score,
+                            Bot2Score = result.Bot2Score,
+                            MatchId = Guid.NewGuid().ToString(),
+                            WinnerName = result.WinnerName
+                        };
+                        await _eventPublisher.PublishMatchCompletedAsync(matchEvent);
+                    }
                 }
             }
             else
@@ -83,11 +132,62 @@ public class TournamentManager : ITournamentManager
                         bot1, bot2, gameType, cancellationToken);
 
                     _engine.RecordMatchResult(matchResult);
+                    
+                    // Publish match completed event
+                    if (_eventPublisher != null)
+                    {
+                        var matchEvent = new MatchCompletedDto
+                        {
+                            Bot1Name = matchResult.Bot1Name,
+                            Bot2Name = matchResult.Bot2Name,
+                            Outcome = matchResult.Outcome,
+                            GameType = gameType,
+                            CompletedAt = DateTime.UtcNow,
+                            Bot1Score = matchResult.Bot1Score,
+                            Bot2Score = matchResult.Bot2Score,
+                            MatchId = Guid.NewGuid().ToString(),
+                            WinnerName = matchResult.WinnerName
+                        };
+                        await _eventPublisher.PublishMatchCompletedAsync(matchEvent);
+                    }
                 }
+            }
+
+            // Publish standings updated event after each round of matches
+            if (_eventPublisher != null)
+            {
+                var standingsEvent = new StandingsUpdatedDto
+                {
+                    OverallStandings = new List<TeamStandingDto>(),
+                    UpdatedAt = DateTime.UtcNow
+                };
+                await _eventPublisher.PublishStandingsUpdatedAsync(standingsEvent);
             }
         }
 
-        return _engine.GetTournamentInfo();
+        var finalTournamentInfo = _engine.GetTournamentInfo();
+
+        // Publish tournament completed event
+        if (_eventPublisher != null)
+        {
+            var duration = finalTournamentInfo.EndTime.HasValue
+                ? finalTournamentInfo.EndTime.Value - finalTournamentInfo.StartTime
+                : TimeSpan.Zero;
+
+            var completedEvent = new TournamentCompletedDto
+            {
+                Champion = finalTournamentInfo.Champion ?? "Unknown",
+                GameType = gameType,
+                TotalMatches = finalTournamentInfo.MatchResults?.Count ?? 0,
+                CompletedAt = DateTime.UtcNow,
+                TournamentNumber = 1,
+                TournamentId = finalTournamentInfo.TournamentId ?? Guid.NewGuid().ToString(),
+                Duration = duration
+            };
+            await _eventPublisher.PublishTournamentCompletedAsync(completedEvent);
+        }
+
+        return finalTournamentInfo;
     }
 
     private async Task<MatchResult> ExecuteMatchWithThrottleAsync(

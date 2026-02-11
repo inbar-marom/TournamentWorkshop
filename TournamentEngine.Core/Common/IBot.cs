@@ -1,4 +1,4 @@
-﻿namespace TournamentEngine.Core.Common;
+namespace TournamentEngine.Core.Common;
 
 /// <summary>
 /// Interface that all bot implementations must adhere to

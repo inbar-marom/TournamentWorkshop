@@ -1,4 +1,4 @@
-﻿namespace TournamentEngine.Core.GameRunner.Executors;
+namespace TournamentEngine.Core.GameRunner.Executors;
 
 using Common;
 using System.Linq;

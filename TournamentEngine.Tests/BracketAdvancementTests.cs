@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -172,11 +172,11 @@ public class BracketAdvancementTests
         // Arrange & Act
         var testCases = new[]
         {
-            (botCount: 3, expectedRounds: 2),  // 3 → 2 → 1
-            (botCount: 5, expectedRounds: 3),  // 5 → 3 → 2 → 1
-            (botCount: 7, expectedRounds: 3),  // 7 → 4 → 2 → 1
-            (botCount: 15, expectedRounds: 4), // 15 → 8 → 4 → 2 → 1
-            (botCount: 31, expectedRounds: 5)  // 31 → 16 → 8 → 4 → 2 → 1
+            (botCount: 3, expectedRounds: 2),  // 3 ? 2 ? 1
+            (botCount: 5, expectedRounds: 3),  // 5 ? 3 ? 2 ? 1
+            (botCount: 7, expectedRounds: 3),  // 7 ? 4 ? 2 ? 1
+            (botCount: 15, expectedRounds: 4), // 15 ? 8 ? 4 ? 2 ? 1
+            (botCount: 31, expectedRounds: 5)  // 31 ? 16 ? 8 ? 4 ? 2 ? 1
         };
 
         foreach (var (botCount, expectedRounds) in testCases)

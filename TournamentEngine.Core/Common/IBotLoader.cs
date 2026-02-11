@@ -1,4 +1,4 @@
-﻿namespace TournamentEngine.Core.Common;
+namespace TournamentEngine.Core.Common;
 
 /// <summary>
 /// Interface for loading and compiling bot code from files or directories.

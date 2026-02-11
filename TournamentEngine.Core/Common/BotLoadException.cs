@@ -1,4 +1,4 @@
-﻿namespace TournamentEngine.Core.Common;
+namespace TournamentEngine.Core.Common;
 
 /// <summary>
 /// Exception thrown when a bot fails to load

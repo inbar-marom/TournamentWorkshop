@@ -1,4 +1,4 @@
-﻿using TournamentEngine.Core.Common;
+using TournamentEngine.Core.Common;
 
 namespace TournamentEngine.Tests.DummyBots;
 
