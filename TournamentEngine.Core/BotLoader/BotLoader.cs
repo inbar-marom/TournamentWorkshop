@@ -1,5 +1,6 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using System.Collections.Concurrent;
 using System.Reflection;
 using TournamentEngine.Core.Common;
 
@@ -7,13 +8,92 @@ namespace TournamentEngine.Core.BotLoader;
 
 /// <summary>
 /// Loads and compiles bot code from files using Roslyn compilation.
-/// Supports single-file and multi-file bots.
+/// Supports single-file and multi-file bots with parallel loading.
 /// </summary>
 public class BotLoader : IBotLoader
 {
-    public Task<List<BotInfo>> LoadBotsFromDirectoryAsync(string directory, CancellationToken cancellationToken = default)
+    private readonly int _maxDegreeOfParallelism;
+
+    /// <summary>
+    /// Creates a new BotLoader with default configuration.
+    /// </summary>
+    public BotLoader() : this(maxDegreeOfParallelism: 4)
     {
-        throw new NotImplementedException("LoadBotsFromDirectoryAsync not yet implemented");
+    }
+
+    /// <summary>
+    /// Creates a new BotLoader with custom configuration.
+    /// </summary>
+    /// <param name="maxDegreeOfParallelism">Maximum number of bots to load concurrently (default: 4)</param>
+    public BotLoader(int maxDegreeOfParallelism = 4)
+    {
+        _maxDegreeOfParallelism = maxDegreeOfParallelism;
+    }
+    public async Task<List<BotInfo>> LoadBotsFromDirectoryAsync(string directory, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            // Validate directory exists
+            if (!Directory.Exists(directory))
+            {
+                throw new DirectoryNotFoundException($"Bot directory not found: {directory}");
+            }
+
+            // Get all subdirectories (each represents a team folder)
+            var teamFolders = Directory.GetDirectories(directory);
+
+            // If directory is empty, return empty list
+            if (teamFolders.Length == 0)
+            {
+                return new List<BotInfo>();
+            }
+
+            // Use thread-safe collection for parallel loading results
+            var results = new ConcurrentBag<BotInfo>();
+
+            // Configure parallel options
+            var parallelOptions = new ParallelOptions
+            {
+                MaxDegreeOfParallelism = _maxDegreeOfParallelism,
+                CancellationToken = cancellationToken
+            };
+
+            // Load each bot folder in parallel
+            await Parallel.ForEachAsync(teamFolders, parallelOptions, async (teamFolder, ct) =>
+            {
+                try
+                {
+                    var botInfo = await LoadBotFromFolderAsync(teamFolder, ct);
+                    results.Add(botInfo);
+                }
+                catch (Exception ex)
+                {
+                    // If loading fails catastrophically, create a BotInfo with error
+                    var folderName = Path.GetFileName(teamFolder);
+                    var teamName = folderName.Split('_')[0];
+                    
+                    results.Add(new BotInfo
+                    {
+                        TeamName = teamName,
+                        FolderPath = teamFolder,
+                        IsValid = false,
+                        ValidationErrors = new List<string> { $"Failed to load bot: {ex.Message}" }
+                    });
+                }
+            });
+
+            return results.ToList();
+        }
+        catch (DirectoryNotFoundException)
+        {
+            // Re-throw directory not found
+            throw;
+        }
+        catch (Exception ex)
+        {
+            // Wrap other exceptions with generic team name
+            throw new BotLoadException("Unknown", $"Failed to load bots from directory: {ex.Message}", ex);
+        }
     }
 
     public async Task<BotInfo> LoadBotFromFolderAsync(string teamFolder, CancellationToken cancellationToken = default)
