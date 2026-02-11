@@ -3,11 +3,14 @@ namespace TournamentEngine.Tests.Integration;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.SignalR;
-using Microsoft.Extensions.Logging;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.SignalR.Client;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Moq;
 using TournamentEngine.Core.Common;
 using TournamentEngine.Core.Common.Dashboard;
 using TournamentEngine.Core.GameRunner;
@@ -20,7 +23,7 @@ using TournamentEngine.Tests.Helpers;
 /// <summary>
 /// Full-stack integration tests combining TournamentHub (SignalR) with TournamentSeriesManager.
 /// Tests the integration between tournament engine and real-time dashboard broadcasts.
-/// Verifies that tournament data flows correctly through SignalR to connected clients.
+/// Uses REAL Dashboard server - no mocking!
 /// </summary>
 [TestClass]
 public class FullStackIntegrationTests
@@ -31,13 +34,14 @@ public class FullStackIntegrationTests
     private TournamentManager _tournamentManager = null!;
     private TournamentSeriesManager _seriesManager = null!;
     private TournamentConfig _baseConfig = null!;
-    private Mock<IHubCallerClients> _mockClients = null!;
-    private Mock<IClientProxy> _mockClientProxy = null!;
+    
+    private WebApplication _dashboardApp = null!;
+    private HubConnection _hubConnection = null!;
+    private const string DashboardUrl = "http://localhost:5555";
     private StateManagerService _stateManager = null!;
-    private TournamentHub _tournamentHub = null!;
 
     [TestInitialize]
-    public void Setup()
+    public async Task Setup()
     {
         _baseConfig = IntegrationTestHelpers.CreateConfig();
         _gameRunner = new GameRunner(_baseConfig);
@@ -46,27 +50,92 @@ public class FullStackIntegrationTests
         _tournamentManager = new TournamentManager(_engine, _gameRunner);
         _seriesManager = new TournamentSeriesManager(_tournamentManager, _scoringSystem);
 
-        // Setup SignalR mocks
-        _mockClientProxy = new Mock<IClientProxy>();
-        _mockClients = new Mock<IHubCallerClients>();
+        // Build REAL Dashboard server (same as Dashboard/Program.cs)
+        var builder = WebApplication.CreateBuilder();
         
-        _mockClients.Setup(c => c.Group(It.IsAny<string>())).Returns(_mockClientProxy.Object);
-        _mockClients.Setup(c => c.All).Returns(_mockClientProxy.Object);
+        // Add services exactly like Dashboard does
+        builder.Services.AddSignalR()
+            .AddJsonProtocol(options =>
+            {
+                options.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+            });
 
-        // Setup StateManagerService
-        var mockLogger = new Mock<ILogger<StateManagerService>>();
-        _stateManager = new StateManagerService(mockLogger.Object);
+        builder.Services.AddControllers()
+            .AddJsonOptions(options =>
+            {
+                options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+            });
 
-        // Setup TournamentHub with mocked Clients
-        var mockHubLogger = new Mock<ILogger<TournamentHub>>();
-        _tournamentHub = new Mock<TournamentHub>(_stateManager, mockHubLogger.Object)
+        builder.Services.AddCors(options =>
         {
-            CallBase = true
-        }.Object;
-        
-        // Use reflection to set the Clients property since Hub.Clients is protected
-        var clientsProperty = typeof(Hub).GetProperty("Clients");
-        clientsProperty?.SetValue(_tournamentHub, _mockClients.Object);
+            options.AddDefaultPolicy(policy =>
+            {
+                policy.AllowAnyOrigin()
+                      .AllowAnyHeader()
+                      .AllowAnyMethod();
+            });
+        });
+
+        // Register dashboard services
+        builder.Services.AddSingleton<StateManagerService>();
+        builder.Services.AddSingleton<LeaderboardService>();
+        builder.Services.AddSingleton<MatchFeedService>();
+        builder.Services.AddSingleton<TournamentStatusService>();
+        builder.Services.AddSingleton<RealtimeUIUpdateService>();
+        builder.Services.AddSingleton<SignalREventPublisher>();
+        builder.Services.AddSingleton<GroupStandingsGridService>();
+        builder.Services.AddSingleton<ChartsService>();
+        builder.Services.AddSingleton<MatchDetailsService>();
+        builder.Services.AddSingleton<TournamentVisualizationService>();
+        builder.Services.AddSingleton<ThemeService>();
+        builder.Services.AddSingleton<ExportService>();
+        builder.Services.AddSingleton<ShareService>();
+        builder.Services.AddSingleton<NotificationPreferencesService>();
+        builder.Services.AddSingleton<ResponsiveLayoutService>();
+
+        builder.WebHost.UseUrls(DashboardUrl);
+
+        _dashboardApp = builder.Build();
+
+        // Configure the HTTP request pipeline
+        _dashboardApp.UseCors();
+        _dashboardApp.UseRouting();
+        _dashboardApp.MapControllers();
+        _dashboardApp.MapHub<TournamentHub>("/tournamentHub");
+
+        // Start the dashboard
+        await _dashboardApp.StartAsync();
+
+        // Get the real StateManagerService from the dashboard
+        _stateManager = _dashboardApp.Services.GetRequiredService<StateManagerService>();
+
+        // Connect SignalR client to real dashboard
+        _hubConnection = new HubConnectionBuilder()
+            .WithUrl($"{DashboardUrl}/tournamentHub")
+            .WithAutomaticReconnect()
+            .AddJsonProtocol(options =>
+            {
+                options.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+            })
+            .Build();
+
+        await _hubConnection.StartAsync();
+    }
+
+    [TestCleanup]
+    public async Task Cleanup()
+    {
+        if (_hubConnection != null)
+        {
+            await _hubConnection.StopAsync();
+            await _hubConnection.DisposeAsync();
+        }
+
+        if (_dashboardApp != null)
+        {
+            await _dashboardApp.StopAsync();
+            await _dashboardApp.DisposeAsync();
+        }
     }
 
     [TestMethod]
@@ -79,8 +148,12 @@ public class FullStackIntegrationTests
 
         var stateDto = ConvertToTournamentStateDto(tournamentInfo);
 
-        // Act
-        await _tournamentHub.PublishStateUpdate(stateDto);
+        TournamentStateDto? receivedState = null;
+        _hubConnection.On<TournamentStateDto>("CurrentState", state => receivedState = state);
+
+        // Act - Call REAL Hub method via SignalR
+        await _hubConnection.InvokeAsync("PublishStateUpdate", stateDto);
+        await Task.Delay(100); // Give time for SignalR to broadcast
 
         // Assert
         Assert.AreEqual(TournamentStatus.Completed, stateDto.Status);
@@ -90,6 +163,9 @@ public class FullStackIntegrationTests
         var currentState = await _stateManager.GetCurrentStateAsync();
         Assert.IsNotNull(currentState);
         Assert.AreEqual(TournamentStatus.Completed, currentState.Status);
+        
+        Assert.IsNotNull(receivedState, "Should have received state broadcast");
+        Assert.AreEqual(TournamentStatus.Completed, receivedState.Status);
     }
 
     [TestMethod]
@@ -103,8 +179,12 @@ public class FullStackIntegrationTests
         var firstMatch = tournamentInfo.MatchResults.First();
         var matchDto = ConvertToRecentMatchDto(firstMatch);
 
-        // Act
-        await _tournamentHub.PublishMatchCompleted(matchDto);
+        RecentMatchDto? receivedMatch = null;
+        _hubConnection.On<RecentMatchDto>("MatchCompleted", match => receivedMatch = match);
+
+        // Act - Call REAL Hub method via SignalR
+        await _hubConnection.InvokeAsync("PublishMatchCompleted", matchDto);
+        await Task.Delay(100);
 
         // Assert
         Assert.IsNotNull(matchDto.MatchId);
@@ -112,6 +192,10 @@ public class FullStackIntegrationTests
         Assert.IsNotNull(matchDto.Bot2Name);
         Assert.IsTrue(matchDto.Bot1Score >= 0);
         Assert.IsTrue(matchDto.Bot2Score >= 0);
+        
+        Assert.IsNotNull(receivedMatch, "Should have received match broadcast");
+        Assert.AreEqual(matchDto.Bot1Name, receivedMatch.Bot1Name);
+        Assert.AreEqual(matchDto.Bot2Name, receivedMatch.Bot2Name);
     }
 
     [TestMethod]
@@ -125,16 +209,17 @@ public class FullStackIntegrationTests
             BaseConfig = _baseConfig
         };
 
-        // Act - Run series and publish updates for each tournament
+        // Act - Run series and publish updates for each tournament via REAL Hub
         var seriesInfo = await _seriesManager.RunSeriesAsync(bots, seriesConfig);
         
         int updateCount = 0;
         foreach (var tournament in seriesInfo.Tournaments)
         {
             var stateDto = ConvertToTournamentStateDto(tournament, seriesInfo, updateCount);
-            await _tournamentHub.PublishStateUpdate(stateDto);
+            await _hubConnection.InvokeAsync("PublishStateUpdate", stateDto);
             updateCount++;
         }
+        await Task.Delay(100);
 
         // Assert
         Assert.AreEqual(3, updateCount);
@@ -152,14 +237,15 @@ public class FullStackIntegrationTests
         var tournamentInfo = await _tournamentManager.RunTournamentAsync(
             bots, GameType.RPSLS, _baseConfig);
 
-        // Act - Publish all match completed events
+        // Act - Publish all match completed events via REAL Hub
         List<RecentMatchDto> publishedMatches = new();
         foreach (var match in tournamentInfo.MatchResults)
         {
             var matchDto = ConvertToRecentMatchDto(match);
             publishedMatches.Add(matchDto);
-            await _tournamentHub.PublishMatchCompleted(matchDto);
+            await _hubConnection.InvokeAsync("PublishMatchCompleted", matchDto);
         }
+        await Task.Delay(100);
 
         // Assert
         Assert.IsTrue(publishedMatches.Count > 0);
@@ -188,8 +274,9 @@ public class FullStackIntegrationTests
             .Select(ConvertToRecentMatchDto)
             .ToList();
 
-        // Act
-        await _tournamentHub.PublishStateUpdate(stateDto);
+        // Act - Publish via REAL Hub
+        await _hubConnection.InvokeAsync("PublishStateUpdate", stateDto);
+        await Task.Delay(100);
 
         // Assert
         var recentMatches = _stateManager.GetRecentMatches(10);
@@ -240,7 +327,8 @@ public class FullStackIntegrationTests
             LastUpdated = DateTime.UtcNow
         };
 
-        await _tournamentHub.PublishStateUpdate(finalStateDto);
+        await _hubConnection.InvokeAsync("PublishStateUpdate", finalStateDto);
+        await Task.Delay(100);
 
         // Assert
         Assert.AreEqual(4, finalStateDto.SeriesProgress.CompletedCount);
@@ -276,7 +364,8 @@ public class FullStackIntegrationTests
             LastUpdated = DateTime.UtcNow
         };
 
-        await _tournamentHub.PublishStateUpdate(stateDto);
+        await _hubConnection.InvokeAsync("PublishStateUpdate", stateDto);
+        await Task.Delay(100);
 
         // Assert
         Assert.AreEqual(bots.Count, stateDto.OverallLeaderboard.Count);
@@ -330,8 +419,9 @@ public class FullStackIntegrationTests
             LastUpdated = DateTime.UtcNow
         };
 
-        // Act
-        await _tournamentHub.PublishStateUpdate(stateDto);
+        // Act - Publish via REAL Hub
+        await _hubConnection.InvokeAsync("PublishStateUpdate", stateDto);
+        await Task.Delay(100);
 
         // Assert
         var currentState = await _stateManager.GetCurrentStateAsync();
@@ -392,14 +482,15 @@ public class FullStackIntegrationTests
                 LastUpdated = DateTime.UtcNow
             };
             
-            await _tournamentHub.PublishStateUpdate(stateDto);
+            await _hubConnection.InvokeAsync("PublishStateUpdate", stateDto);
             
-            // Also publish some match completed events
+            // Also publish some match completed events via REAL Hub
             foreach (var match in tournament.MatchResults.Take(5))
             {
-                await _tournamentHub.PublishMatchCompleted(ConvertToRecentMatchDto(match));
+                await _hubConnection.InvokeAsync("PublishMatchCompleted", ConvertToRecentMatchDto(match));
             }
         }
+        await Task.Delay(200);
 
         // Assert
         var finalState = await _stateManager.GetCurrentStateAsync();
