@@ -9,7 +9,7 @@ public class MatchResult
     public required string Bot2Name { get; init; }
     public required GameType GameType { get; init; }
     public required MatchOutcome Outcome { get; init; }
-    public required string WinnerName { get; init; }
+    public string? WinnerName { get; init; }
     public int Bot1Score { get; init; }
     public int Bot2Score { get; init; }
     public List<string> MatchLog { get; init; } = new();

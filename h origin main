@@ -1,0 +1,20 @@
+* [33m5fde9fb[m[33m ([m[1;36mHEAD -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m [main] Step 3 QA: fix tests and usings; resolve tuple dictionary initialization; respect init-only models; clean asserts and warnings
+* [33med8db61[m [main] Implement Step 3: Sample bots and comprehensive test suite Dummy Bots implemented: - RockBot: Always plays Rock, predictable behavior for testing - CycleBot: Cycles through RPSLS moves in sequence - RandomBot: Makes random valid moves with proper randomization - PaperBot: Always plays Paper, counters Rock for deterministic tests - FaultyBot: Intentionally invalid moves/allocations for error testing - TimeoutBot: Simulates timeout scenarios for timeout handling tests Test Coverage implemented: - ContractsTests: Validates all enums, data models, and exceptions - DummyBotTests: Tests all bot implementations and interface compliance - BotLoaderValidationTests: Validates move/allocation rules and security - RPSLSHappyPathTests: Complete RPSLS game rules and match scenarios - BracketAdvancementTests: Tournament bracket logic and progression Features: - 6 diverse dummy bots for comprehensive testing scenarios - 60+ unit tests covering contracts, bot validation, game rules, and tournament logic - RPSLS complete rule implementation with all winning combinations - Single-elimination bracket generation for various bot counts - Mock tournament progression with proper ranking calculations - Error handling validation for invalid moves, timeouts, and security violations - Global using statements for clean test code All tests compile and run successfully. Ready for Step 4 implementation.
+[31m|[m * [33m199755d[m[33m ([m[1;31morigin/feature/bot-loader[m[33m)[m Implement Step 1.1 - Bot Loader single-file compilation (TDD Green)
+[31m|[m * [33mdbea6f7[m Add Step 1.1 TDD test skeleton - Bot Loader single-file compilation
+[31m|[m * [33m016f6b2[m Remove prescriptive file names from API endpoint examples
+[31m|[m * [33m31d4c18[m Clarify Bot Loader compilation model and isolation mechanics
+[31m|[m * [33maa143ac[m Update Bot Loader plan for multi-file bot support
+[31m|[m * [33m83618cf[m Add comprehensive Bot Loader implementation plan (Step 12)
+[31m|[m * [33m1a9d7cd[m[33m ([m[1;31morigin/feature/multi-tournament-orchestrator[m[33m)[m Add BotInstance property to BotInfo for pre-loaded bot storage
+[31m|[m * [33m1ad8be9[m Update implementation plan with completion status for all steps
+[31m|[m * [33mb4eae0b[m Add comprehensive thread safety documentation for TournamentSeriesManager
+[31m|[m * [33m07895fa[m Implement Phase 8: Series Statistics and Add Comprehensive Integration Tests
+[31m|[m * [33m04006c6[m Implement Phase 2: Series manager with single tournament
+[31m|[m * [33me2994e3[m Simplify TournamentSeriesConfig to use GameTypes.Count
+[31m|[m * [33m86266fc[m Implement Phase 1: Tournament series data structures
+[31m|[m * [33m0eaa4d4[m Add implementation plan for multi-tournament orchestrator
+[31m|[m * [33m9944862[m[33m ([m[1;31morigin/feature/parallel-match-execution[m[33m)[m Complete thread-safety for all engine public methods
+[31m|[m * [33m9fac980[m Fix thread-safety in reader methods
+[31m|[m * [33mf828078[m Add comprehensive thread-safety tests for GroupStageTournamentEngine
+[31m|[m * [33m7cd1001[m Add thread-safety to GroupStageTournamentEngine

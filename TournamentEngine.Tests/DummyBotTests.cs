@@ -121,7 +121,7 @@ public class DummyBotTests
         for (int i = 0; i < 20; i++)
         {
             var move = await bot.MakeMove(gameState, CancellationToken.None);
-            Assert.IsTrue(validMoves.Contains(move), $"Invalid move: {move}");
+            Assert.IsTrue(validMoves.Contains(move));
         }
     }
 
@@ -167,7 +167,7 @@ public class DummyBotTests
         {
             var allocation = await bot.AllocateTroops(gameState, CancellationToken.None);
             
-            Assert.AreEqual(5, allocation.Length, $"{bot.TeamName} should allocate to 5 battlefields");
+            Assert.AreEqual(5, allocation.Length, "Allocation should have 5 entries");
             Assert.IsTrue(allocation.All(x => x >= 0), $"{bot.TeamName} should not allocate negative troops");
         }
     }
@@ -214,8 +214,8 @@ public class DummyBotTests
 
         // Assert
         Assert.AreEqual(5, allocation.Length);
-        Assert.AreNotEqual(100, allocation.Sum()); // Should not sum to 100
-        Assert.AreEqual(150, allocation.Sum()); // Should sum to 150 (invalid)
+        Assert.AreNotEqual(100, allocation.Sum());
+        Assert.AreEqual(150, allocation.Sum());
     }
 
     [TestMethod]
@@ -236,7 +236,7 @@ public class DummyBotTests
             var allocation = await bot.AllocateTroops(gameState, CancellationToken.None);
             
             Assert.AreEqual(5, allocation.Length);
-            Assert.AreEqual(100, allocation.Sum(), $"Random allocation {i} should sum to 100");
+            Assert.AreEqual(100, allocation.Sum());
             Assert.IsTrue(allocation.All(x => x >= 0), $"Random allocation {i} should not have negative values");
         }
     }
@@ -314,6 +314,6 @@ public class DummyBotTests
         var teamNames = bots.Select(b => b.TeamName).ToList();
 
         // Assert
-        Assert.AreEqual(teamNames.Count, teamNames.Distinct().Count(), "All bot team names should be unique");
+        Assert.AreEqual(teamNames.Count, teamNames.Distinct().Count());
     }
 }
