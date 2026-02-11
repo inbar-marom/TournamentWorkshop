@@ -39,6 +39,7 @@ public class FullStackIntegrationTests
     private HubConnection _hubConnection = null!;
     private const string DashboardUrl = "http://localhost:5555";
     private StateManagerService _stateManager = null!;
+    private SignalRTournamentEventPublisher _eventPublisher = null!;
 
     [TestInitialize]
     public async Task Setup()
@@ -47,8 +48,6 @@ public class FullStackIntegrationTests
         _gameRunner = new GameRunner(_baseConfig);
         _scoringSystem = new ScoringSystem();
         _engine = new GroupStageTournamentEngine(_gameRunner, _scoringSystem);
-        _tournamentManager = new TournamentManager(_engine, _gameRunner);
-        _seriesManager = new TournamentSeriesManager(_tournamentManager, _scoringSystem);
 
         // Build REAL Dashboard server (same as Dashboard/Program.cs)
         var builder = WebApplication.CreateBuilder();
@@ -78,6 +77,7 @@ public class FullStackIntegrationTests
 
         // Register dashboard services
         builder.Services.AddSingleton<StateManagerService>();
+        builder.Services.AddSingleton<SignalRTournamentEventPublisher>();
         builder.Services.AddSingleton<LeaderboardService>();
         builder.Services.AddSingleton<MatchFeedService>();
         builder.Services.AddSingleton<TournamentStatusService>();
@@ -108,6 +108,11 @@ public class FullStackIntegrationTests
 
         // Get the real StateManagerService from the dashboard
         _stateManager = _dashboardApp.Services.GetRequiredService<StateManagerService>();
+        _eventPublisher = _dashboardApp.Services.GetRequiredService<SignalRTournamentEventPublisher>();
+
+        // Create TournamentManager with real-time event publisher
+        _tournamentManager = new TournamentManager(_engine, _gameRunner, _eventPublisher);
+        _seriesManager = new TournamentSeriesManager(_tournamentManager, _scoringSystem);
 
         // Connect SignalR client to real dashboard
         _hubConnection = new HubConnectionBuilder()
@@ -143,63 +148,80 @@ public class FullStackIntegrationTests
     {
         // Arrange
         var bots = await IntegrationTestHelpers.CreateDemoBots(6);
+
+        var receivedMatches = new List<RecentMatchDto>();
+        TournamentStateDto? receivedState = null;
+
+        // Subscribe to real-time events BEFORE tournament starts
+        _hubConnection.On<RecentMatchDto>("MatchCompleted", match =>
+        {
+            receivedMatches.Add(match);
+        });
+
+        _hubConnection.On<TournamentStateDto>("CurrentState", state =>
+        {
+            receivedState = state;
+        });
+
+        // Act - Run tournament, events will stream in REAL-TIME as matches complete
         var tournamentInfo = await _tournamentManager.RunTournamentAsync(
             bots, GameType.RPSLS, _baseConfig);
 
-        var stateDto = ConvertToTournamentStateDto(tournamentInfo);
-
-        TournamentStateDto? receivedState = null;
-        _hubConnection.On<TournamentStateDto>("CurrentState", state => receivedState = state);
-
-        // Act - Call REAL Hub method via SignalR
-        await _hubConnection.InvokeAsync("PublishStateUpdate", stateDto);
-        await Task.Delay(100); // Give time for SignalR to broadcast
+        await Task.Delay(200); // Give SignalR time to deliver all events
 
         // Assert
-        Assert.AreEqual(TournamentStatus.Completed, stateDto.Status);
-        Assert.IsNotNull(stateDto.CurrentTournament);
-        Assert.IsTrue(stateDto.OverallLeaderboard.Count > 0);
+        Assert.AreEqual(TournamentState.Completed, tournamentInfo.State);
+        Assert.IsNotNull(tournamentInfo.Champion);
         
-        var currentState = await _stateManager.GetCurrentStateAsync();
-        Assert.IsNotNull(currentState);
-        Assert.AreEqual(TournamentStatus.Completed, currentState.Status);
+        // Verify we received match events in real-time during tournament execution
+        Assert.IsTrue(receivedMatches.Count > 0, "Should have received real-time match events");
+        Assert.AreEqual(tournamentInfo.MatchResults.Count, receivedMatches.Count,
+            "Should receive event for every match");
         
-        Assert.IsNotNull(receivedState, "Should have received state broadcast");
-        Assert.AreEqual(TournamentStatus.Completed, receivedState.Status);
+        // Verify match data is correct
+        foreach (var match in receivedMatches)
+        {
+            Assert.IsNotNull(match.Bot1Name);
+            Assert.IsNotNull(match.Bot2Name);
+            Assert.IsTrue(match.Bot1Score >= 0);
+            Assert.IsTrue(match.Bot2Score >= 0);
+        }
     }
 
     [TestMethod]
-    public async Task Hub_ReceivesMatchCompletedEvent_BroadcastsToClients()
+    public async Task Hub_StreamsMatchEventsInRealTime()
     {
         // Arrange
         var bots = await IntegrationTestHelpers.CreateDemoBots(4);
+
+        var receivedMatches = new List<RecentMatchDto>();
+        
+        _hubConnection.On<RecentMatchDto>("MatchCompleted", match =>
+        {
+            receivedMatches.Add(match);
+        });
+
+        // Act - Tournament runs and streams matches in real-time
         var tournamentInfo = await _tournamentManager.RunTournamentAsync(
             bots, GameType.RPSLS, _baseConfig);
 
-        var firstMatch = tournamentInfo.MatchResults.First();
-        var matchDto = ConvertToRecentMatchDto(firstMatch);
-
-        RecentMatchDto? receivedMatch = null;
-        _hubConnection.On<RecentMatchDto>("MatchCompleted", match => receivedMatch = match);
-
-        // Act - Call REAL Hub method via SignalR
-        await _hubConnection.InvokeAsync("PublishMatchCompleted", matchDto);
-        await Task.Delay(100);
+        await Task.Delay(200);
 
         // Assert
-        Assert.IsNotNull(matchDto.MatchId);
-        Assert.IsNotNull(matchDto.Bot1Name);
-        Assert.IsNotNull(matchDto.Bot2Name);
-        Assert.IsTrue(matchDto.Bot1Score >= 0);
-        Assert.IsTrue(matchDto.Bot2Score >= 0);
+        Assert.IsTrue(receivedMatches.Count > 0, "Should receive real-time match events");
+        Assert.AreEqual(tournamentInfo.MatchResults.Count, receivedMatches.Count);
         
-        Assert.IsNotNull(receivedMatch, "Should have received match broadcast");
-        Assert.AreEqual(matchDto.Bot1Name, receivedMatch.Bot1Name);
-        Assert.AreEqual(matchDto.Bot2Name, receivedMatch.Bot2Name);
+        // Verify match data matches tournament results
+        for (int i = 0; i < receivedMatches.Count; i++)
+        {
+            Assert.IsNotNull(receivedMatches[i].MatchId);
+            Assert.IsNotNull(receivedMatches[i].Bot1Name);
+            Assert.IsNotNull(receivedMatches[i].Bot2Name);
+        }
     }
 
     [TestMethod]
-    public async Task Hub_SeriesIntegration_PublishesMultipleTournamentUpdates()
+    public async Task Hub_SeriesIntegration_StreamsMultipleTournamentsInRealTime()
     {
         // Arrange
         var bots = await IntegrationTestHelpers.CreateDemoBots(6);
@@ -209,49 +231,52 @@ public class FullStackIntegrationTests
             BaseConfig = _baseConfig
         };
 
-        // Act - Run series and publish updates for each tournament via REAL Hub
+        var receivedMatches = new List<RecentMatchDto>();
+        var tournamentStartEvents = new List<TournamentStartedDto>();
+        var tournamentCompleteEvents = new List<TournamentCompletedDto>();
+
+        _hubConnection.On<RecentMatchDto>("MatchCompleted", match => receivedMatches.Add(match));
+        _hubConnection.On<TournamentStartedDto>("TournamentStarted", evt => tournamentStartEvents.Add(evt));
+        _hubConnection.On<TournamentCompletedDto>("TournamentCompleted", evt => tournamentCompleteEvents.Add(evt));
+
+        // Act - Run series, events stream in REAL-TIME across all tournaments
         var seriesInfo = await _seriesManager.RunSeriesAsync(bots, seriesConfig);
         
-        int updateCount = 0;
-        foreach (var tournament in seriesInfo.Tournaments)
-        {
-            var stateDto = ConvertToTournamentStateDto(tournament, seriesInfo, updateCount);
-            await _hubConnection.InvokeAsync("PublishStateUpdate", stateDto);
-            updateCount++;
-        }
-        await Task.Delay(100);
+        await Task.Delay(300);
 
         // Assert
-        Assert.AreEqual(3, updateCount);
+        Assert.AreEqual(3, seriesInfo.Tournaments.Count);
         
-        var finalState = await _stateManager.GetCurrentStateAsync();
-        Assert.IsNotNull(finalState);
-        Assert.AreEqual(TournamentStatus.Completed, finalState.Status);
+        // Verify we received tournament lifecycle events
+        Assert.AreEqual(3, tournamentStartEvents.Count, "Should receive start event for each tournament");
+        Assert.AreEqual(3, tournamentCompleteEvents.Count, "Should receive complete event for each tournament");
+        
+        // Verify we received all match events in real-time
+        int totalMatches = seriesInfo.Tournaments.Sum(t => t.MatchResults.Count);
+        Assert.AreEqual(totalMatches, receivedMatches.Count,
+            "Should receive match event for every match across all tournaments");
     }
 
     [TestMethod]
-    public async Task Hub_PublishesAllMatchesFromTournament()
+    public async Task Hub_PublishesAllMatchesInRealTime()
     {
         // Arrange
         var bots = await IntegrationTestHelpers.CreateDemoBots(5);
+
+        var receivedMatches = new List<RecentMatchDto>();
+        _hubConnection.On<RecentMatchDto>("MatchCompleted", match => receivedMatches.Add(match));
+
+        // Act - Tournament streams all matches in real-time as they execute
         var tournamentInfo = await _tournamentManager.RunTournamentAsync(
             bots, GameType.RPSLS, _baseConfig);
 
-        // Act - Publish all match completed events via REAL Hub
-        List<RecentMatchDto> publishedMatches = new();
-        foreach (var match in tournamentInfo.MatchResults)
-        {
-            var matchDto = ConvertToRecentMatchDto(match);
-            publishedMatches.Add(matchDto);
-            await _hubConnection.InvokeAsync("PublishMatchCompleted", matchDto);
-        }
-        await Task.Delay(100);
+        await Task.Delay(200);
 
         // Assert
-        Assert.IsTrue(publishedMatches.Count > 0);
-        Assert.AreEqual(tournamentInfo.MatchResults.Count, publishedMatches.Count);
+        Assert.IsTrue(receivedMatches.Count > 0);
+        Assert.AreEqual(tournamentInfo.MatchResults.Count, receivedMatches.Count);
         
-        foreach (var match in publishedMatches)
+        foreach (var match in receivedMatches)
         {
             Assert.IsNotNull(match.Bot1Name);
             Assert.IsNotNull(match.Bot2Name);
@@ -260,32 +285,26 @@ public class FullStackIntegrationTests
     }
 
     [TestMethod]
-    public async Task Hub_StateManager_MaintainsRecentMatchesFeed()
+    public async Task Hub_StreamsRoundStartEvents()
     {
         // Arrange
         var bots = await IntegrationTestHelpers.CreateDemoBots(6);
+
+        var roundStartEvents = new List<RoundStartedDto>();
+        _hubConnection.On<RoundStartedDto>("RoundStarted", evt => roundStartEvents.Add(evt));
+
+        // Act - Run tournament, rounds stream as they start
         var tournamentInfo = await _tournamentManager.RunTournamentAsync(
             bots, GameType.RPSLS, _baseConfig);
 
-        var stateDto = ConvertToTournamentStateDto(tournamentInfo);
-        stateDto.RecentMatches = tournamentInfo.MatchResults
-            .OrderByDescending(m => tournamentInfo.MatchResults.IndexOf(m))
-            .Take(10)
-            .Select(ConvertToRecentMatchDto)
-            .ToList();
-
-        // Act - Publish via REAL Hub
-        await _hubConnection.InvokeAsync("PublishStateUpdate", stateDto);
-        await Task.Delay(100);
+        await Task.Delay(200);
 
         // Assert
-        var recentMatches = _stateManager.GetRecentMatches(10);
-        Assert.IsNotNull(recentMatches);
-        Assert.IsTrue(recentMatches.Count <= 10);
+        Assert.IsTrue(roundStartEvents.Count > 0, "Should receive round start events");
     }
 
     [TestMethod]
-    public async Task Hub_SeriesProgress_TracksCompletedTournaments()
+    public async Task Hub_StreamsLargeSeries_AllEventsReceived()
     {
         // Arrange
         var bots = await IntegrationTestHelpers.CreateDemoBots(8);
@@ -301,48 +320,23 @@ public class FullStackIntegrationTests
             BaseConfig = _baseConfig
         };
 
-        // Act
+        var receivedMatches = new List<RecentMatchDto>();
+        _hubConnection.On<RecentMatchDto>("MatchCompleted", match => receivedMatches.Add(match));
+
+        // Act - Run large series, stream all events in real-time
         var seriesInfo = await _seriesManager.RunSeriesAsync(bots, seriesConfig);
         
-        var finalStateDto = new TournamentStateDto
-        {
-            TournamentId = Guid.NewGuid().ToString(),
-            Status = TournamentStatus.Completed,
-            Message = "Series completed",
-            SeriesProgress = new SeriesProgressDto
-            {
-                SeriesId = Guid.NewGuid().ToString(),
-                CompletedCount = seriesInfo.Tournaments.Count,
-                TotalCount = seriesInfo.Tournaments.Count,
-                CurrentTournamentIndex = seriesInfo.Tournaments.Count - 1,
-                Tournaments = seriesInfo.Tournaments.Select((t, idx) => new TournamentInSeriesDto
-                {
-                    TournamentNumber = idx + 1,
-                    GameType = t.GameType,
-                    Status = TournamentItemStatus.Completed,
-                    Champion = t.Champion
-                }).ToList()
-            },
-            OverallLeaderboard = ConvertSeriesStandingsToTeamStandings(seriesInfo.SeriesStandings),
-            LastUpdated = DateTime.UtcNow
-        };
-
-        await _hubConnection.InvokeAsync("PublishStateUpdate", finalStateDto);
-        await Task.Delay(100);
+        await Task.Delay(500);
 
         // Assert
-        Assert.AreEqual(4, finalStateDto.SeriesProgress.CompletedCount);
-        Assert.AreEqual(4, finalStateDto.SeriesProgress.Tournaments.Count);
-        Assert.IsTrue(finalStateDto.SeriesProgress.Tournaments.All(t => t.Status == TournamentItemStatus.Completed));
-        Assert.IsTrue(finalStateDto.OverallLeaderboard.Count > 0);
-        
-        var state = await _stateManager.GetCurrentStateAsync();
-        Assert.IsNotNull(state.SeriesProgress);
-        Assert.AreEqual(4, state.SeriesProgress.CompletedCount);
+        Assert.AreEqual(4, seriesInfo.Tournaments.Count);
+        int totalMatches = seriesInfo.Tournaments.Sum(t => t.MatchResults.Count);
+        Assert.AreEqual(totalMatches, receivedMatches.Count,
+            "Should receive all match events across 4-tournament series");
     }
 
     [TestMethod]
-    public async Task Hub_LeaderboardUpdates_ReflectSeriesStandings()
+    public async Task Hub_StreamsChampionshipResults()
     {
         // Arrange
         var bots = await IntegrationTestHelpers.CreateDemoBots(10);
@@ -352,86 +346,56 @@ public class FullStackIntegrationTests
             BaseConfig = _baseConfig
         };
 
+        var completedEvents = new List<TournamentCompletedDto>();
+        _hubConnection.On<TournamentCompletedDto>("TournamentCompleted", evt => completedEvents.Add(evt));
+
         // Act
         var seriesInfo = await _seriesManager.RunSeriesAsync(bots, seriesConfig);
         
-        var stateDto = new TournamentStateDto
-        {
-            TournamentId = Guid.NewGuid().ToString(),
-            Status = TournamentStatus.Completed,
-            Message = "Leaderboard updated",
-            OverallLeaderboard = ConvertSeriesStandingsToTeamStandings(seriesInfo.SeriesStandings),
-            LastUpdated = DateTime.UtcNow
-        };
-
-        await _hubConnection.InvokeAsync("PublishStateUpdate", stateDto);
-        await Task.Delay(100);
+        await Task.Delay(300);
 
         // Assert
-        Assert.AreEqual(bots.Count, stateDto.OverallLeaderboard.Count);
-        
-        var topBot = stateDto.OverallLeaderboard.First();
-        Assert.AreEqual(1, topBot.Rank);
-        Assert.IsTrue(topBot.TotalPoints >= 0);
-        
-        // Verify rankings are properly ordered
-        for (int i = 0; i < stateDto.OverallLeaderboard.Count - 1; i++)
+        Assert.AreEqual(2, completedEvents.Count);
+        foreach (var evt in completedEvents)
         {
-            Assert.IsTrue(stateDto.OverallLeaderboard[i].TotalPoints >= 
-                          stateDto.OverallLeaderboard[i + 1].TotalPoints);
+            Assert.IsNotNull(evt.Champion);
+            Assert.IsTrue(evt.TotalMatches > 0);
         }
     }
 
     [TestMethod]
-    public async Task Hub_TournamentProgression_UpdatesCurrentTournamentInfo()
+    public async Task Hub_RealTimeProgress_MatchesStreamAsTheyComplete()
     {
         // Arrange
         var bots = await IntegrationTestHelpers.CreateDemoBots(6);
+
+        var matchTimestamps = new List<DateTime>();
+        _hubConnection.On<RecentMatchDto>("MatchCompleted", match =>
+        {
+            matchTimestamps.Add(DateTime.UtcNow);
+        });
+
+        // Act
+        var startTime = DateTime.UtcNow;
         var tournamentInfo = await _tournamentManager.RunTournamentAsync(
             bots, GameType.RPSLS, _baseConfig);
+        var endTime = DateTime.UtcNow;
 
-        var rankings = _scoringSystem.GetCurrentRankings(tournamentInfo);
-
-        var stateDto = new TournamentStateDto
-        {
-            TournamentId = Guid.NewGuid().ToString(),
-            Status = TournamentStatus.Completed,
-            Message = $"Tournament completed - Champion: {tournamentInfo.Champion}",
-            CurrentTournament = new CurrentTournamentDto
-            {
-                TournamentNumber = 1,
-                GameType = tournamentInfo.GameType,
-                Stage = TournamentStage.GroupStage,
-                CurrentRound = tournamentInfo.CurrentRound,
-                TotalRounds = tournamentInfo.TotalRounds,
-                MatchesCompleted = tournamentInfo.MatchResults.Count,
-                TotalMatches = tournamentInfo.MatchResults.Count,
-                ProgressPercentage = 100.0
-            },
-            OverallLeaderboard = rankings.Select(r => new TeamStandingDto
-            {
-                Rank = r.FinalPlacement,
-                TeamName = r.BotName,
-                TotalPoints = r.TotalScore,
-                TotalWins = r.Wins,
-                TotalLosses = r.Losses
-            }).ToList(),
-            LastUpdated = DateTime.UtcNow
-        };
-
-        // Act - Publish via REAL Hub
-        await _hubConnection.InvokeAsync("PublishStateUpdate", stateDto);
-        await Task.Delay(100);
+        await Task.Delay(200);
 
         // Assert
-        var currentState = await _stateManager.GetCurrentStateAsync();
-        Assert.IsNotNull(currentState.CurrentTournament);
-        Assert.AreEqual(100.0, currentState.CurrentTournament.ProgressPercentage);
-        Assert.AreEqual(TournamentStage.GroupStage, currentState.CurrentTournament.Stage);
+        Assert.IsTrue(matchTimestamps.Count > 0);
+        
+        // Verify matches streamed during tournament execution, not all at end
+        var firstMatchTime = matchTimestamps.First();
+        var lastMatchTime = matchTimestamps.Last();
+        
+        Assert.IsTrue(firstMatchTime >= startTime, "First match should be during tournament");
+        Assert.IsTrue(lastMatchTime <= endTime.AddSeconds(1), "Last match should be during tournament");
     }
 
     [TestMethod]
-    public async Task Hub_LargeSeriesIntegration_HandlesMultipleTournamentUpdates()
+    public async Task Hub_LargeSeriesIntegration_StreamsProgressively()
     {
         // Arrange
         var bots = await IntegrationTestHelpers.CreateDemoBots(12);
@@ -446,164 +410,27 @@ public class FullStackIntegrationTests
             BaseConfig = _baseConfig
         };
 
-        // Act
+        var receivedMatches = new List<RecentMatchDto>();
+        var tournamentCompleted = new List<TournamentCompletedDto>();
+        
+        _hubConnection.On<RecentMatchDto>("MatchCompleted", match => receivedMatches.Add(match));
+        _hubConnection.On<TournamentCompletedDto>("TournamentCompleted", evt => tournamentCompleted.Add(evt));
+
+        // Act - Run large series
         var seriesInfo = await _seriesManager.RunSeriesAsync(bots, seriesConfig);
         
-        // Publish state update for each completed tournament
-        for (int i = 0; i < seriesInfo.Tournaments.Count; i++)
-        {
-            var tournament = seriesInfo.Tournaments[i];
-            var rankings = _scoringSystem.GetCurrentRankings(tournament);
-            
-            var stateDto = new TournamentStateDto
-            {
-                TournamentId = Guid.NewGuid().ToString(),
-                Status = i < seriesInfo.Tournaments.Count - 1 
-                    ? TournamentStatus.InProgress 
-                    : TournamentStatus.Completed,
-                Message = $"Tournament {i + 1}/{seriesInfo.Tournaments.Count} completed",
-                CurrentTournament = new CurrentTournamentDto
-                {
-                    TournamentNumber = i + 1,
-                    GameType = tournament.GameType,
-                    Stage = TournamentStage.GroupStage,
-                    MatchesCompleted = tournament.MatchResults.Count,
-                    TotalMatches = tournament.MatchResults.Count,
-                    ProgressPercentage = 100.0
-                },
-                SeriesProgress = new SeriesProgressDto
-                {
-                    SeriesId = Guid.NewGuid().ToString(),
-                    CompletedCount = i + 1,
-                    TotalCount = seriesInfo.Tournaments.Count,
-                    CurrentTournamentIndex = i
-                },
-                OverallLeaderboard = ConvertSeriesStandingsToTeamStandings(seriesInfo.SeriesStandings),
-                LastUpdated = DateTime.UtcNow
-            };
-            
-            await _hubConnection.InvokeAsync("PublishStateUpdate", stateDto);
-            
-            // Also publish some match completed events via REAL Hub
-            foreach (var match in tournament.MatchResults.Take(5))
-            {
-                await _hubConnection.InvokeAsync("PublishMatchCompleted", ConvertToRecentMatchDto(match));
-            }
-        }
-        await Task.Delay(200);
+        await Task.Delay(500);
 
         // Assert
-        var finalState = await _stateManager.GetCurrentStateAsync();
-        Assert.IsNotNull(finalState);
-        Assert.AreEqual(TournamentStatus.Completed, finalState.Status);
-        Assert.IsNotNull(finalState.SeriesProgress);
-        Assert.AreEqual(3, finalState.SeriesProgress.CompletedCount);
-        Assert.IsTrue(finalState.OverallLeaderboard.Count > 0);
-    }
-
-    // Helper methods to convert tournament data to DTOs
-
-    private TournamentStateDto ConvertToTournamentStateDto(TournamentInfo tournamentInfo)
-    {
-        var rankings = _scoringSystem.GetCurrentRankings(tournamentInfo);
+        Assert.AreEqual(3, seriesInfo.Tournaments.Count);
+        Assert.AreEqual(3, tournamentCompleted.Count, "Should complete all 3 tournaments");
         
-        return new TournamentStateDto
-        {
-            TournamentId = Guid.NewGuid().ToString(),
-            Status = tournamentInfo.State == TournamentState.Completed 
-                ? TournamentStatus.Completed 
-                : TournamentStatus.InProgress,
-            Message = $"Tournament {tournamentInfo.State}",
-            CurrentTournament = new CurrentTournamentDto
-            {
-                TournamentNumber = 1,
-                GameType = tournamentInfo.GameType,
-                Stage = TournamentStage.GroupStage,
-                CurrentRound = tournamentInfo.CurrentRound,
-                TotalRounds = tournamentInfo.TotalRounds,
-                MatchesCompleted = tournamentInfo.MatchResults.Count,
-                TotalMatches = tournamentInfo.MatchResults.Count,
-                ProgressPercentage = tournamentInfo.State == TournamentState.Completed ? 100.0 : 50.0
-            },
-            OverallLeaderboard = rankings.Select(r => new TeamStandingDto
-            {
-                Rank = r.FinalPlacement,
-                TeamName = r.BotName,
-                TotalPoints = r.TotalScore,
-                TotalWins = r.Wins,
-                TotalLosses = r.Losses
-            }).ToList(),
-            RecentMatches = tournamentInfo.MatchResults
-                .OrderByDescending(m => tournamentInfo.MatchResults.IndexOf(m))
-                .Take(10)
-                .Select(ConvertToRecentMatchDto)
-                .ToList(),
-            LastUpdated = DateTime.UtcNow
-        };
-    }
-
-    private TournamentStateDto ConvertToTournamentStateDto(
-        TournamentInfo tournamentInfo, 
-        TournamentSeriesInfo seriesInfo, 
-        int tournamentIndex)
-    {
-        var stateDto = ConvertToTournamentStateDto(tournamentInfo);
+        int totalMatches = seriesInfo.Tournaments.Sum(t => t.MatchResults.Count);
+        Assert.AreEqual(totalMatches, receivedMatches.Count);
         
-        stateDto.SeriesProgress = new SeriesProgressDto
-        {
-            SeriesId = Guid.NewGuid().ToString(),
-            CompletedCount = tournamentIndex + 1,
-            TotalCount = seriesInfo.Tournaments.Count,
-            CurrentTournamentIndex = tournamentIndex,
-            Tournaments = seriesInfo.Tournaments.Select((t, idx) => new TournamentInSeriesDto
-            {
-                TournamentNumber = idx + 1,
-                GameType = t.GameType,
-                Status = idx <= tournamentIndex 
-                    ? TournamentItemStatus.Completed 
-                    : TournamentItemStatus.Pending,
-                Champion = idx <= tournamentIndex ? t.Champion : null
-            }).ToList()
-        };
-        
-        stateDto.OverallLeaderboard = ConvertSeriesStandingsToTeamStandings(seriesInfo.SeriesStandings);
-        
-        return stateDto;
-    }
-
-    private RecentMatchDto ConvertToRecentMatchDto(MatchResult match)
-    {
-        return new RecentMatchDto
-        {
-            MatchId = Guid.NewGuid().ToString(),
-            Bot1Name = match.Bot1Name,
-            Bot2Name = match.Bot2Name,
-            Outcome = match.Outcome,
-            WinnerName = match.Outcome == MatchOutcome.Player1Wins ? match.Bot1Name 
-                       : match.Outcome == MatchOutcome.Player2Wins ? match.Bot2Name 
-                       : null,
-            Bot1Score = match.Bot1Score,
-            Bot2Score = match.Bot2Score,
-            CompletedAt = DateTime.UtcNow,
-            GameType = match.GameType
-        };
-    }
-
-    private List<TeamStandingDto> ConvertSeriesStandingsToTeamStandings(
-        List<SeriesStanding> standings)
-    {
-        return standings
-            .OrderByDescending(s => s.TotalSeriesScore)
-            .Select((s, idx) => new TeamStandingDto
-            {
-                Rank = idx + 1,
-                TeamName = s.BotName,
-                TotalPoints = s.TotalSeriesScore,
-                TournamentWins = s.TournamentPlacements.Count(p => p == 1),
-                TotalWins = s.TotalWins,
-                TotalLosses = s.TotalLosses
-            })
-            .ToList();
+        // Verify final champion
+        var finalEvent = tournamentCompleted.Last();
+        Assert.IsNotNull(finalEvent.Champion);
     }
 }
 

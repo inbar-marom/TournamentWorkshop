@@ -30,6 +30,7 @@ builder.Services.AddCors(options =>
 
 // Register dashboard services
 builder.Services.AddSingleton<StateManagerService>();
+builder.Services.AddSingleton<SignalRTournamentEventPublisher>();
 builder.Services.AddSingleton<LeaderboardService>();
 builder.Services.AddSingleton<MatchFeedService>();
 builder.Services.AddSingleton<TournamentStatusService>();
