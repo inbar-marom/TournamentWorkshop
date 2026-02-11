@@ -32,6 +32,13 @@ builder.Services.AddSingleton<ChartsService>();
 builder.Services.AddSingleton<MatchDetailsService>();
 builder.Services.AddSingleton<TournamentVisualizationService>();
 
+// Register Phase 6 services
+builder.Services.AddSingleton<ThemeService>();
+builder.Services.AddSingleton<ExportService>();
+builder.Services.AddSingleton<ShareService>();
+builder.Services.AddSingleton<NotificationPreferencesService>();
+builder.Services.AddSingleton<ResponsiveLayoutService>();
+
 // Configure to listen on all network interfaces for remote access
 builder.WebHost.UseUrls("http://0.0.0.0:5000", "https://0.0.0.0:5001");
 
