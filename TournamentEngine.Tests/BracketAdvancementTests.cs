@@ -1,6 +1,5 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using TournamentEngine.Core.Common;
-using TournamentEngine.Tests.DummyBots;
 
 namespace TournamentEngine.Tests;
 
@@ -76,7 +75,6 @@ public class BracketAdvancementTests
     {
         // Arrange
         var bots = CreateMockBots(4);
-        var bracket = CreateSingleEliminationBracket(bots);
         var round1Results = new List<MatchResult>
         {
             CreateMockMatchResult(bots[0], bots[1], bots[0]), // Bot 0 wins
@@ -99,11 +97,26 @@ public class BracketAdvancementTests
     {
         // Arrange
         var bots = CreateMockBots(4);
+        var round1Results = new List<MatchResult>
+        {
+            CreateMockMatchResult(bots[0], bots[1], bots[0]), // Bot 0 wins
+            CreateMockMatchResult(bots[2], bots[3], bots[2])  // Bot 2 wins
+        };
+
+        var round2Results = new List<MatchResult>
+        {
+            CreateMockMatchResult(bots[0], bots[2], bots[0]) // Bot 0 wins championship
+        };
+
+        var allResults = new List<MatchResult>();
+        allResults.AddRange(round1Results);
+        allResults.AddRange(round2Results);
+
         var tournamentState = new TournamentInfo
         {
             TournamentId = "TEST_TOURNAMENT",
             GameType = GameType.RPSLS,
-            State = TournamentState.InProgress,
+            State = TournamentState.Completed,
             Bots = bots.Select(b => new BotInfo 
             { 
                 TeamName = b.TeamName, 
@@ -112,32 +125,13 @@ public class BracketAdvancementTests
                 IsValid = true,
                 LoadTime = DateTime.Now
             }).ToList(),
-            StartTime = DateTime.Now,
-            CurrentRound = 1,
-            TotalRounds = 2
+            MatchResults = allResults,
+            StartTime = DateTime.Now.AddHours(-1),
+            EndTime = DateTime.Now,
+            CurrentRound = 2,
+            TotalRounds = 2,
+            Champion = bots[0].TeamName
         };
-
-        // Act - Simulate tournament progression
-        // Round 1: 2 matches
-        var round1Results = new List<MatchResult>
-        {
-            CreateMockMatchResult(bots[0], bots[1], bots[0]), // Bot 0 wins
-            CreateMockMatchResult(bots[2], bots[3], bots[2])  // Bot 2 wins
-        };
-        
-        tournamentState.MatchResults.AddRange(round1Results);
-        tournamentState.CurrentRound = 2;
-        
-        // Round 2: Finals
-        var round2Results = new List<MatchResult>
-        {
-            CreateMockMatchResult(bots[0], bots[2], bots[0]) // Bot 0 wins championship
-        };
-        
-        tournamentState.MatchResults.AddRange(round2Results);
-        tournamentState.State = TournamentState.Completed;
-        tournamentState.Champion = bots[0].TeamName;
-        tournamentState.EndTime = DateTime.Now;
 
         // Assert
         Assert.AreEqual(TournamentState.Completed, tournamentState.State);
@@ -311,17 +305,27 @@ public class BracketAdvancementTests
             Wins = matchResults.Count(m => m.WinnerName == champion),
             Losses = 0,
             TotalScore = 0,
-            EliminationRound = 0
+            EliminationRound = 0,
+            EliminatedBy = null,
+            TotalPlayTime = TimeSpan.Zero,
+            OpponentsDefeated = matchResults.Where(m => m.WinnerName == champion)
+                                          .Select(m => m.WinnerName == m.Bot1Name ? m.Bot2Name : m.Bot1Name)
+                                          .ToList()
         });
         
         rankings.Add(new BotRanking 
         { 
             BotName = finalist, 
             FinalPlacement = 2,
-            Wins = matchResults.Count(m => m.WinnerName == finalist) - 1,
+            Wins = matchResults.Count(m => m.WinnerName == finalist),
             Losses = 1,
             TotalScore = 0,
-            EliminationRound = matchResults.Count
+            EliminationRound = matchResults.Count,
+            EliminatedBy = champion,
+            TotalPlayTime = TimeSpan.Zero,
+            OpponentsDefeated = matchResults.Where(m => m.WinnerName == finalist && m != finalMatch)
+                                          .Select(m => m.WinnerName == m.Bot1Name ? m.Bot2Name : m.Bot1Name)
+                                          .ToList()
         });
 
         // Add remaining bots with tied placements
@@ -335,7 +339,10 @@ public class BracketAdvancementTests
                 Wins = 0,
                 Losses = 1,
                 TotalScore = 0,
-                EliminationRound = 1
+                EliminationRound = 1,
+                EliminatedBy = "First Round",
+                TotalPlayTime = TimeSpan.Zero,
+                OpponentsDefeated = new List<string>()
             });
         }
 
@@ -357,7 +364,7 @@ public class BracketAdvancementTests
             => Task.FromResult("Rock");
 
         public Task<int[]> AllocateTroops(GameState gameState, CancellationToken cancellationToken)
-            => Task.FromResult(new int[] { 20, 20, 20, 20, 20 });
+            => Task.FromResult(new[] { 20, 20, 20, 20, 20 });
 
         public Task<string> MakePenaltyDecision(GameState gameState, CancellationToken cancellationToken)
             => Task.FromResult("Left");

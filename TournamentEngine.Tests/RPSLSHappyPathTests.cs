@@ -208,24 +208,24 @@ public class RPSLSHappyPathTests
         var rules = new Dictionary<(string, string), string>
         {
             // Rock wins
-            ("Rock", "Scissors") = "Rock",
-            ("Rock", "Lizard") = "Rock",
+            [("Rock", "Scissors")] = "Rock",
+            [("Rock", "Lizard")] = "Rock",
             
             // Paper wins
-            ("Paper", "Rock") = "Paper",
-            ("Paper", "Spock") = "Paper",
+            [("Paper", "Rock")] = "Paper",
+            [("Paper", "Spock")] = "Paper",
             
             // Scissors wins
-            ("Scissors", "Paper") = "Scissors",
-            ("Scissors", "Lizard") = "Scissors",
+            [("Scissors", "Paper")] = "Scissors",
+            [("Scissors", "Lizard")] = "Scissors",
             
             // Lizard wins
-            ("Lizard", "Spock") = "Lizard",
-            ("Lizard", "Paper") = "Lizard",
+            [("Lizard", "Spock")] = "Lizard",
+            [("Lizard", "Paper")] = "Lizard",
             
             // Spock wins
-            ("Spock", "Scissors") = "Spock",
-            ("Spock", "Rock") = "Spock",
+            [("Spock", "Scissors")] = "Spock",
+            [("Spock", "Rock")] = "Spock",
         };
 
         // Act & Assert
