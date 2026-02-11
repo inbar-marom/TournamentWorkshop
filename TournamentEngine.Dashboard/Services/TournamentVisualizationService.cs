@@ -141,6 +141,9 @@ public class TournamentVisualizationService
             return null;
 
         var matches = await _matchFeed.GetMatchesForTeamAsync(champion, 1000);
+       
+        if (matches == null)
+            matches = new List<RecentMatchDto>();
 
         var path = new ChampionPathDto
         {

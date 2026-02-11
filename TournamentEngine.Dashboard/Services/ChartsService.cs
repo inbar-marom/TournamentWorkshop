@@ -53,6 +53,7 @@ public class ChartsService
         if (state?.OverallLeaderboard == null || state.OverallLeaderboard.Count == 0)
             return data;
 
+        // Sort by points descending for better chart visualization
         foreach (var team in state.OverallLeaderboard.OrderByDescending(t => t.TotalPoints))
         {
             data.TeamNames.Add(team.TeamName);

@@ -1,6 +1,7 @@
 using Xunit;
 using Moq;
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using TournamentEngine.Dashboard.Services;
 using TournamentEngine.Core.Common;
 using TournamentEngine.Core.Common.Dashboard;
@@ -11,11 +12,19 @@ public class TournamentVisualizationServiceTests
 {
     private Mock<StateManagerService> _mockStateManager;
     private Mock<MatchFeedService> _mockMatchFeed;
+    private Mock<ILogger<StateManagerService>> _mockLogger;
+    private Mock<ILogger<MatchFeedService>> _mockMatchFeedLogger;
 
     public TournamentVisualizationServiceTests()
     {
-        _mockStateManager = new Mock<StateManagerService>();
-        _mockMatchFeed = new Mock<MatchFeedService>();
+        _mockLogger = new Mock<ILogger<StateManagerService>>();
+        _mockMatchFeedLogger = new Mock<ILogger<MatchFeedService>>();
+        _mockStateManager = new Mock<StateManagerService>(_mockLogger.Object);
+        _mockMatchFeed = new Mock<MatchFeedService>(_mockStateManager.Object);
+        
+        // Default setup for match feed
+        _mockMatchFeed.Setup(s => s.GetRecentMatchesAsync(It.IsAny<int>()))
+            .ReturnsAsync(new List<RecentMatchDto>());
     }
 
     [Fact]
@@ -181,6 +190,17 @@ public class TournamentVisualizationServiceTests
             new() { Bot1Name = "Team B", Bot2Name = "Team C", Outcome = MatchOutcome.Draw }
         };
 
+        var state = new TournamentStateDto
+        {
+            OverallLeaderboard = new List<TeamStandingDto>
+            {
+                new() { TeamName = "Team A" },
+                new() { TeamName = "Team B" },
+                new() { TeamName = "Team C" }
+            }
+        };
+
+        _mockStateManager.Setup(s => s.GetCurrentStateAsync()).ReturnsAsync(state);
         _mockMatchFeed.Setup(s => s.GetRecentMatchesAsync(It.IsAny<int>())).ReturnsAsync(matches);
 
         // Act
@@ -207,7 +227,10 @@ public class TournamentVisualizationServiceTests
             }
         };
 
+        var matches = new List<RecentMatchDto>();
+
         _mockStateManager.Setup(s => s.GetCurrentStateAsync()).ReturnsAsync(state);
+        _mockMatchFeed.Setup(s => s.GetMatchesForTeamAsync("Team A", It.IsAny<int>())).ReturnsAsync(matches);
 
         // Act
         var service = new TournamentVisualizationService(_mockStateManager.Object, _mockMatchFeed.Object);
@@ -225,11 +248,23 @@ public class TournamentVisualizationServiceTests
         // Arrange
         var matches = new List<RecentMatchDto>
         {
-            new() { Bot1Name = "Team A", WinnerName = "Team A", CompletedAt = DateTime.UtcNow.AddHours(-3) },
-            new() { Bot1Name = "Team A", WinnerName = "Team A", CompletedAt = DateTime.UtcNow.AddHours(-2) },
-            new() { Bot1Name = "Team A", WinnerName = "Team A", CompletedAt = DateTime.UtcNow.AddHours(-1) }
+            new() { Bot1Name = "Team A", Bot2Name = "Team B", WinnerName = "Team A", CompletedAt = DateTime.UtcNow.AddHours(-3) },
+            new() { Bot1Name = "Team A", Bot2Name = "Team C", WinnerName = "Team A", CompletedAt = DateTime.UtcNow.AddHours(-2) },
+            new() { Bot1Name = "Team A", Bot2Name = "Team D", WinnerName = "Team A", CompletedAt = DateTime.UtcNow.AddHours(-1) }
         };
 
+        var state = new TournamentStateDto
+        {
+            SeriesProgress = new SeriesProgressDto
+            {
+                Tournaments = new List<TournamentInSeriesDto>
+                {
+                    new() { TournamentNumber = 1, Champion = "Team A", Status = TournamentItemStatus.Completed }
+                }
+            }
+        };
+
+        _mockStateManager.Setup(s => s.GetCurrentStateAsync()).ReturnsAsync(state);
         _mockMatchFeed.Setup(s => s.GetMatchesForTeamAsync("Team A", It.IsAny<int>())).ReturnsAsync(matches);
 
         // Act
@@ -237,7 +272,9 @@ public class TournamentVisualizationServiceTests
         var result = await service.GetChampionPathAsync();
 
         // Assert
+        result.Should().NotBeNull();
         result.MatchesWon.Should().Be(3);
+        result.Opponents.Should().Contain(new[] { "Team B", "Team C", "Team D" });
     }
 
     [Fact]
@@ -275,11 +312,15 @@ public class TournamentVisualizationServiceTests
         // Arrange
         var state = new TournamentStateDto
         {
+            CurrentTournament = new CurrentTournamentDto
+            {
+                Stage = TournamentStage.GroupStage
+            },
             OverallLeaderboard = new List<TeamStandingDto>
             {
-                new() { TeamName = "Team A", Rank = 1 },
-                new() { TeamName = "Team B", Rank = 2 },
-                new() { TeamName = "Team C", Rank = 3 }
+                new() { TeamName = "Team A", Rank = 1, TotalWins = 5, TotalPoints = 15 },
+                new() { TeamName = "Team B", Rank = 2, TotalWins = 3, TotalPoints = 12 },
+                new() { TeamName = "Team C", Rank = 3, TotalWins = 1, TotalPoints = 8 }
             }
         };
 
@@ -290,6 +331,7 @@ public class TournamentVisualizationServiceTests
         var result = await service.GetProgressionVisualizationAsync();
 
         // Assert
+        result.Teams.Should().HaveCount(3);
         result.Teams[0].TeamName.Should().Be("Team A");
         result.Teams[0].CurrentRank.Should().Be(1);
     }

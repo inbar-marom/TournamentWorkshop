@@ -1,6 +1,7 @@
 using Xunit;
 using Moq;
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using TournamentEngine.Dashboard.Services;
 using TournamentEngine.Core.Common;
 using TournamentEngine.Core.Common.Dashboard;
@@ -10,10 +11,12 @@ namespace TournamentEngine.Dashboard.Tests.UI;
 public class GroupStandingsGridComponentTests
 {
     private Mock<StateManagerService> _mockStateManager;
+    private Mock<ILogger<StateManagerService>> _mockLogger;
 
     public GroupStandingsGridComponentTests()
     {
-        _mockStateManager = new Mock<StateManagerService>();
+        _mockLogger = new Mock<ILogger<StateManagerService>>();
+        _mockStateManager = new Mock<StateManagerService>(_mockLogger.Object);
     }
 
     [Fact]

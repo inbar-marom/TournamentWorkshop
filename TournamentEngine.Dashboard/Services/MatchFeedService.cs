@@ -20,7 +20,7 @@ public class MatchFeedService
     /// Get recent matches for display in feed.
     /// Returns most recent 20 matches in chronological order (newest first).
     /// </summary>
-    public async Task<List<RecentMatchDto>> GetRecentMatchesAsync(int count = 20)
+    public virtual async Task<List<RecentMatchDto>> GetRecentMatchesAsync(int count = 20)
     {
         var state = await _stateManager.GetCurrentStateAsync();
         var matches = state.RecentMatches ?? new List<RecentMatchDto>();
@@ -34,7 +34,7 @@ public class MatchFeedService
     /// <summary>
     /// Get matches for a specific game type only.
     /// </summary>
-    public async Task<List<RecentMatchDto>> GetMatchesByGameTypeAsync(GameType gameType, int count = 20)
+    public virtual async Task<List<RecentMatchDto>> GetMatchesByGameTypeAsync(GameType gameType, int count = 20)
     {
         var matches = await GetRecentMatchesAsync(count);
         return matches
@@ -45,7 +45,7 @@ public class MatchFeedService
     /// <summary>
     /// Get matches involving a specific team/bot.
     /// </summary>
-    public async Task<List<RecentMatchDto>> GetMatchesForTeamAsync(string teamName, int count = 10)
+    public virtual async Task<List<RecentMatchDto>> GetMatchesForTeamAsync(string teamName, int count = 10)
     {
         var matches = await GetRecentMatchesAsync(count);
         return matches
@@ -56,7 +56,7 @@ public class MatchFeedService
     /// <summary>
     /// Get matches with specific outcome (wins, losses, draws).
     /// </summary>
-    public async Task<List<RecentMatchDto>> GetMatchesByOutcomeAsync(MatchOutcome outcome, int count = 20)
+    public virtual async Task<List<RecentMatchDto>> GetMatchesByOutcomeAsync(MatchOutcome outcome, int count = 20)
     {
         var matches = await GetRecentMatchesAsync(count);
         return matches
@@ -67,7 +67,7 @@ public class MatchFeedService
     /// <summary>
     /// Check if match feed has data.
     /// </summary>
-    public async Task<bool> HasMatchesAsync()
+    public virtual async Task<bool> HasMatchesAsync()
     {
         var matches = await GetRecentMatchesAsync(1);
         return matches.Any();
@@ -76,7 +76,7 @@ public class MatchFeedService
     /// <summary>
     /// Get match statistics summary.
     /// </summary>
-    public async Task<MatchFeedStats> GetMatchStatsAsync()
+    public virtual async Task<MatchFeedStats> GetMatchStatsAsync()
     {
         var matches = await GetRecentMatchesAsync(100);
         
@@ -103,7 +103,7 @@ public class MatchFeedService
     /// <summary>
     /// Get winning/losing streaks for a team.
     /// </summary>
-    public async Task<(int wins, int losses)> GetTeamStreakAsync(string teamName, int maxMatches = 20)
+    public virtual async Task<(int wins, int losses)> GetTeamStreakAsync(string teamName, int maxMatches = 20)
     {
         var matches = await GetMatchesForTeamAsync(teamName, maxMatches);
         
@@ -135,7 +135,7 @@ public class MatchFeedService
     /// <summary>
     /// Get match by ID.
     /// </summary>
-    public async Task<RecentMatchDto?> GetMatchByIdAsync(string matchId)
+    public virtual async Task<RecentMatchDto?> GetMatchByIdAsync(string matchId)
     {
         var matches = await GetRecentMatchesAsync(100);
         return matches.FirstOrDefault(m => m.MatchId == matchId);

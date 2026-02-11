@@ -1,6 +1,7 @@
 using Xunit;
 using Moq;
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using TournamentEngine.Dashboard.Services;
 using TournamentEngine.Core.Common;
 using TournamentEngine.Core.Common.Dashboard;
@@ -11,11 +12,19 @@ public class ChartsServiceTests
 {
     private Mock<StateManagerService> _mockStateManager;
     private Mock<MatchFeedService> _mockMatchFeed;
+    private Mock<ILogger<StateManagerService>> _mockLogger;
+    private Mock<ILogger<MatchFeedService>> _mockMatchFeedLogger;
 
     public ChartsServiceTests()
     {
-        _mockStateManager = new Mock<StateManagerService>();
-        _mockMatchFeed = new Mock<MatchFeedService>();
+        _mockLogger = new Mock<ILogger<StateManagerService>>();
+        _mockMatchFeedLogger = new Mock<ILogger<MatchFeedService>>();
+        _mockStateManager = new Mock<StateManagerService>(_mockLogger.Object);
+        _mockMatchFeed = new Mock<MatchFeedService>(_mockStateManager.Object);
+        
+        // Default setup for match feed
+        _mockMatchFeed.Setup(s => s.GetRecentMatchesAsync(It.IsAny<int>()))
+            .ReturnsAsync(new List<RecentMatchDto>());
     }
 
     [Fact]
@@ -94,16 +103,23 @@ public class ChartsServiceTests
     public async Task GetGameTypeDistributionChartData_ShowsMatchCountByGameType()
     {
         // Arrange
+        var matches = new List<RecentMatchDto>
+        {
+            new() { MatchId = "1", Bot1Name = "Bot1", Bot2Name = "Bot2", GameType = GameType.RPSLS, CompletedAt = DateTime.UtcNow },
+            new() { MatchId = "2", Bot1Name = "Bot3", Bot2Name = "Bot4", GameType = GameType.RPSLS, CompletedAt = DateTime.UtcNow.AddMinutes(-1) },
+            new() { MatchId = "3", Bot1Name = "Bot1", Bot2Name = "Bot3", GameType = GameType.RPSLS, CompletedAt = DateTime.UtcNow.AddMinutes(-2) }
+        };
+
         var state = new TournamentStateDto
         {
             CurrentTournament = new CurrentTournamentDto
             {
                 GameType = GameType.RPSLS
-            },
-            RecentMatches = new List<RecentMatchDto>()
+            }
         };
 
         _mockStateManager.Setup(s => s.GetCurrentStateAsync()).ReturnsAsync(state);
+        _mockMatchFeed.Setup(s => s.GetRecentMatchesAsync(It.IsAny<int>())).ReturnsAsync(matches);
 
         // Act
         var service = new ChartsService(_mockStateManager.Object, _mockMatchFeed.Object);
@@ -113,6 +129,8 @@ public class ChartsServiceTests
         result.Should().NotBeNull();
         result.GameTypeLabels.Should().NotBeEmpty();
         result.MatchCounts.Should().NotBeEmpty();
+        result.GameTypeLabels.Should().Contain("RPSLS");
+        result.MatchCounts.Should().Contain(3);
     }
 
     [Fact]
@@ -139,7 +157,9 @@ public class ChartsServiceTests
         result.Should().NotBeNull();
         result.TeamNames.Should().HaveCount(3);
         result.Points.Should().HaveCount(3);
-        result.Points.Should().Equal(15, 12, 18);
+        // Should be sorted by points descending
+        result.Points.Should().Equal(18, 15, 12);
+        result.TeamNames.Should().Equal("Team C", "Team A", "Team B");
     }
 
     [Fact]

@@ -1,6 +1,7 @@
 using Xunit;
 using Moq;
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using TournamentEngine.Dashboard.Services;
 using TournamentEngine.Core.Common;
 using TournamentEngine.Core.Common.Dashboard;
@@ -11,11 +12,23 @@ public class MatchDetailsServiceTests
 {
     private Mock<StateManagerService> _mockStateManager;
     private Mock<MatchFeedService> _mockMatchFeed;
+    private Mock<ILogger<StateManagerService>> _mockLogger;
+    private Mock<ILogger<MatchFeedService>> _mockMatchFeedLogger;
 
     public MatchDetailsServiceTests()
     {
-        _mockStateManager = new Mock<StateManagerService>();
-        _mockMatchFeed = new Mock<MatchFeedService>();
+        _mockLogger = new Mock<ILogger<StateManagerService>>();
+        _mockMatchFeedLogger = new Mock<ILogger<MatchFeedService>>();
+        _mockStateManager = new Mock<StateManagerService>(_mockLogger.Object);
+        _mockMatchFeed = new Mock<MatchFeedService>(_mockStateManager.Object);
+        
+        // Default setup for match feed
+        _mockMatchFeed.Setup(s => s.GetRecentMatchesAsync(It.IsAny<int>()))
+            .ReturnsAsync(new List<RecentMatchDto>());
+        _mockMatchFeed.Setup(s => s.GetMatchesForTeamAsync(It.IsAny<string>(), It.IsAny<int>()))
+            .ReturnsAsync(new List<RecentMatchDto>());
+        _mockMatchFeed.Setup(s => s.GetMatchByIdAsync(It.IsAny<string>()))
+            .ReturnsAsync((RecentMatchDto?)null);
     }
 
     [Fact]
