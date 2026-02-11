@@ -11,21 +11,26 @@ Implement a comprehensive bot loading system that supports both local file-based
 **Two-Phase Approach:**
 
 **Phase 1: Local Directory Loading**
-- Load bot .cs files from local directory
-- Compile using Roslyn scripting
-- Validate bot signatures and interfaces
-- Enforce namespace restrictions
+- Load bot folders from local directory (multi-file support)
+- Each team can submit multiple .cs files organized in a folder
+- Compile all files together using Roslyn
+- Validate single IBot implementation exists
+- Enforce namespace restrictions across all files
 - Populate `BotInfo.BotInstance` with compiled bot
 
 **Phase 2: Remote API Registration**
 - RESTful API service for remote bot submission
-- Accept bot code via HTTP endpoints
-- Store submitted bots locally
+- Accept multiple files per team (single endpoint)
+- Store submitted bots as team folders locally
 - Delegate to Phase 1 for actual loading
 - Support multiple submissions per team (last wins)
 - Thread-safe concurrent submissions
 
-**Key Principle:** Phase 2 downloads/stores bots locally, then Phase 1 loads them. Single loading pipeline.
+**Key Principles:**
+- Each bot handles multiple game types (RPSLS, Blotto, Penalty, Security)
+- Single IBot implementation delegates to game-specific internal classes
+- Multi-file support allows code organization (e.g., RpslsStrategy.cs, BlottoStrategy.cs)
+- Phase 2 downloads/stores bots locally, then Phase 1 loads them
 
 ---
 
@@ -35,15 +40,18 @@ Implement a comprehensive bot loading system that supports both local file-based
 Phase 2 (Optional):
   HTTP POST /api/bots/submit
     ↓
-  Store bot code to local directory
+  Store bot files to team folder
     ↓
 Phase 1:
   BotLoader.LoadBotsFromDirectory()
     ↓
-  For each .cs file:
-    ├─ Compile with Roslyn
-    ├─ Validate IBot interface
-    ├─ Check namespace restrictions
+  For each team folder:
+    ├─ Collect all .cs files
+    ├─ Validate total size limit (200KB)
+    ├─ Validate each file size (50KB per file)
+    ├─ Compile all files together with Roslyn
+    ├─ Validate exactly one IBot implementation
+    ├─ Check namespace restrictions across all files
     ├─ Create bot instance
     └─ Return BotInfo with BotInstance
 ```
@@ -62,25 +70,26 @@ Phase 1:
 public interface IBotLoader
 {
     /// <summary>
-    /// Loads all bots from the specified directory
+    /// Loads all bots from the specified directory.
+    /// Scans for team folders, each containing one or more .cs files.
     /// </summary>
     Task<List<BotInfo>> LoadBotsFromDirectoryAsync(
-        string directory, 
-        GameType gameType,
+        string directory,
         CancellationToken cancellationToken = default);
     
     /// <summary>
-    /// Loads a single bot from a file path
+    /// Loads a single bot from a team folder.
+    /// Compiles all .cs files in the folder together.
     /// </summary>
-    Task<BotInfo> LoadBotFromFileAsync(
-        string filePath, 
-        GameType gameType,
+    Task<BotInfo> LoadBotFromFolderAsync(
+        string teamFolder,
         CancellationToken cancellationToken = default);
     
     /// <summary>
-    /// Validates bot code without loading
+    /// Validates bot code files without compiling.
+    /// Accepts multiple file contents for multi-file bots.
     /// </summary>
-    BotValidationResult ValidateBotCode(string code, GameType gameType);
+    BotValidationResult ValidateBotCode(Dictionary<string, string> files);
 }
 ```
 
@@ -95,24 +104,28 @@ public interface IBotLoader
 **Key Methods:**
 
 1. **`LoadBotsFromDirectoryAsync()`**
-   - Scan directory for .cs files
-   - Call `LoadBotFromFileAsync()` for each file
+   - Scan directory for team folders
+   - Call `LoadBotFromFolderAsync()` for each team folder
    - Collect results with error handling
    - Return list of `BotInfo` (valid and invalid)
 
-2. **`LoadBotFromFileAsync()`**
-   - Read file content
-   - Compile using Roslyn
-   - Validate bot implements `IBot`
-   - Check namespace restrictions
+2. **`LoadBotFromFolderAsync()`**
+   - Scan folder for all .cs files
+   - Validate file count and sizes (per-file 50KB, total 200KB)
+   - Read all file contents
+   - Validate code before compilation (fast fail)
+   - Compile all files together using Roslyn
+   - Validate exactly one class implements `IBot`
+   - Check namespace restrictions across all files
    - Create bot instance
    - Return `BotInfo` with populated `BotInstance`
 
 3. **`ValidateBotCode()`**
-   - Check syntax errors
-   - Verify IBot interface implementation
-   - Check required methods (GetMoveAsync, etc.)
-   - Validate namespace usage
+   - Check syntax errors across all files
+   - Verify exactly one IBot interface implementation
+   - Check required methods (GetMoveAsync for all game types)
+   - Validate namespace usage in all files
+   - Verify total size limits
    - Return validation result without compilation
 
 #### 1.3. `BotValidationResult`
@@ -147,11 +160,36 @@ public class BotValidationResult
 - Any external assembly references
 
 #### Code Constraints
-- Max file size: 50 KB
-- Must implement `IBot` interface
-- Must have parameterless constructor
-- Must have team name (class name or attribute)
-- No unsafe code blocks
+- **Per-file limit:** 50 KB per individual .cs file
+- **Total bot limit:** 200 KB for all files combined per team
+- **Max files per bot:** 10 files (to prevent abuse)
+- Must implement `IBot` interface **exactly once** across all files
+- IBot implementation must have parameterless constructor
+- Must have team name (class name or TeamName attribute)
+- No unsafe code blocks in any file
+- All files must compile together successfully
+
+**Multi-Game Type Support:**
+- Each bot must handle all game types (RPSLS, Blotto, Penalty, Security)
+- Single IBot implementation, typically delegates to game-specific classes:
+  ```csharp
+  // TeamRocketBot.cs (main file with IBot implementation)
+  public class TeamRocketBot : IBot
+  {
+      public async Task<string> GetMoveAsync(GameState state, CancellationToken ct)
+      {
+          return state.GameType switch
+          {
+              GameType.RPSLS => new RpslsStrategy().GetMove(state),
+              GameType.ColonelBlotto => new BlottoStrategy().GetMove(state),
+              // ...
+          };
+      }
+  }
+  
+  // RpslsStrategy.cs (separate file for RPSLS logic)
+  // BlottoStrategy.cs (separate file for Blotto logic)
+  ```
 
 #### Compilation Settings
 - Target: .NET 8.0
@@ -212,15 +250,29 @@ TournamentEngine.Api/
 ##### `POST /api/bots/submit`
 Submit a single bot
 
-**Request:**
+**Request (Multi-file support):**
 ```json
 {
   "teamName": "TeamRocket",
-  "gameType": "RPSLS",
-  "code": "public class TeamRocket : IBot { ... }",
+  "files": [
+    {
+      "fileName": "TeamRocketBot.cs",
+      "code": "public class TeamRocketBot : IBot { ... }"
+    },
+    {
+      "fileName": "RpslsStrategy.cs",
+      "code": "public class RpslsStrategy { ... }"
+    },
+    {
+      "fileName": "BlottoStrategy.cs",
+      "code": "public class BlottoStrategy { ... }"
+    }
+  ],
   "overwrite": true
 }
 ```
+
+**Note:** `gameType` removed - each bot handles all game types
 
 **Response:**
 ```json
@@ -240,8 +292,19 @@ Submit multiple bots at once
 ```json
 {
   "bots": [
-    { "teamName": "Team1", "gameType": "RPSLS", "code": "..." },
-    { "teamName": "Team2", "gameType": "RPSLS", "code": "..." }
+    {
+      "teamName": "Team1",
+      "files": [
+        { "fileName": "Team1Bot.cs", "code": "..." },
+        { "fileName": "Strategy.cs", "code": "..." }
+      ]
+    },
+    {
+      "teamName": "Team2",
+      "files": [
+        { "fileName": "Team2Bot.cs", "code": "..." }
+      ]
+    }
   ]
 }
 ```
@@ -267,7 +330,8 @@ List all submitted bots
   "bots": [
     {
       "teamName": "TeamRocket",
-      "gameType": "RPSLS",
+      "fileCount": 3,
+      "totalSizeBytes": 15234,
       "submissionTime": "2026-02-11T10:30:00Z",
       "version": 2
     }
@@ -333,9 +397,14 @@ public class BotStorageService
 public class BotSubmissionRequest
 {
     public required string TeamName { get; init; }
-    public required GameType GameType { get; init; }
-    public required string Code { get; init; }
+    public required List<BotFile> Files { get; init; }
     public bool Overwrite { get; init; } = true;
+}
+
+public class BotFile
+{
+    public required string FileName { get; init; }
+    public required string Code { get; init; }
 }
 ```
 
@@ -344,8 +413,10 @@ public class BotSubmissionRequest
 public class BotSubmissionMetadata
 {
     public required string TeamName { get; init; }
-    public required GameType GameType { get; init; }
-    public required string FilePath { get; init; }
+    public required string FolderPath { get; init; }
+    public List<string> FilePaths { get; init; } = new();
+    public int FileCount { get; init; }
+    public long TotalSizeBytes { get; init; }
     public DateTime SubmissionTime { get; init; }
     public int Version { get; init; } // Increments on resubmission
     public string SubmissionId { get; init; }
@@ -366,30 +437,45 @@ public class BotSubmissionResult
 
 ### Storage Structure
 
-**Directory Layout:**
+**Directory Layout (Multi-file support):**
 ```
 bots/
-├── TeamRocket_RPSLS_v2.cs
-├── TeamBlue_RPSLS_v1.cs
-├── TeamGreen_ColonelBlotto_v3.cs
+├── TeamRocket_v2/
+│   ├── TeamRocketBot.cs          (IBot implementation)
+│   ├── RpslsStrategy.cs          (RPSLS game logic)
+│   ├── BlottoStrategy.cs         (Blotto game logic)
+│   └── Utilities.cs              (shared helper functions)
+├── TeamBlue_v1/
+│   └── TeamBlueBot.cs            (single-file bot)
+├── TeamGreen_v3/
+│   ├── TeamGreenBot.cs
+│   └── GameStrategies.cs
 └── .metadata/
     ├── TeamRocket.json
     ├── TeamBlue.json
     └── TeamGreen.json
 ```
 
-**Filename Pattern:** `{TeamName}_{GameType}_v{Version}.cs`
+**Folder Pattern:** `{TeamName}_v{Version}/`
+**Note:** Each team has a folder containing one or more .cs files
 
 **Metadata JSON:**
 ```json
 {
   "teamName": "TeamRocket",
-  "gameType": "RPSLS",
   "currentVersion": 2,
-  "currentFilePath": "bots/TeamRocket_RPSLS_v2.cs",
+  "currentFolderPath": "bots/TeamRocket_v2/",
+  "fileCount": 4,
+  "totalSizeBytes": 23456,
+  "files": [
+    "TeamRocketBot.cs",
+    "RpslsStrategy.cs",
+    "BlottoStrategy.cs",
+    "Utilities.cs"
+  ],
   "submissionHistory": [
-    { "version": 1, "time": "2026-02-11T09:00:00Z" },
-    { "version": 2, "time": "2026-02-11T10:30:00Z" }
+    { "version": 1, "time": "2026-02-11T09:00:00Z", "fileCount": 1 },
+    { "version": 2, "time": "2026-02-11T10:30:00Z", "fileCount": 4 }
   ]
 }
 ```
@@ -423,14 +509,14 @@ Program.cs:
 
 ### Handling Resubmissions
 
-**Scenario:** Team submits bot twice during registration period
+**Scenario:** Team submits bot twice during registration period (improving their code)
 
 **Flow:**
-1. First submission: `TeamRocket_RPSLS_v1.cs` stored
-2. Second submission: `TeamRocket_RPSLS_v2.cs` stored
-3. Before loading: Delete old versions, keep only latest
-4. BotLoader loads only `TeamRocket_RPSLS_v2.cs`
-5. Tournament uses latest version
+1. First submission: `TeamRocket_v1/` folder created with 1 file
+2. Second submission: `TeamRocket_v2/` folder created with 4 files (refactored)
+3. Before loading: Delete old version folders, keep only latest
+4. BotLoader loads all files from `TeamRocket_v2/` folder
+5. Tournament uses latest version (v2 with improved structure)
 
 **Implementation:**
 - `BotStorageService.GetCurrentBots()` returns only latest versions
@@ -443,38 +529,60 @@ Program.cs:
 
 ### Phase 1: Local Directory Loading
 
-#### Step 1.1: Basic Compilation
-**Test:** `LoadBotFromFile_ValidBot_CompilesSuccessfully`
-- Create simple valid bot code
+#### Step 1.1: Single-File Bot Compilation
+**Test:** `LoadBotFromFolder_SingleFile_CompilesSuccessfully`
+- Create simple valid bot in single file
 - Load and compile
 - Verify BotInstance is not null
 - Verify IsValid = true
 
 **Implementation:**
-- Basic Roslyn compilation
+- Basic Roslyn compilation for single file
 - Create bot instance
 - Populate BotInfo
 
+#### Step 1.1b: Multi-File Bot Compilation
+**Test:** `LoadBotFromFolder_MultipleFiles_CompilesAllTogether`
+- Create bot with 3 files (main + 2 strategy files)
+- Load and compile all together
+- Verify BotInstance is not null
+- Verify all classes accessible
+
+**Implementation:**
+- Collect all .cs files from folder
+- Compile all files together with Roslyn
+- Create bot instance from compiled assembly
+
 #### Step 1.2: Validation
-**Test:** `LoadBotFromFile_InvalidBot_ReturnsValidationErrors`
+**Test:** `LoadBotFromFolder_InvalidBot_ReturnsValidationErrors`
 - Bot missing IBot implementation
 - Verify IsValid = false
 - Verify ValidationErrors populated
 
+**Test:** `LoadBotFromFolder_MultipleIBotImplementations_ReturnsError`
+- Two files both implement IBot
+- Verify error about multiple implementations
+
+**Test:** `LoadBotFromFolder_ExceedsTotalSize_ReturnsError`
+- Submit 5 files, each 50KB (total 250KB > 200KB limit)
+- Verify size limit error
+
 **Implementation:**
-- Add interface validation
+- Add interface validation (exactly one IBot)
+- Check total size across all files
 - Collect compilation errors
 
 #### Step 1.3: Namespace Restrictions
-**Test:** `LoadBotFromFile_BlockedNamespace_ReturnsError`
-- Bot uses System.IO
-- Verify blocked namespace detected
-- Verify error message
+**Test:** `LoadBotFromFolder_BlockedNamespaceInAnyFile_ReturnsError`
+- Main file is clean
+- Second file uses System.IO
+- Verify blocked namespace detected across all files
+- Verify error message indicates which file
 
 **Implementation:**
-- Parse using statements
+- Parse using statements in all files
 - Check against blocked list
-- Add to ValidationErrors
+- Add to ValidationErrors with file name
 
 #### Step 1.4: Batch Loading
 **Test:** `LoadBotsFromDirectory_MultipleFiles_LoadsAll`
@@ -568,7 +676,9 @@ Program.cs:
 {
   "BotLoader": {
     "BotsDirectory": "bots/",
+    "MaxFileCountPerBot": 10,
     "MaxBotFileSizeKB": 50,
+    "MaxTotalBotSizeKB": 200,
     "MaxConcurrentLoads": 4,
     "AllowedNamespaces": [
       "System",
@@ -756,9 +866,7 @@ _logger.LogError(ex, "Failed to compile bot {FilePath}", filePath);
 
 ```csharp
 var botLoader = new BotLoader(logger, configuration);
-var bots = await botLoader.LoadBotsFromDirectoryAsync(
-    "bots/", 
-    GameType.RPSLS);
+var bots = await botLoader.LoadBotsFromDirectoryAsync("bots/");
 
 // Filter to valid bots only
 var validBots = bots.Where(b => b.IsValid).ToList();
@@ -771,20 +879,30 @@ foreach (var bot in bots.Where(b => !b.IsValid))
         string.Join(", ", bot.ValidationErrors));
 }
 
-// Run tournament with valid bots
-await tournamentManager.RunTournamentAsync(validBots, ...);
+// Run tournament with valid bots (each bot handles all game types)
+await tournamentManager.RunTournamentAsync(validBots, GameType.RPSLS, ...);
+// Same bots can play different games
+await tournamentManager.RunTournamentAsync(validBots, GameType.ColonelBlotto, ...);
 ```
 
 ### Phase 2: API Submission
 
 ```bash
-# Submit a bot
+# Submit a multi-file bot
 curl -X POST http://localhost:5000/api/bots/submit \
   -H "Content-Type: application/json" \
   -d '{
     "teamName": "TeamRocket",
-    "gameType": "RPSLS",
-    "code": "public class TeamRocket : IBot { ... }"
+    "files": [
+      {
+        "fileName": "TeamRocketBot.cs",
+        "code": "public class TeamRocketBot : IBot { ... }"
+      },
+      {
+        "fileName": "RpslsStrategy.cs",
+        "code": "public class RpslsStrategy { ... }"
+      }
+    ]
   }'
 
 # List all bots
