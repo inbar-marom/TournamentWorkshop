@@ -208,4 +208,223 @@ namespace MultiFileBot
         Assert.AreEqual(5, troops.Length, "Should allocate troops across 5 fields");
         Assert.AreEqual(20, troops[0], "Each field should get 20 troops (100/5)");
     }
+
+    #region Step 1.2: Validation Tests
+
+    [TestMethod]
+    public async Task LoadBotFromFolder_InvalidBot_ReturnsValidationErrors()
+    {
+        // Arrange
+        var teamName = "InvalidTeam";
+        var botFolder = Path.Combine(_testBotsDirectory, $"{teamName}_v1");
+        Directory.CreateDirectory(botFolder);
+
+        // Create a class that does NOT implement IBot
+        var invalidBotCode = @"
+using System;
+
+namespace InvalidBot
+{
+    public class NotABot
+    {
+        public string SomeMethod()
+        {
+            return ""I'm not a bot!"";
+        }
+    }
+}";
+
+        await File.WriteAllTextAsync(Path.Combine(botFolder, "NotABot.cs"), invalidBotCode);
+
+        var botLoader = new Core.BotLoader.BotLoader();
+
+        // Act
+        var result = await botLoader.LoadBotFromFolderAsync(botFolder);
+
+        // Assert
+        Assert.IsFalse(result.IsValid, "Bot without IBot implementation should be invalid");
+        Assert.IsNull(result.BotInstance, "BotInstance should be null for invalid bot");
+        Assert.IsTrue(result.ValidationErrors.Count > 0, "Should have validation errors");
+        Assert.IsTrue(result.ValidationErrors.Any(e => e.Contains("IBot")), 
+            "Error message should mention IBot interface");
+    }
+
+    [TestMethod]
+    public async Task LoadBotFromFolder_MultipleIBotImplementations_ReturnsError()
+    {
+        // Arrange
+        var teamName = "MultiImplTeam";
+        var botFolder = Path.Combine(_testBotsDirectory, $"{teamName}_v1");
+        Directory.CreateDirectory(botFolder);
+
+        // File 1: First IBot implementation
+        var bot1Code = @"
+using System.Threading;
+using System.Threading.Tasks;
+using TournamentEngine.Core.Common;
+
+public class Bot1 : IBot
+{
+    public string TeamName => ""Bot1"";
+    public GameType GameType => GameType.RPSLS;
+
+    public async Task<string> MakeMove(GameState gameState, CancellationToken cancellationToken)
+    {
+        await Task.CompletedTask;
+        return ""Rock"";
+    }
+
+    public async Task<int[]> AllocateTroops(GameState gameState, CancellationToken cancellationToken)
+    {
+        await Task.CompletedTask;
+        return new int[] { 20, 20, 20, 20, 20 };
+    }
+
+    public async Task<string> MakePenaltyDecision(GameState gameState, CancellationToken cancellationToken)
+    {
+        await Task.CompletedTask;
+        return ""Left"";
+    }
+
+    public async Task<string> MakeSecurityMove(GameState gameState, CancellationToken cancellationToken)
+    {
+        await Task.CompletedTask;
+        return ""Scan"";
+    }
+}";
+
+        // File 2: Second IBot implementation (this should be an error)
+        var bot2Code = @"
+using System.Threading;
+using System.Threading.Tasks;
+using TournamentEngine.Core.Common;
+
+public class Bot2 : IBot
+{
+    public string TeamName => ""Bot2"";
+    public GameType GameType => GameType.RPSLS;
+
+    public async Task<string> MakeMove(GameState gameState, CancellationToken cancellationToken)
+    {
+        await Task.CompletedTask;
+        return ""Paper"";
+    }
+
+    public async Task<int[]> AllocateTroops(GameState gameState, CancellationToken cancellationToken)
+    {
+        await Task.CompletedTask;
+        return new int[] { 20, 20, 20, 20, 20 };
+    }
+
+    public async Task<string> MakePenaltyDecision(GameState gameState, CancellationToken cancellationToken)
+    {
+        await Task.CompletedTask;
+        return ""Right"";
+    }
+
+    public async Task<string> MakeSecurityMove(GameState gameState, CancellationToken cancellationToken)
+    {
+        await Task.CompletedTask;
+        return ""Attack"";
+    }
+}";
+
+        await File.WriteAllTextAsync(Path.Combine(botFolder, "Bot1.cs"), bot1Code);
+        await File.WriteAllTextAsync(Path.Combine(botFolder, "Bot2.cs"), bot2Code);
+
+        var botLoader = new Core.BotLoader.BotLoader();
+
+        // Act
+        var result = await botLoader.LoadBotFromFolderAsync(botFolder);
+
+        // Assert
+        Assert.IsFalse(result.IsValid, "Bot with multiple IBot implementations should be invalid");
+        Assert.IsNull(result.BotInstance, "BotInstance should be null when multiple implementations exist");
+        Assert.IsTrue(result.ValidationErrors.Count > 0, "Should have validation errors");
+        Assert.IsTrue(result.ValidationErrors.Any(e => e.Contains("multiple") || e.Contains("Multiple")), 
+            "Error message should mention multiple implementations");
+    }
+
+    [TestMethod]
+    public async Task LoadBotFromFolder_ExceedsTotalSize_ReturnsError()
+    {
+        // Arrange
+        var teamName = "LargeTeam";
+        var botFolder = Path.Combine(_testBotsDirectory, $"{teamName}_v1");
+        Directory.CreateDirectory(botFolder);
+
+        // Create 5 files, each 50KB (250KB total > 200KB limit)
+        var largeCommentBlock = new string('/', 50 * 1024); // 50KB of comment characters
+
+        for (int i = 1; i <= 5; i++)
+        {
+            var fileCode = $@"
+// {largeCommentBlock}
+namespace LargeBot
+{{
+    public class HelperClass{i}
+    {{
+        public string GetData()
+        {{
+            return ""Data from file {i}"";
+        }}
+    }}
+}}";
+            await File.WriteAllTextAsync(Path.Combine(botFolder, $"Helper{i}.cs"), fileCode);
+        }
+
+        // Add a small main bot file
+        var mainBotCode = @"
+using System.Threading;
+using System.Threading.Tasks;
+using TournamentEngine.Core.Common;
+
+namespace LargeBot
+{
+    public class LargeBot : IBot
+    {
+        public string TeamName => ""LargeTeam"";
+        public GameType GameType => GameType.RPSLS;
+
+        public async Task<string> MakeMove(GameState gameState, CancellationToken cancellationToken)
+        {
+            await Task.CompletedTask;
+            return ""Rock"";
+        }
+
+        public async Task<int[]> AllocateTroops(GameState gameState, CancellationToken cancellationToken)
+        {
+            await Task.CompletedTask;
+            return new int[] { 20, 20, 20, 20, 20 };
+        }
+
+        public async Task<string> MakePenaltyDecision(GameState gameState, CancellationToken cancellationToken)
+        {
+            await Task.CompletedTask;
+            return ""Left"";
+        }
+
+        public async Task<string> MakeSecurityMove(GameState gameState, CancellationToken cancellationToken)
+        {
+            await Task.CompletedTask;
+            return ""Scan"";
+        }
+    }
+}";
+        await File.WriteAllTextAsync(Path.Combine(botFolder, "MainBot.cs"), mainBotCode);
+
+        var botLoader = new Core.BotLoader.BotLoader();
+
+        // Act
+        var result = await botLoader.LoadBotFromFolderAsync(botFolder);
+
+        // Assert
+        Assert.IsFalse(result.IsValid, "Bot exceeding 200KB total size should be invalid");
+        Assert.IsNull(result.BotInstance, "BotInstance should be null when size limit exceeded");
+        Assert.IsTrue(result.ValidationErrors.Count > 0, "Should have validation errors");
+        Assert.IsTrue(result.ValidationErrors.Any(e => e.Contains("size") || e.Contains("200")), 
+            "Error message should mention size limit");
+    }
+
+    #endregion
 }

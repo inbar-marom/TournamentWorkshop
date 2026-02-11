@@ -50,7 +50,30 @@ public class BotLoader : IBotLoader
                 };
             }
 
-            // 2. Parse each file into a syntax tree
+            // 2. Validate total file size (200KB limit)
+            const long MaxTotalSizeBytes = 200 * 1024; // 200KB
+            long totalSize = 0;
+            foreach (var filePath in csFiles)
+            {
+                var fileInfo = new FileInfo(filePath);
+                totalSize += fileInfo.Length;
+            }
+
+            if (totalSize > MaxTotalSizeBytes)
+            {
+                return new BotInfo
+                {
+                    TeamName = teamName,
+                    FolderPath = teamFolder,
+                    IsValid = false,
+                    ValidationErrors = new List<string> 
+                    { 
+                        $"Total bot code size ({totalSize / 1024}KB) exceeds the 200KB limit" 
+                    }
+                };
+            }
+
+            // 3. Parse each file into a syntax tree
             var syntaxTrees = new List<SyntaxTree>();
             foreach (var filePath in csFiles)
             {
@@ -59,10 +82,10 @@ public class BotLoader : IBotLoader
                 syntaxTrees.Add(syntaxTree);
             }
 
-            // 3. Get metadata references for compilation
+            // 4. Get metadata references for compilation
             var references = GetMetadataReferences();
 
-            // 4. Create compilation with ALL files together
+            // 5. Create compilation with ALL files together
             var assemblyName = $"{teamName}_Bot_{Guid.NewGuid()}";
             var compilation = CSharpCompilation.Create(
                 assemblyName,
@@ -75,7 +98,7 @@ public class BotLoader : IBotLoader
                 )
             );
 
-            // 5. Compile to in-memory assembly
+            // 6. Compile to in-memory assembly
             using var ms = new MemoryStream();
             var emitResult = compilation.Emit(ms, cancellationToken: cancellationToken);
 
@@ -99,14 +122,15 @@ public class BotLoader : IBotLoader
                 };
             }
 
-            // 6. Load assembly and find IBot implementation
+            // 7. Load assembly and find IBot implementation
             ms.Seek(0, SeekOrigin.Begin);
             var assembly = Assembly.Load(ms.ToArray());
             
-            var botType = assembly.GetTypes()
-                .FirstOrDefault(t => typeof(IBot).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract);
+            var botTypes = assembly.GetTypes()
+                .Where(t => typeof(IBot).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract)
+                .ToList();
 
-            if (botType == null)
+            if (botTypes.Count == 0)
             {
                 return new BotInfo
                 {
@@ -117,7 +141,24 @@ public class BotLoader : IBotLoader
                 };
             }
 
-            // 7. Create bot instance
+            if (botTypes.Count > 1)
+            {
+                var typeNames = string.Join(", ", botTypes.Select(t => t.Name));
+                return new BotInfo
+                {
+                    TeamName = teamName,
+                    FolderPath = teamFolder,
+                    IsValid = false,
+                    ValidationErrors = new List<string> 
+                    { 
+                        $"Multiple IBot implementations found: {typeNames}. Only one IBot implementation is allowed." 
+                    }
+                };
+            }
+
+            var botType = botTypes[0];
+
+            // 8. Create bot instance
             var botInstance = (IBot?)Activator.CreateInstance(botType);
             if (botInstance == null)
             {
@@ -130,7 +171,7 @@ public class BotLoader : IBotLoader
                 };
             }
 
-            // 8. Return successful BotInfo
+            // 9. Return successful BotInfo
             return new BotInfo
             {
                 TeamName = teamName,
