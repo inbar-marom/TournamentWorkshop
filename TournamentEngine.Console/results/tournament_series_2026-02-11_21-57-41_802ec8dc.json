@@ -1,0 +1,150 @@
+{
+  "seriesId": "802ec8dc-19a3-43c0-a978-a9fe712b5a85",
+  "seriesName": "Local Tournament Series",
+  "exportedAt": "2026-02-11T21:57:41.7661433Z",
+  "startTime": "2026-02-11T21:57:41.7257155Z",
+  "endTime": "2026-02-11T21:57:41.756853Z",
+  "totalMatches": 3,
+  "champion": "TeamPaper",
+  "tournamentCount": 3,
+  "gameTypes": [
+    "RPSLS",
+    "ColonelBlotto",
+    "PenaltyKicks"
+  ],
+  "tournaments": [
+    {
+      "tournamentIndex": 1,
+      "tournamentId": "fe6dca89-909d-4fcb-b168-7e7a51c73dc5",
+      "gameType": "RPSLS",
+      "champion": "TeamPaper",
+      "totalMatches": 1,
+      "startTime": "2026-02-11T21:57:41.7257155Z",
+      "endTime": "2026-02-11T21:57:41.7455422Z",
+      "matches": [
+        {
+          "matchId": "7329262e-1ffc-4b88-bad3-d63bbb090939",
+          "bot1Name": "TeamRock",
+          "bot2Name": "TeamPaper",
+          "bot1Score": 0,
+          "bot2Score": 50,
+          "outcome": "Player2Wins",
+          "winnerName": "TeamPaper",
+          "durationSeconds": 0.0062152
+        }
+      ],
+      "finalStandings": [
+        {
+          "botName": "TeamPaper",
+          "points": 3,
+          "wins": 1,
+          "losses": 0,
+          "draws": 0,
+          "tournamentWins": 0
+        },
+        {
+          "botName": "TeamRock",
+          "points": 0,
+          "wins": 0,
+          "losses": 1,
+          "draws": 0,
+          "tournamentWins": 0
+        }
+      ]
+    },
+    {
+      "tournamentIndex": 2,
+      "tournamentId": "b0fb2d8e-593d-4ee7-a3e0-d9b651596067",
+      "gameType": "ColonelBlotto",
+      "champion": "TeamPaper",
+      "totalMatches": 1,
+      "startTime": "2026-02-11T21:57:41.7462737Z",
+      "endTime": "2026-02-11T21:57:41.7541979Z",
+      "matches": [
+        {
+          "matchId": "2dc269cb-a8b4-4e58-9274-0f89c6222a01",
+          "bot1Name": "TeamPaper",
+          "bot2Name": "TeamRock",
+          "bot1Score": 0,
+          "bot2Score": 0,
+          "outcome": "Draw",
+          "durationSeconds": 0.0035398
+        }
+      ],
+      "finalStandings": [
+        {
+          "botName": "TeamPaper",
+          "points": 1,
+          "wins": 0,
+          "losses": 0,
+          "draws": 1,
+          "tournamentWins": 0
+        },
+        {
+          "botName": "TeamRock",
+          "points": 1,
+          "wins": 0,
+          "losses": 0,
+          "draws": 1,
+          "tournamentWins": 0
+        }
+      ]
+    },
+    {
+      "tournamentIndex": 3,
+      "tournamentId": "2ad06a4e-883d-4d39-8043-9385889a97d7",
+      "gameType": "PenaltyKicks",
+      "champion": "TeamPaper",
+      "totalMatches": 1,
+      "startTime": "2026-02-11T21:57:41.7542301Z",
+      "endTime": "2026-02-11T21:57:41.756853Z",
+      "matches": [
+        {
+          "matchId": "5291a5dd-47fc-451f-8834-fdd24f2e5f38",
+          "bot1Name": "TeamRock",
+          "bot2Name": "TeamPaper",
+          "bot1Score": 0,
+          "bot2Score": 0,
+          "outcome": "Draw",
+          "durationSeconds": 0.0009247
+        }
+      ],
+      "finalStandings": [
+        {
+          "botName": "TeamRock",
+          "points": 1,
+          "wins": 0,
+          "losses": 0,
+          "draws": 1,
+          "tournamentWins": 0
+        },
+        {
+          "botName": "TeamPaper",
+          "points": 1,
+          "wins": 0,
+          "losses": 0,
+          "draws": 1,
+          "tournamentWins": 0
+        }
+      ]
+    }
+  ],
+  "overallStandings": [
+    {
+      "botName": "TeamPaper",
+      "points": 5,
+      "wins": 1,
+      "losses": 0,
+      "draws": 2,
+      "tournamentWins": 3
+    },
+    {
+      "botName": "TeamRock",
+      "points": 2,
+      "wins": 0,
+      "losses": 1,
+      "draws": 2,
+      "tournamentWins": 0
+    }
+  ]
+}

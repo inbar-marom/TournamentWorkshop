@@ -233,6 +233,10 @@ class Program
         var config = configManager.GetConfiguration();
         services.AddSingleton(config);
         
+        // Create and register TournamentConfig for Core components
+        var tournamentConfig = configManager.CreateTournamentConfig();
+        services.AddSingleton(tournamentConfig);
+        
         // Re-configure logging with actual log level from config
         services.AddLogging(builder =>
         {
@@ -256,6 +260,7 @@ class Program
         services.AddSingleton<IBotLoader, BotLoader>();
         services.AddSingleton<IGameRunner, GameRunner>();
         services.AddSingleton<IScoringSystem, ScoringSystem>();
+        services.AddSingleton<ITournamentEngine, GroupStageTournamentEngine>();
         
         // Add event publisher with dashboard URL from configuration
         services.AddSingleton<ITournamentEventPublisher>(sp =>
