@@ -51,23 +51,60 @@ public class TournamentManager : ITournamentManager
             }
 
             // Execute all matches in the current batch
-            // Run sequentially to maintain deterministic order and avoid concurrency issues
-            foreach (var (bot1, bot2) in matches)
+            if (config.MaxParallelMatches > 1)
             {
-                cancellationToken.ThrowIfCancellationRequested();
+                // Parallel execution with degree-of-parallelism cap
+                using var semaphore = new SemaphoreSlim(config.MaxParallelMatches);
+                var tasks = new List<Task<MatchResult>>(matches.Count);
 
-                // Execute match via game runner (returns complete MatchResult)
-                var matchResult = await _gameRunner.ExecuteMatch(
-                    bot1, 
-                    bot2, 
-                    gameType, 
-                    cancellationToken);
+                foreach (var (bot1, bot2) in matches)
+                {
+                    tasks.Add(ExecuteMatchWithThrottleAsync(
+                        semaphore, bot1, bot2, gameType, cancellationToken));
+                }
 
-                // Record the result - engine updates internal state
-                _engine.RecordMatchResult(matchResult);
+                // Wait for all matches to complete (preserves original order)
+                var results = await Task.WhenAll(tasks);
+
+                // Record results in original match order
+                foreach (var result in results)
+                {
+                    _engine.RecordMatchResult(result);
+                }
+            }
+            else
+            {
+                // Sequential execution (default) - deterministic order
+                foreach (var (bot1, bot2) in matches)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    var matchResult = await _gameRunner.ExecuteMatch(
+                        bot1, bot2, gameType, cancellationToken);
+
+                    _engine.RecordMatchResult(matchResult);
+                }
             }
         }
 
         return _engine.GetTournamentInfo();
+    }
+
+    private async Task<MatchResult> ExecuteMatchWithThrottleAsync(
+        SemaphoreSlim semaphore,
+        IBot bot1,
+        IBot bot2,
+        GameType gameType,
+        CancellationToken cancellationToken)
+    {
+        await semaphore.WaitAsync(cancellationToken);
+        try
+        {
+            return await _gameRunner.ExecuteMatch(bot1, bot2, gameType, cancellationToken);
+        }
+        finally
+        {
+            semaphore.Release();
+        }
     }
 }

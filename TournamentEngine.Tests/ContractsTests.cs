@@ -27,7 +27,8 @@ public class ContractsTests
         var outcomes = Enum.GetValues<MatchOutcome>();
         
         // Assert
-        Assert.AreEqual(6, outcomes.Length);
+        Assert.AreEqual(7, outcomes.Length);
+        Assert.IsTrue(outcomes.Contains(MatchOutcome.Unknown));
         Assert.IsTrue(outcomes.Contains(MatchOutcome.Player1Wins));
         Assert.IsTrue(outcomes.Contains(MatchOutcome.Player2Wins));
         Assert.IsTrue(outcomes.Contains(MatchOutcome.Draw));

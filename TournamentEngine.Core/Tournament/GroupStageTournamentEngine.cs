@@ -15,6 +15,7 @@ public class GroupStageTournamentEngine : ITournamentEngine
 {
     private readonly IGameRunner _gameRunner;
     private readonly IScoringSystem _scoringSystem;
+    private readonly object _stateLock = new object();
     private TournamentInfo _tournamentInfo;
     private List<Group> _currentGroups;
     private Group? _finalGroup;
@@ -48,180 +49,192 @@ public class GroupStageTournamentEngine : ITournamentEngine
         if (config == null)
             throw new ArgumentNullException(nameof(config));
 
-        // Create tournament info with unique ID
-        var tournamentId = Guid.NewGuid().ToString();
-        var startTime = DateTime.UtcNow;
-
-        _tournamentInfo = new TournamentInfo
+        lock (_stateLock)
         {
-            TournamentId = tournamentId,
-            GameType = gameType,
-            State = TournamentState.InProgress,
-            Bots = bots,
-            MatchResults = new List<MatchResult>(),
-            Bracket = new Dictionary<int, List<string>>(),
-            Champion = null,
-            StartTime = startTime,
-            EndTime = null,
-            CurrentRound = 1,
-            TotalRounds = CalculateTotalRounds(bots.Count)
-        };
+            // Create tournament info with unique ID
+            var tournamentId = Guid.NewGuid().ToString();
+            var startTime = DateTime.UtcNow;
 
-        _currentPhase = TournamentPhase.InitialGroups;
-        _matchHistory.Clear();
-        _eventLog.Clear();
-        Log($"Tournament initialized with {bots.Count} bots for {gameType}");
+            _tournamentInfo = new TournamentInfo
+            {
+                TournamentId = tournamentId,
+                GameType = gameType,
+                State = TournamentState.InProgress,
+                Bots = bots,
+                MatchResults = new List<MatchResult>(),
+                Bracket = new Dictionary<int, List<string>>(),
+                Champion = null,
+                StartTime = startTime,
+                EndTime = null,
+                CurrentRound = 1,
+                TotalRounds = CalculateTotalRounds(bots.Count)
+            };
 
-        var botAdapters = CreateBotAdapters(bots, gameType);
-        _currentGroups = CreateInitialGroups(botAdapters);
-        _groupStandings = BuildStandingsIndex(_currentGroups);
-        var allMatches = GenerateAllGroupMatches(_currentGroups);
-        _pendingMatches = new Queue<(IBot bot1, IBot bot2)>(allMatches);
-        _currentPhaseExpectedMatches = allMatches.Count;
-        _currentPhaseRecordedResults = 0;
+            _currentPhase = TournamentPhase.InitialGroups;
+            _matchHistory.Clear();
+            _eventLog.Clear();
+            Log($"Tournament initialized with {bots.Count} bots for {gameType}");
 
-        return _tournamentInfo;
+            var botAdapters = CreateBotAdapters(bots, gameType);
+            _currentGroups = CreateInitialGroups(botAdapters);
+            _groupStandings = BuildStandingsIndex(_currentGroups);
+            var allMatches = GenerateAllGroupMatches(_currentGroups);
+            _pendingMatches = new Queue<(IBot bot1, IBot bot2)>(allMatches);
+            _currentPhaseExpectedMatches = allMatches.Count;
+            _currentPhaseRecordedResults = 0;
+
+            return _tournamentInfo;
+        }
     }
 
     public List<(IBot bot1, IBot bot2)> GetNextMatches()
     {
-        if (_currentPhase == TournamentPhase.NotStarted)
-            throw new InvalidOperationException("Tournament not initialized");
+        lock (_stateLock)
+        {
+            if (_currentPhase == TournamentPhase.NotStarted)
+                throw new InvalidOperationException("Tournament not initialized");
 
-        return new List<(IBot bot1, IBot bot2)>(_pendingMatches);
+            return new List<(IBot bot1, IBot bot2)>(_pendingMatches);
+        }
     }
 
     public TournamentInfo RecordMatchResult(MatchResult matchResult)
     {
-        if (_currentPhase == TournamentPhase.NotStarted)
-            throw new InvalidOperationException("Tournament not initialized");
-        if (_currentPhase == TournamentPhase.Completed)
-            throw new InvalidOperationException("Tournament is already completed");
-        if (matchResult == null)
-            throw new ArgumentNullException(nameof(matchResult));
+        lock (_stateLock)
+        {
+            if (_currentPhase == TournamentPhase.NotStarted)
+                throw new InvalidOperationException("Tournament not initialized");
+            if (_currentPhase == TournamentPhase.Completed)
+                throw new InvalidOperationException("Tournament is already completed");
+            if (matchResult == null)
+                throw new ArgumentNullException(nameof(matchResult));
 
-        ValidateBotName(matchResult.Bot1Name, nameof(matchResult));
-        ValidateBotName(matchResult.Bot2Name, nameof(matchResult));
+            ValidateBotName(matchResult.Bot1Name, nameof(matchResult));
+            ValidateBotName(matchResult.Bot2Name, nameof(matchResult));
 
-        _tournamentInfo.MatchResults.Add(matchResult);
+            _tournamentInfo.MatchResults.Add(matchResult);
 
-        var historyKey = $"{matchResult.Bot1Name}-vs-{matchResult.Bot2Name}-{_tournamentInfo.MatchResults.Count}";
-        _matchHistory[historyKey] = matchResult;
+            var historyKey = $"{matchResult.Bot1Name}-vs-{matchResult.Bot2Name}-{_tournamentInfo.MatchResults.Count}";
+            _matchHistory[historyKey] = matchResult;
 
-        UpdateStandingsForMatch(matchResult);
-        _currentPhaseRecordedResults++;
+            UpdateStandingsForMatch(matchResult);
+            _currentPhaseRecordedResults++;
 
-        // Remove this match from pending queue
-        DequeueMatch(matchResult.Bot1Name, matchResult.Bot2Name);
+            // Remove this match from pending queue
+            DequeueMatch(matchResult.Bot1Name, matchResult.Bot2Name);
 
-        Log($"Recorded match: {matchResult.Bot1Name} vs {matchResult.Bot2Name} ({matchResult.Outcome})");
+            Log($"Recorded match: {matchResult.Bot1Name} vs {matchResult.Bot2Name} ({matchResult.Outcome})");
 
-        return _tournamentInfo;
+            return _tournamentInfo;
+        }
     }
 
     public TournamentInfo AdvanceToNextRound()
     {
-        if (_currentPhase == TournamentPhase.NotStarted)
-            throw new InvalidOperationException("Tournament not initialized");
-        if (_currentPhase == TournamentPhase.Completed)
-            throw new InvalidOperationException("Tournament is already completed");
-
-        if (_currentPhaseRecordedResults < _currentPhaseExpectedMatches)
-            throw new InvalidOperationException(
-                $"Not all matches completed. Expected {_currentPhaseExpectedMatches}, recorded {_currentPhaseRecordedResults}");
-
-        if (_currentPhase == TournamentPhase.InitialGroups)
+        lock (_stateLock)
         {
-            // Determine winner from each initial group
-            var winners = new List<IBot>();
-            foreach (var group in _currentGroups)
-            {
-                var winner = DetermineGroupWinner(group);
-                winners.Add(winner);
-                group.IsComplete = true;
-            }
+            if (_currentPhase == TournamentPhase.NotStarted)
+                throw new InvalidOperationException("Tournament not initialized");
+            if (_currentPhase == TournamentPhase.Completed)
+                throw new InvalidOperationException("Tournament is already completed");
 
-            // Create final group from all group winners
-            _finalGroup = new Group
-            {
-                GroupId = "Final-Group",
-                Bots = winners,
-                Standings = new Dictionary<string, GroupStanding>(),
-                IsComplete = false
-            };
+            if (_currentPhaseRecordedResults < _currentPhaseExpectedMatches)
+                throw new InvalidOperationException(
+                    $"Not all matches completed. Expected {_currentPhaseExpectedMatches}, recorded {_currentPhaseRecordedResults}");
 
-            foreach (var bot in winners)
+            if (_currentPhase == TournamentPhase.InitialGroups)
             {
-                _finalGroup.Standings[bot.TeamName] = new GroupStanding
+                // Determine winner from each initial group
+                var winners = new List<IBot>();
+                foreach (var group in _currentGroups)
                 {
-                    BotName = bot.TeamName,
-                    Points = 0,
-                    Wins = 0,
-                    Losses = 0,
-                    Draws = 0,
-                    GoalDifferential = 0
+                    var winner = DetermineGroupWinner(group);
+                    winners.Add(winner);
+                    group.IsComplete = true;
+                }
+
+                // Create final group from all group winners
+                _finalGroup = new Group
+                {
+                    GroupId = "Final-Group",
+                    Bots = winners,
+                    Standings = new Dictionary<string, GroupStanding>(),
+                    IsComplete = false
                 };
-            }
 
-            _currentGroups = new List<Group> { _finalGroup };
-            _groupStandings = BuildStandingsIndex(_currentGroups);
-            var finalMatches = GenerateAllGroupMatches(_currentGroups);
-            _pendingMatches = new Queue<(IBot bot1, IBot bot2)>(finalMatches);
-            _currentPhaseExpectedMatches = finalMatches.Count;
-            _currentPhaseRecordedResults = 0;
-            _currentPhase = TournamentPhase.FinalGroup;
-            _tournamentInfo.CurrentRound = 2;
-            Log($"Advanced to FinalGroup with {winners.Count} finalists");
-        }
-        else if (_currentPhase == TournamentPhase.FinalGroup)
-        {
-            var finalGroup = _currentGroups[0];
-            var topBots = GetTopContenders(finalGroup);
+                foreach (var bot in winners)
+                {
+                    _finalGroup.Standings[bot.TeamName] = new GroupStanding
+                    {
+                        BotName = bot.TeamName,
+                        Points = 0,
+                        Wins = 0,
+                        Losses = 0,
+                        Draws = 0,
+                        GoalDifferential = 0
+                    };
+                }
 
-            if (topBots.Count > 1)
-            {
-                // Tie detected; move to tiebreaker phase
-                var tiebreakerGroup = CreateTiebreakerGroup(topBots);
-                _currentGroups = new List<Group> { tiebreakerGroup };
+                _currentGroups = new List<Group> { _finalGroup };
                 _groupStandings = BuildStandingsIndex(_currentGroups);
-
-                var tiebreakerMatches = GenerateGroupMatches(tiebreakerGroup);
-                _pendingMatches = new Queue<(IBot bot1, IBot bot2)>(tiebreakerMatches);
-                _currentPhaseExpectedMatches = tiebreakerMatches.Count;
+                var finalMatches = GenerateAllGroupMatches(_currentGroups);
+                _pendingMatches = new Queue<(IBot bot1, IBot bot2)>(finalMatches);
+                _currentPhaseExpectedMatches = finalMatches.Count;
                 _currentPhaseRecordedResults = 0;
-                _currentPhase = TournamentPhase.Tiebreaker;
-                finalGroup.IsComplete = true;
-                Log($"FinalGroup tied; scheduled tiebreaker for {topBots.Count} bots");
+                _currentPhase = TournamentPhase.FinalGroup;
+                _tournamentInfo.CurrentRound = 2;
+                Log($"Advanced to FinalGroup with {winners.Count} finalists");
             }
-            else
+            else if (_currentPhase == TournamentPhase.FinalGroup)
             {
-                var winner = topBots[0];
-                finalGroup.IsComplete = true;
+                var finalGroup = _currentGroups[0];
+                var topBots = GetTopContenders(finalGroup);
+
+                if (topBots.Count > 1)
+                {
+                    // Tie detected; move to tiebreaker phase
+                    var tiebreakerGroup = CreateTiebreakerGroup(topBots);
+                    _currentGroups = new List<Group> { tiebreakerGroup };
+                    _groupStandings = BuildStandingsIndex(_currentGroups);
+
+                    var tiebreakerMatches = GenerateGroupMatches(tiebreakerGroup);
+                    _pendingMatches = new Queue<(IBot bot1, IBot bot2)>(tiebreakerMatches);
+                    _currentPhaseExpectedMatches = tiebreakerMatches.Count;
+                    _currentPhaseRecordedResults = 0;
+                    _currentPhase = TournamentPhase.Tiebreaker;
+                    finalGroup.IsComplete = true;
+                    Log($"FinalGroup tied; scheduled tiebreaker for {topBots.Count} bots");
+                }
+                else
+                {
+                    var winner = topBots[0];
+                    finalGroup.IsComplete = true;
+
+                    _tournamentInfo.Champion = winner.TeamName;
+                    _tournamentInfo.State = TournamentState.Completed;
+                    _tournamentInfo.EndTime = DateTime.UtcNow;
+                    _currentPhase = TournamentPhase.Completed;
+                    _pendingMatches.Clear();
+                    Log($"Tournament completed. Champion: {winner.TeamName}");
+                }
+            }
+            else if (_currentPhase == TournamentPhase.Tiebreaker)
+            {
+                var tiebreakerGroup = _currentGroups[0];
+                var contenders = GetTopContenders(tiebreakerGroup);
+                var winner = contenders.Count == 1 ? contenders[0] : ExecuteTiebreaker(contenders);
+                tiebreakerGroup.IsComplete = true;
 
                 _tournamentInfo.Champion = winner.TeamName;
                 _tournamentInfo.State = TournamentState.Completed;
                 _tournamentInfo.EndTime = DateTime.UtcNow;
                 _currentPhase = TournamentPhase.Completed;
                 _pendingMatches.Clear();
-                Log($"Tournament completed. Champion: {winner.TeamName}");
+                Log($"Tournament completed after tiebreaker. Champion: {winner.TeamName}");
             }
-        }
-        else if (_currentPhase == TournamentPhase.Tiebreaker)
-        {
-            var tiebreakerGroup = _currentGroups[0];
-            var contenders = GetTopContenders(tiebreakerGroup);
-            var winner = contenders.Count == 1 ? contenders[0] : ExecuteTiebreaker(contenders);
-            tiebreakerGroup.IsComplete = true;
 
-            _tournamentInfo.Champion = winner.TeamName;
-            _tournamentInfo.State = TournamentState.Completed;
-            _tournamentInfo.EndTime = DateTime.UtcNow;
-            _currentPhase = TournamentPhase.Completed;
-            _pendingMatches.Clear();
-            Log($"Tournament completed after tiebreaker. Champion: {winner.TeamName}");
+            return _tournamentInfo;
         }
-
-        return _tournamentInfo;
     }
 
     private IBot DetermineGroupWinner(Group group)
@@ -426,25 +439,37 @@ public class GroupStageTournamentEngine : ITournamentEngine
 
     public bool IsTournamentComplete()
     {
-        return _tournamentInfo?.State == TournamentState.Completed;
+        lock (_stateLock)
+        {
+            return _tournamentInfo?.State == TournamentState.Completed;
+        }
     }
 
     public TournamentInfo GetTournamentInfo()
     {
-        return _tournamentInfo;
+        lock (_stateLock)
+        {
+            return _tournamentInfo;
+        }
     }
 
     public int GetCurrentRound()
     {
-        return _tournamentInfo?.CurrentRound ?? 0;
+        lock (_stateLock)
+        {
+            return _tournamentInfo?.CurrentRound ?? 0;
+        }
     }
 
     public GroupStageSummary GetCurrentPhaseSummary()
     {
-        if (_currentPhase == TournamentPhase.NotStarted)
-            throw new InvalidOperationException("Tournament not initialized");
+        lock (_stateLock)
+        {
+            if (_currentPhase == TournamentPhase.NotStarted)
+                throw new InvalidOperationException("Tournament not initialized");
 
-        return BuildPhaseSummary(_currentPhase, _currentGroups);
+            return BuildPhaseSummary(_currentPhase, _currentGroups);
+        }
     }
 
     public string ExportPhaseSummaryJson(bool indented = true)
@@ -455,58 +480,70 @@ public class GroupStageTournamentEngine : ITournamentEngine
 
     public string ExportMatchResultsJson(bool indented = true)
     {
-        var options = new JsonSerializerOptions { WriteIndented = indented };
-        return JsonSerializer.Serialize(_tournamentInfo.MatchResults, options);
+        lock (_stateLock)
+        {
+            var options = new JsonSerializerOptions { WriteIndented = indented };
+            return JsonSerializer.Serialize(_tournamentInfo.MatchResults, options);
+        }
     }
 
     public IReadOnlyList<string> GetEventLog()
     {
-        return _eventLog.AsReadOnly();
+        lock (_stateLock)
+        {
+            return new List<string>(_eventLog).AsReadOnly();
+        }
     }
 
     public List<IBot> GetRemainingBots()
     {
-        if (_currentPhase == TournamentPhase.NotStarted)
-            throw new InvalidOperationException("Tournament not initialized");
-
-        var remaining = new List<IBot>();
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var group in _currentGroups)
+        lock (_stateLock)
         {
-            foreach (var bot in group.Bots)
+            if (_currentPhase == TournamentPhase.NotStarted)
+                throw new InvalidOperationException("Tournament not initialized");
+
+            var remaining = new List<IBot>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var group in _currentGroups)
             {
-                if (seen.Add(bot.TeamName))
-                    remaining.Add(bot);
+                foreach (var bot in group.Bots)
+                {
+                    if (seen.Add(bot.TeamName))
+                        remaining.Add(bot);
+                }
             }
-        }
 
-        if (remaining.Count == 0 && !string.IsNullOrWhiteSpace(_tournamentInfo?.Champion))
-        {
-            remaining.Add(ResolveBotByName(_tournamentInfo.Champion));
-        }
+            if (remaining.Count == 0 && !string.IsNullOrWhiteSpace(_tournamentInfo?.Champion))
+            {
+                remaining.Add(ResolveBotByName(_tournamentInfo.Champion));
+            }
 
-        return remaining;
+            return remaining;
+        }
     }
 
     public List<(IBot bot, int placement)> GetFinalRankings()
     {
-        if (_currentPhase == TournamentPhase.NotStarted)
-            throw new InvalidOperationException("Tournament not initialized");
-        if (_tournamentInfo.State != TournamentState.Completed)
-            throw new InvalidOperationException("Tournament is not complete");
-
-        var rankings = _scoringSystem.GenerateFinalRankings(_tournamentInfo);
-        var ordered = rankings.OrderBy(r => r.FinalPlacement).ToList();
-
-        var results = new List<(IBot bot, int placement)>(ordered.Count);
-        foreach (var ranking in ordered)
+        lock (_stateLock)
         {
-            var bot = ResolveBotByName(ranking.BotName);
-            results.Add((bot, ranking.FinalPlacement));
-        }
+            if (_currentPhase == TournamentPhase.NotStarted)
+                throw new InvalidOperationException("Tournament not initialized");
+            if (_tournamentInfo.State != TournamentState.Completed)
+                throw new InvalidOperationException("Tournament is not complete");
 
-        return results;
+            var rankings = _scoringSystem.GenerateFinalRankings(_tournamentInfo);
+            var ordered = rankings.OrderBy(r => r.FinalPlacement).ToList();
+
+            var results = new List<(IBot bot, int placement)>(ordered.Count);
+            foreach (var ranking in ordered)
+            {
+                var bot = ResolveBotByName(ranking.BotName);
+                results.Add((bot, ranking.FinalPlacement));
+            }
+
+            return results;
+        }
     }
 
     // Helper methods

@@ -4,30 +4,40 @@ using System.Linq;
 using System.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using TournamentEngine.Core.Common;
+using TournamentEngine.Core.Scoring;
 using TournamentEngine.Core.Tournament;
 using TournamentEngine.Tests.Helpers;
 
 [TestClass]
-public class TournamentManagerIntegrationTests
+public class TournamentIntegrationTests
 {
+    private MockGameRunner _gameRunner = null!;
+    private ScoringSystem _scoringSystem = null!;
+    private GroupStageTournamentEngine _engine = null!;
+    private TournamentManager _tournamentManager = null!;
+    private TournamentConfig _config = null!;
+
+    [TestInitialize]
+    public void Setup()
+    {
+        _gameRunner = new MockGameRunner();
+        _scoringSystem = new ScoringSystem();
+        _engine = new GroupStageTournamentEngine(_gameRunner, _scoringSystem);
+        _tournamentManager = new TournamentManager(_engine, _gameRunner);
+        _config = CreateConfig();
+    }
+
     [TestMethod]
     public async Task FullTournament_With20Bots_CompletesSuccessfully()
     {
-        // Setup
-        var gameRunner = new MockGameRunner();
-        var scoringSystem = new MockScoringSystem();
-        var engine = new GroupStageTournamentEngine(gameRunner, scoringSystem);
-        var tournamentManager = new TournamentManager(engine, gameRunner);
-
         // Create demo bots and config
         var bots = CreateDemoBots(20);
-        var config = CreateConfig();
 
         // Run entire tournament automatically
-        var finalInfo = await tournamentManager.RunTournamentAsync(
+        var finalInfo = await _tournamentManager.RunTournamentAsync(
             bots, 
             GameType.RPSLS, 
-            config, 
+            _config, 
             CancellationToken.None);
 
         // Verify results
@@ -38,7 +48,7 @@ public class TournamentManagerIntegrationTests
         Assert.IsTrue((finalInfo.EndTime - finalInfo.StartTime)?.TotalSeconds >= 0);
 
         // Verify event log shows progression through phases
-        var log = engine.GetEventLog();
+        var log = _engine.GetEventLog();
         Assert.IsTrue(log.Any(e => e.Contains("Tournament initialized")));
         Assert.IsTrue(log.Any(e => e.Contains("Advanced to FinalGroup")));
         Assert.IsTrue(log.Any(e => e.Contains("Tournament completed")));
@@ -46,26 +56,22 @@ public class TournamentManagerIntegrationTests
 
         // Verify champion is one of the original bots
         Assert.IsTrue(bots.Any(b => b.TeamName == finalInfo.Champion));
+
+        // Verify scoring system logic
+        AssertScoringSummary(_scoringSystem, finalInfo, bots.Count);
     }
 
     [TestMethod]
     public async Task FullTournament_With10Bots_CompletesSuccessfully()
     {
-        // Setup
-        var gameRunner = new MockGameRunner();
-        var scoringSystem = new MockScoringSystem();
-        var engine = new GroupStageTournamentEngine(gameRunner, scoringSystem);
-        var tournamentManager = new TournamentManager(engine, gameRunner);
-
         // Create demo bots and config
         var bots = CreateDemoBots(10);
-        var config = CreateConfig();
 
         // Run entire tournament automatically
-        var finalInfo = await tournamentManager.RunTournamentAsync(
+        var finalInfo = await _tournamentManager.RunTournamentAsync(
             bots, 
             GameType.RPSLS, 
-            config, 
+            _config, 
             CancellationToken.None);
 
         // Verify results
@@ -80,26 +86,22 @@ public class TournamentManagerIntegrationTests
             Assert.IsTrue(bots.Any(b => b.TeamName == match.Bot1Name));
             Assert.IsTrue(bots.Any(b => b.TeamName == match.Bot2Name));
         }
+
+        // Verify scoring system logic
+        AssertScoringSummary(_scoringSystem, finalInfo, bots.Count);
     }
 
     [TestMethod]
     public async Task FullTournament_With50Bots_CompletesSuccessfully()
     {
-        // Setup
-        var gameRunner = new MockGameRunner();
-        var scoringSystem = new MockScoringSystem();
-        var engine = new GroupStageTournamentEngine(gameRunner, scoringSystem);
-        var tournamentManager = new TournamentManager(engine, gameRunner);
-
         // Create demo bots and config
         var bots = CreateDemoBots(50);
-        var config = CreateConfig();
 
         // Run entire tournament automatically
-        var finalInfo = await tournamentManager.RunTournamentAsync(
+        var finalInfo = await _tournamentManager.RunTournamentAsync(
             bots, 
             GameType.RPSLS, 
-            config, 
+            _config, 
             CancellationToken.None);
 
         // Verify results
@@ -109,33 +111,29 @@ public class TournamentManagerIntegrationTests
         Assert.IsNotNull(finalInfo.EndTime);
 
         // With 50 bots, we expect multiple initial groups
-        var log = engine.GetEventLog();
+        var log = _engine.GetEventLog();
         var initLog = log.FirstOrDefault(e => e.Contains("Tournament initialized"));
         Assert.IsNotNull(initLog);
+
+        // Verify scoring system logic
+        AssertScoringSummary(_scoringSystem, finalInfo, bots.Count);
     }
 
     [TestMethod]
     public async Task FullTournament_VerifyPhaseProgression()
     {
-        // Setup
-        var gameRunner = new MockGameRunner();
-        var scoringSystem = new MockScoringSystem();
-        var engine = new GroupStageTournamentEngine(gameRunner, scoringSystem);
-        var tournamentManager = new TournamentManager(engine, gameRunner);
-
         // Create demo bots and config
         var bots = CreateDemoBots(20);
-        var config = CreateConfig();
 
         // Run entire tournament automatically
-        await tournamentManager.RunTournamentAsync(
+        await _tournamentManager.RunTournamentAsync(
             bots, 
             GameType.RPSLS, 
-            config, 
+            _config, 
             CancellationToken.None);
 
         // Verify event log shows all expected phases
-        var log = engine.GetEventLog().ToList();
+        var log = _engine.GetEventLog().ToList();
         
         // Find phase transitions
         var initIndex = log.FindIndex(e => e.Contains("Tournament initialized"));
@@ -146,26 +144,23 @@ public class TournamentManagerIntegrationTests
         Assert.IsTrue(initIndex >= 0, "Should have initialization log");
         Assert.IsTrue(finalGroupIndex > initIndex, "Should advance to final group after init");
         Assert.IsTrue(completedIndex > finalGroupIndex, "Should complete after final group");
+
+        // Verify scoring system logic
+        var finalInfo = _engine.GetTournamentInfo();
+        AssertScoringSummary(_scoringSystem, finalInfo, bots.Count);
     }
 
     [TestMethod]
     public async Task FullTournament_VerifyMatchesRecorded()
     {
-        // Setup
-        var gameRunner = new MockGameRunner();
-        var scoringSystem = new MockScoringSystem();
-        var engine = new GroupStageTournamentEngine(gameRunner, scoringSystem);
-        var tournamentManager = new TournamentManager(engine, gameRunner);
-
         // Create demo bots and config
         var bots = CreateDemoBots(15);
-        var config = CreateConfig();
 
         // Run entire tournament
-        var finalInfo = await tournamentManager.RunTournamentAsync(
+        var finalInfo = await _tournamentManager.RunTournamentAsync(
             bots, 
             GameType.RPSLS, 
-            config, 
+            _config, 
             CancellationToken.None);
 
         // Verify all matches have valid outcomes
@@ -178,26 +173,22 @@ public class TournamentManagerIntegrationTests
         }
 
         // Verify matches were logged
-        var log = engine.GetEventLog();
+        var log = _engine.GetEventLog();
         var matchLogs = log.Where(e => e.Contains("Recorded match:")).ToList();
         Assert.IsTrue(matchLogs.Count > 0, "Should have match recording logs");
         // Note: matchLogs count may be less than MatchResults if some matches were recorded
         // before logging was added, so we just verify that logging is happening
         Assert.IsTrue(matchLogs.Count <= finalInfo.MatchResults.Count, "Should not have more logs than matches");
+
+        // Verify scoring system logic
+        AssertScoringSummary(_scoringSystem, finalInfo, bots.Count);
     }
 
     [TestMethod]
     public async Task FullTournament_WithCancellationToken_ThrowsOnCancel()
     {
-        // Setup
-        var gameRunner = new MockGameRunner();
-        var scoringSystem = new MockScoringSystem();
-        var engine = new GroupStageTournamentEngine(gameRunner, scoringSystem);
-        var tournamentManager = new TournamentManager(engine, gameRunner);
-
         // Create demo bots and config
         var bots = CreateDemoBots(20);
-        var config = CreateConfig();
         var cts = new CancellationTokenSource();
         
         // Cancel immediately
@@ -206,59 +197,41 @@ public class TournamentManagerIntegrationTests
         // Act & Assert
         await Assert.ThrowsExceptionAsync<OperationCanceledException>(async () =>
         {
-            await tournamentManager.RunTournamentAsync(bots, GameType.RPSLS, config, cts.Token);
+            await _tournamentManager.RunTournamentAsync(bots, GameType.RPSLS, _config, cts.Token);
         });
     }
 
     [TestMethod]
     public async Task FullTournament_WithNullBots_ThrowsArgumentException()
     {
-        // Setup
-        var gameRunner = new MockGameRunner();
-        var scoringSystem = new MockScoringSystem();
-        var engine = new GroupStageTournamentEngine(gameRunner, scoringSystem);
-        var tournamentManager = new TournamentManager(engine, gameRunner);
-        var config = CreateConfig();
-
         // Act & Assert
         await Assert.ThrowsExceptionAsync<ArgumentException>(async () =>
         {
-            await tournamentManager.RunTournamentAsync(null!, GameType.RPSLS, config);
+            await _tournamentManager.RunTournamentAsync(null!, GameType.RPSLS, _config);
         });
     }
 
     [TestMethod]
     public async Task FullTournament_WithNullConfig_ThrowsArgumentNullException()
     {
-        // Setup
-        var gameRunner = new MockGameRunner();
-        var scoringSystem = new MockScoringSystem();
-        var engine = new GroupStageTournamentEngine(gameRunner, scoringSystem);
-        var tournamentManager = new TournamentManager(engine, gameRunner);
         var bots = CreateDemoBots(10);
 
         // Act & Assert
         await Assert.ThrowsExceptionAsync<ArgumentNullException>(async () =>
         {
-            await tournamentManager.RunTournamentAsync(bots, GameType.RPSLS, null!);
+            await _tournamentManager.RunTournamentAsync(bots, GameType.RPSLS, null!);
         });
     }
 
     [TestMethod]
     public async Task FullTournament_WithFewerThanTwoBots_ThrowsArgumentException()
     {
-        // Setup
-        var gameRunner = new MockGameRunner();
-        var scoringSystem = new MockScoringSystem();
-        var engine = new GroupStageTournamentEngine(gameRunner, scoringSystem);
-        var tournamentManager = new TournamentManager(engine, gameRunner);
         var bots = CreateDemoBots(1);
-        var config = CreateConfig();
 
         // Act & Assert
         await Assert.ThrowsExceptionAsync<ArgumentException>(async () =>
         {
-            await tournamentManager.RunTournamentAsync(bots, GameType.RPSLS, config);
+            await _tournamentManager.RunTournamentAsync(bots, GameType.RPSLS, _config);
         });
     }
 
@@ -294,5 +267,19 @@ public class TournamentManagerIntegrationTests
             BotsDirectory = "demo_bots",
             ResultsFilePath = "results.json"
         };
+    }
+
+    private static void AssertScoringSummary(ScoringSystem scoringSystem, TournamentInfo finalInfo, int botCount)
+    {
+        var stats = scoringSystem.CalculateStatistics(finalInfo);
+        Assert.AreEqual(finalInfo.MatchResults.Count, stats.TotalMatches, "Stats should count all matches");
+        Assert.IsTrue(stats.MatchesByGame.TryGetValue(finalInfo.GameType, out var matchesByGame));
+        Assert.AreEqual(finalInfo.MatchResults.Count, matchesByGame, "Stats should count matches by game");
+
+        var rankings = scoringSystem.GenerateFinalRankings(finalInfo);
+        Assert.AreEqual(botCount, rankings.Count, "Rankings should include all bots");
+
+        var placements = rankings.Select(r => r.FinalPlacement).OrderBy(p => p).ToList();
+        CollectionAssert.AreEqual(Enumerable.Range(1, botCount).ToList(), placements, "Placements should be sequential");
     }
 }

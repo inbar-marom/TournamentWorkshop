@@ -11,4 +11,11 @@ public class BotInfo
     public bool IsValid { get; init; }
     public List<string> ValidationErrors { get; init; } = new();
     public DateTime LoadTime { get; init; }
+    
+    /// <summary>
+    /// The loaded bot instance, ready to execute.
+    /// Null if the bot failed to load (check IsValid and ValidationErrors).
+    /// Populated by IBotLoader during bot loading phase.
+    /// </summary>
+    public IBot? BotInstance { get; init; }
 }
