@@ -27,7 +27,8 @@ public class ContractsTests
         var outcomes = Enum.GetValues<MatchOutcome>();
         
         // Assert
-        Assert.AreEqual(6, outcomes.Length);
+        Assert.AreEqual(7, outcomes.Length);
+        Assert.IsTrue(outcomes.Contains(MatchOutcome.Unknown));
         Assert.IsTrue(outcomes.Contains(MatchOutcome.Player1Wins));
         Assert.IsTrue(outcomes.Contains(MatchOutcome.Player2Wins));
         Assert.IsTrue(outcomes.Contains(MatchOutcome.Draw));
@@ -115,16 +116,14 @@ public class ContractsTests
         var botInfo = new BotInfo
         {
             TeamName = "TestTeam",
-            GameType = GameType.RPSLS,
-            FilePath = "test/path/bot.cs",
+            FolderPath = "test/path/bot",
             IsValid = true,
             LoadTime = DateTime.Now
         };
         
         // Assert
         Assert.AreEqual("TestTeam", botInfo.TeamName);
-        Assert.AreEqual(GameType.RPSLS, botInfo.GameType);
-        Assert.AreEqual("test/path/bot.cs", botInfo.FilePath);
+        Assert.AreEqual("test/path/bot", botInfo.FolderPath);
         Assert.IsTrue(botInfo.IsValid);
         Assert.IsNotNull(botInfo.ValidationErrors);
         Assert.AreEqual(0, botInfo.ValidationErrors.Count);

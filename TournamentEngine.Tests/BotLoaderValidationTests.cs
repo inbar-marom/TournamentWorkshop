@@ -19,8 +19,7 @@ public class BotLoaderValidationTests
         var botInfo = new BotInfo
         {
             TeamName = validBot.TeamName,
-            GameType = validBot.GameType,
-            FilePath = "test/path/RockBot.cs",
+            FolderPath = "test/path/RockBot",
             IsValid = true,
             LoadTime = DateTime.Now
         };
@@ -28,7 +27,6 @@ public class BotLoaderValidationTests
         // Assert
         Assert.IsTrue(botInfo.IsValid);
         Assert.AreEqual("RockBot", botInfo.TeamName);
-        Assert.AreEqual(GameType.RPSLS, botInfo.GameType);
         Assert.AreEqual(0, botInfo.ValidationErrors.Count);
     }
 
@@ -40,8 +38,7 @@ public class BotLoaderValidationTests
         var botInfo = new BotInfo
         {
             TeamName = invalidBot.TeamName,
-            GameType = invalidBot.GameType,
-            FilePath = "test/path/FaultyBot.cs",
+            FolderPath = "test/path/FaultyBot",
             IsValid = false,
             LoadTime = DateTime.Now,
             ValidationErrors = { "Invalid move format", "Invalid troop allocation" }
@@ -184,24 +181,21 @@ public class BotLoaderValidationTests
             new BotInfo
             {
                 TeamName = "RockBot",
-                GameType = GameType.RPSLS,
-                FilePath = "bots/team1/RockBot.cs",
+                FolderPath = "bots/team1",
                 IsValid = true,
                 LoadTime = DateTime.Now
             },
             new BotInfo
             {
                 TeamName = "PaperBot",
-                GameType = GameType.RPSLS,
-                FilePath = "bots/team2/PaperBot.cs",
+                FolderPath = "bots/team2",
                 IsValid = true,
                 LoadTime = DateTime.Now
             },
             new BotInfo
             {
                 TeamName = "FaultyBot",
-                GameType = GameType.RPSLS,
-                FilePath = "bots/team3/FaultyBot.cs",
+                FolderPath = "bots/team3",
                 IsValid = false,
                 LoadTime = DateTime.Now,
                 ValidationErrors = { "Invalid implementation" }

@@ -120,8 +120,7 @@ public class BracketAdvancementTests
             Bots = bots.Select(b => new BotInfo 
             { 
                 TeamName = b.TeamName, 
-                GameType = b.GameType, 
-                FilePath = $"{b.TeamName}.cs",
+                FolderPath = $"bots/{b.TeamName}",
                 IsValid = true,
                 LoadTime = DateTime.Now
             }).ToList(),
