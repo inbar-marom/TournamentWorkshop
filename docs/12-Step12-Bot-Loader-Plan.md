@@ -101,6 +101,29 @@ public interface IBotLoader
 - `Microsoft.CodeAnalysis.CSharp.Scripting` - Roslyn for compilation
 - `System.IO` - File operations
 
+**Compilation Model:**
+
+Each team folder is compiled into an **isolated assembly**:
+```csharp
+// TeamRocket_v2/ → Assembly "TeamRocket_Bot"
+// TeamBlue_v1/   → Assembly "TeamBlue_Bot"
+// TeamGreen_v3/  → Assembly "TeamGreen_Bot"
+```
+
+**Multi-file compilation process:**
+1. Collect all .cs files from team folder
+2. Parse each file into a `SyntaxTree` using Roslyn
+3. Create single `CSharpCompilation` with ALL syntax trees
+4. Compile into one assembly (in-memory, not saved to disk)
+5. Load assembly and extract IBot implementation
+6. Instantiate bot and store in `BotInfo.BotInstance`
+
+**Isolation guarantees:**
+- Each team's files compile **together** but **separately from other teams**
+- Teams can use any namespace/class names without conflicts
+- Example: Both TeamA and TeamB can have `namespace MyBot` and `class Strategy`
+- No cross-contamination - each assembly is independent
+
 **Key Methods:**
 
 1. **`LoadBotsFromDirectoryAsync()`**
@@ -170,26 +193,54 @@ public class BotValidationResult
 - All files must compile together successfully
 
 **Multi-Game Type Support:**
-- Each bot must handle all game types (RPSLS, Blotto, Penalty, Security)
-- Single IBot implementation, typically delegates to game-specific classes:
-  ```csharp
-  // TeamRocketBot.cs (main file with IBot implementation)
-  public class TeamRocketBot : IBot
-  {
-      public async Task<string> GetMoveAsync(GameState state, CancellationToken ct)
-      {
-          return state.GameType switch
-          {
-              GameType.RPSLS => new RpslsStrategy().GetMove(state),
-              GameType.ColonelBlotto => new BlottoStrategy().GetMove(state),
-              // ...
-          };
-      }
-  }
-  
-  // RpslsStrategy.cs (separate file for RPSLS logic)
-  // BlottoStrategy.cs (separate file for Blotto logic)
-  ```
+- Each bot must implement `IBot` interface **exactly once**
+- The single `IBot` implementation must handle **all game types** (RPSLS, Blotto, Penalty, Security)
+- How teams organize code internally is **completely flexible**
+
+**Single IBot API Requirement:**
+```csharp
+public interface IBot
+{
+    // Must handle ALL game types through this single method
+    Task<string> GetMoveAsync(GameState state, CancellationToken cancellationToken);
+    
+    // GameState.GameType tells the bot which game is being played
+}
+```
+
+**Teams choose their own organization:**
+- **Option 1: Single file** (simple bots)
+- **Option 2: Multiple files** (complex bots with shared utilities)
+- **Option 3: Game-specific strategy classes** (optional pattern, not required)
+
+**Example - Multi-file bot with internal organization:**
+```csharp
+// TeamRocketBot.cs (IBot implementation)
+public class TeamRocketBot : IBot
+{
+    public async Task<string> GetMoveAsync(GameState state, CancellationToken ct)
+    {
+        // Team decides how to handle different games
+        return state.GameType switch
+        {
+            GameType.RPSLS => HandleRpsls(state),
+            GameType.ColonelBlotto => new BlottoAI().GetMove(state),
+            // Team's internal design choice
+        };
+    }
+    
+    private string HandleRpsls(GameState state) { /* ... */ }
+}
+
+// BlottoAI.cs (optional helper class, team's choice)
+// Utilities.cs (optional shared code, team's choice)
+```
+
+**Compilation Model:**
+- All team files compile together into **one assembly** (`{TeamName}_Bot`)
+- Classes in different files can reference each other freely
+- Each team's assembly is **isolated** - no conflicts between teams
+- TeamA and TeamB can both have a "Strategy" class without conflict
 
 #### Compilation Settings
 - Target: .NET 8.0
@@ -441,15 +492,15 @@ public class BotSubmissionResult
 ```
 bots/
 ├── TeamRocket_v2/
-│   ├── TeamRocketBot.cs          (IBot implementation)
-│   ├── RpslsStrategy.cs          (RPSLS game logic)
-│   ├── BlottoStrategy.cs         (Blotto game logic)
-│   └── Utilities.cs              (shared helper functions)
+│   ├── Bot.cs                    (IBot implementation)
+│   ├── RpslsLogic.cs             (team's internal organization)
+│   ├── BlottoLogic.cs            (team's internal organization)
+│   └── Utils.cs                  (team's internal organization)
 ├── TeamBlue_v1/
-│   └── TeamBlueBot.cs            (single-file bot)
+│   └── TeamBlueBot.cs            (single-file bot - also valid!)
 ├── TeamGreen_v3/
-│   ├── TeamGreenBot.cs
-│   └── GameStrategies.cs
+│   ├── Main.cs                   (IBot here)
+│   └── Helpers.cs                (team's choice of structure)
 └── .metadata/
     ├── TeamRocket.json
     ├── TeamBlue.json
@@ -457,7 +508,13 @@ bots/
 ```
 
 **Folder Pattern:** `{TeamName}_v{Version}/`
-**Note:** Each team has a folder containing one or more .cs files
+
+**Important Notes:**
+- Filename choices are **entirely up to the team** (no requirements)
+- Folder must contain at least one .cs file with IBot implementation
+- All .cs files in folder compile together as one unit
+- Teams can name files anything they want (Bot.cs, AI.cs, Strategy.cs, etc.)
+- File organization is for team convenience - doesn't affect functionality
 
 **Metadata JSON:**
 ```json
@@ -490,6 +547,126 @@ bots/
 - Request size limits (max 100KB per bot)
 - CORS configuration
 - HTTPS only in production
+
+---
+
+## Technical: Multi-File Compilation & Isolation
+
+### How Multi-File Compilation Works
+
+**Teams submit multiple .cs files that need to reference each other:**
+
+```csharp
+// File: Bot.cs
+public class MyBot : IBot
+{
+    public async Task<string> GetMoveAsync(GameState state, CancellationToken ct)
+    {
+        return Helper.Calculate(state); // References class in another file
+    }
+}
+
+// File: Helper.cs
+public static class Helper
+{
+    public static string Calculate(GameState state) { /* ... */ }
+}
+```
+
+**BotLoader compiles them together:**
+
+```csharp
+// Simplified compilation logic
+public async Task<BotInfo> LoadBotFromFolderAsync(string teamFolder)
+{
+    // 1. Collect all .cs files
+    var files = Directory.GetFiles(teamFolder, "*.cs");
+    
+    // 2. Parse each file into a syntax tree
+    var syntaxTrees = new List<SyntaxTree>();
+    foreach (var file in files)
+    {
+        var code = await File.ReadAllTextAsync(file);
+        syntaxTrees.Add(CSharpSyntaxTree.ParseText(code, path: file));
+    }
+    
+    // 3. Create compilation with ALL files together
+    var compilation = CSharpCompilation.Create(
+        assemblyName: $"{teamName}_Bot_{Guid.NewGuid()}",
+        syntaxTrees: syntaxTrees,  // All files in one compilation!
+        references: GetMetadataReferences(), // System.dll, etc.
+        options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)
+    );
+    
+    // 4. Compile to in-memory assembly
+    using var ms = new MemoryStream();
+    var result = compilation.Emit(ms);
+    
+    if (!result.Success)
+    {
+        return new BotInfo { IsValid = false, ValidationErrors = result.Diagnostics };
+    }
+    
+    // 5. Load assembly and find IBot implementation
+    ms.Seek(0, SeekOrigin.Begin);
+    var assembly = Assembly.Load(ms.ToArray());
+    var botType = assembly.GetTypes().Single(t => typeof(IBot).IsAssignableFrom(t));
+    
+    // 6. Create instance
+    var botInstance = (IBot)Activator.CreateInstance(botType);
+    
+    return new BotInfo
+    {
+        TeamName = teamName,
+        BotInstance = botInstance,
+        IsValid = true
+    };
+}
+```
+
+**Result:** All team files become part of **one assembly** where classes can reference each other freely.
+
+### How Bot Isolation Works
+
+**Problem:** Multiple teams might use same namespaces/class names:
+```csharp
+// TeamA/Bot.cs
+namespace MyBot { public class Strategy : IBot { } }
+
+// TeamB/Bot.cs  
+namespace MyBot { public class Strategy : IBot { } }  // Same names!
+```
+
+**Solution:** Each team compiles into a **separate assembly** with unique name:
+
+```
+Compilation 1: "TeamA_Bot_{guid1}" contains MyBot.Strategy (TeamA's version)
+Compilation 2: "TeamB_Bot_{guid2}" contains MyBot.Strategy (TeamB's version)
+```
+
+**At runtime:**
+- TeamA's assembly loads with its own MyBot.Strategy
+- TeamB's assembly loads with its own MyBot.Strategy  
+- No conflict - they're in different assemblies
+- Tournament only interacts via `IBot` interface
+
+**Memory Isolation:**
+```csharp
+// Runtime - each bot's instance is separate
+var teamABot = teamAAssembly.CreateInstance("MyBot.Strategy"); // TeamA's class
+var teamBBot = teamBAssembly.CreateInstance("MyBot.Strategy"); // TeamB's class
+
+// Call same interface method on different implementations
+await teamABot.GetMoveAsync(state, ct);  // TeamA's logic
+await teamBBot.GetMoveAsync(state, ct);  // TeamB's logic
+```
+
+**Guarantees:**
+✅ No namespace conflicts  
+✅ No class name conflicts  
+✅ No static variable sharing  
+✅ Teams completely isolated  
+✅ Each team's code only sees their own classes
 
 ---
 
