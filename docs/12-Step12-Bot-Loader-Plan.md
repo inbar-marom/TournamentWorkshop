@@ -299,7 +299,7 @@ TournamentEngine.Api/
 **Base URL:** `/api/bots`
 
 ##### `POST /api/bots/submit`
-Submit a single bot
+Submit a single bot (handles ALL game types)
 
 **Request (Multi-file support):**
 ```json
@@ -307,23 +307,26 @@ Submit a single bot
   "teamName": "TeamRocket",
   "files": [
     {
-      "fileName": "TeamRocketBot.cs",
-      "code": "public class TeamRocketBot : IBot { ... }"
+      "fileName": "Bot.cs",
+      "code": "public class RocketBot : IBot { /* handles all games */ }"
     },
     {
-      "fileName": "RpslsStrategy.cs",
-      "code": "public class RpslsStrategy { ... }"
+      "fileName": "AI.cs",
+      "code": "public class GameAI { /* team's internal logic */ }"
     },
     {
-      "fileName": "BlottoStrategy.cs",
-      "code": "public class BlottoStrategy { ... }"
+      "fileName": "Utils.cs",
+      "code": "public static class Utils { /* helper functions */ }"
     }
   ],
   "overwrite": true
 }
 ```
 
-**Note:** `gameType` removed - each bot handles all game types
+**Notes:** 
+- Single endpoint submits bot that handles **all game types** (RPSLS, Blotto, Penalty, Security)
+- File names are team's choice (no requirements or conventions)
+- Bot must have one IBot implementation that handles all games internally
 
 **Response:**
 ```json
@@ -337,7 +340,7 @@ Submit a single bot
 ```
 
 ##### `POST /api/bots/submit-batch`
-Submit multiple bots at once
+Submit multiple bots at once (each bot handles all game types)
 
 **Request:**
 ```json
@@ -346,19 +349,21 @@ Submit multiple bots at once
     {
       "teamName": "Team1",
       "files": [
-        { "fileName": "Team1Bot.cs", "code": "..." },
-        { "fileName": "Strategy.cs", "code": "..." }
+        { "fileName": "Bot.cs", "code": "..." },
+        { "fileName": "Helper.cs", "code": "..." }
       ]
     },
     {
       "teamName": "Team2",
       "files": [
-        { "fileName": "Team2Bot.cs", "code": "..." }
+        { "fileName": "AI.cs", "code": "..." }
       ]
     }
   ]
 }
 ```
+
+**Note:** Each bot submission contains a complete bot that handles all game types
 
 **Response:**
 ```json
@@ -492,14 +497,14 @@ public class BotSubmissionResult
 ```
 bots/
 ├── TeamRocket_v2/
-│   ├── Bot.cs                    (IBot implementation)
-│   ├── RpslsLogic.cs             (team's internal organization)
-│   ├── BlottoLogic.cs            (team's internal organization)
+│   ├── Bot.cs                    (IBot implementation - handles all games)
+│   ├── AILogic.cs                (team's internal organization)
+│   ├── Strategies.cs             (team's internal organization)
 │   └── Utils.cs                  (team's internal organization)
 ├── TeamBlue_v1/
-│   └── TeamBlueBot.cs            (single-file bot - also valid!)
+│   └── BlueBot.cs                (single-file bot - also valid!)
 ├── TeamGreen_v3/
-│   ├── Main.cs                   (IBot here)
+│   ├── Main.cs                   (IBot here - handles all games)
 │   └── Helpers.cs                (team's choice of structure)
 └── .metadata/
     ├── TeamRocket.json
@@ -510,10 +515,11 @@ bots/
 **Folder Pattern:** `{TeamName}_v{Version}/`
 
 **Important Notes:**
+- Each bot handles **all game types** through single IBot implementation
 - Filename choices are **entirely up to the team** (no requirements)
 - Folder must contain at least one .cs file with IBot implementation
 - All .cs files in folder compile together as one unit
-- Teams can name files anything they want (Bot.cs, AI.cs, Strategy.cs, etc.)
+- Teams can name files anything they want (Bot.cs, AI.cs, Main.cs, Logic.cs, etc.)
 - File organization is for team convenience - doesn't affect functionality
 
 **Metadata JSON:**
@@ -525,10 +531,10 @@ bots/
   "fileCount": 4,
   "totalSizeBytes": 23456,
   "files": [
-    "TeamRocketBot.cs",
-    "RpslsStrategy.cs",
-    "BlottoStrategy.cs",
-    "Utilities.cs"
+    "Bot.cs",
+    "AI.cs",
+    "Logic.cs",
+    "Utils.cs"
   ],
   "submissionHistory": [
     { "version": 1, "time": "2026-02-11T09:00:00Z", "fileCount": 1 },
@@ -1065,19 +1071,19 @@ await tournamentManager.RunTournamentAsync(validBots, GameType.ColonelBlotto, ..
 ### Phase 2: API Submission
 
 ```bash
-# Submit a multi-file bot
+# Submit a multi-file bot (handles all game types)
 curl -X POST http://localhost:5000/api/bots/submit \
   -H "Content-Type: application/json" \
   -d '{
     "teamName": "TeamRocket",
     "files": [
       {
-        "fileName": "TeamRocketBot.cs",
-        "code": "public class TeamRocketBot : IBot { ... }"
+        "fileName": "Bot.cs",
+        "code": "public class RocketBot : IBot { /* all games */ }"
       },
       {
-        "fileName": "RpslsStrategy.cs",
-        "code": "public class RpslsStrategy { ... }"
+        "fileName": "AI.cs",
+        "code": "public class GameAI { /* team logic */ }"
       }
     ]
   }'
