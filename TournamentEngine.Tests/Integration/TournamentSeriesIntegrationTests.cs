@@ -30,7 +30,7 @@ public class TournamentSeriesIntegrationTests
     [TestInitialize]
     public void Setup()
     {
-        _baseConfig = CreateConfig();
+        _baseConfig = IntegrationTestHelpers.CreateConfig();
         _gameRunner = new GameRunner(_baseConfig);
         _scoringSystem = new ScoringSystem();
         _engine = new GroupStageTournamentEngine(_gameRunner, _scoringSystem);
@@ -42,7 +42,7 @@ public class TournamentSeriesIntegrationTests
     public async Task FullSeries_WithThreeTournamentsSameGame_CompletesSuccessfully()
     {
         // Arrange
-        var bots = await CreateDemoBots(10);
+        var bots = await IntegrationTestHelpers.CreateDemoBots(10);
         var seriesConfig = new TournamentSeriesConfig
         {
             GameTypes = new List<GameType> { GameType.RPSLS, GameType.RPSLS, GameType.RPSLS },
@@ -109,7 +109,7 @@ public class TournamentSeriesIntegrationTests
     public async Task FullSeries_WithMultipleGameTypes_CompletesSuccessfully()
     {
         // Arrange
-        var bots = await CreateDemoBots(10);
+        var bots = await IntegrationTestHelpers.CreateDemoBots(10);
         var seriesConfig = new TournamentSeriesConfig
         {
             GameTypes = new List<GameType> 
@@ -162,7 +162,7 @@ public class TournamentSeriesIntegrationTests
     public async Task FullSeries_VerifiesSeriesStandingsAggregation()
     {
         // Arrange
-        var bots = await CreateDemoBots(5);
+        var bots = await IntegrationTestHelpers.CreateDemoBots(5);
         var seriesConfig = new TournamentSeriesConfig
         {
             GameTypes = new List<GameType> { GameType.RPSLS, GameType.RPSLS },
@@ -213,7 +213,7 @@ public class TournamentSeriesIntegrationTests
     public async Task FullSeries_WithLargeBotCount_CompletesSuccessfully()
     {
         // Arrange
-        var bots = await CreateDemoBots(50);
+        var bots = await IntegrationTestHelpers.CreateDemoBots(50);
         var seriesConfig = new TournamentSeriesConfig
         {
             GameTypes = new List<GameType> { GameType.RPSLS, GameType.ColonelBlotto },
@@ -244,7 +244,7 @@ public class TournamentSeriesIntegrationTests
     public async Task FullSeries_WithCancellation_ThrowsOperationCanceledException()
     {
         // Arrange
-        var bots = await CreateDemoBots(10);
+        var bots = await IntegrationTestHelpers.CreateDemoBots(10);
         var seriesConfig = new TournamentSeriesConfig
         {
             GameTypes = new List<GameType> { GameType.RPSLS, GameType.RPSLS, GameType.RPSLS },
@@ -265,7 +265,7 @@ public class TournamentSeriesIntegrationTests
     public async Task FullSeries_PreservesIndividualTournamentResults()
     {
         // Arrange
-        var bots = await CreateDemoBots(8);
+        var bots = await IntegrationTestHelpers.CreateDemoBots(8);
         var seriesConfig = new TournamentSeriesConfig
         {
             GameTypes = new List<GameType> { GameType.RPSLS, GameType.ColonelBlotto },
@@ -305,7 +305,7 @@ public class TournamentSeriesIntegrationTests
     public async Task FullSeries_TournamentWinsTracking_IsAccurate()
     {
         // Arrange
-        var bots = await CreateDemoBots(10);
+        var bots = await IntegrationTestHelpers.CreateDemoBots(10);
         var seriesConfig = new TournamentSeriesConfig
         {
             GameTypes = new List<GameType> 
@@ -341,98 +341,5 @@ public class TournamentSeriesIntegrationTests
         }
     }
 
-    private static async Task<List<BotInfo>> CreateDemoBots(int count)
-    {
-        var testBotsDirectory = Path.Combine(Path.GetTempPath(), $"SeriesIntegrationTestBots_{Guid.NewGuid()}");
-        Directory.CreateDirectory(testBotsDirectory);
 
-        try
-        {
-            // Create bot folders with code files
-            for (int i = 1; i <= count; i++)
-            {
-                var teamName = $"Team{i}";
-                var botFolder = Path.Combine(testBotsDirectory, $"{teamName}_v1");
-                Directory.CreateDirectory(botFolder);
-                var botCode = GetBotCode(i, teamName);
-                await File.WriteAllTextAsync(Path.Combine(botFolder, "Bot.cs"), botCode);
-            }
-
-            // Load bots using BotLoader
-            var botLoader = new BotLoader();
-            var bots = await botLoader.LoadBotsFromDirectoryAsync(testBotsDirectory);
-            
-            // Filter to valid bots only
-            var validBots = bots.Where(b => b.IsValid).ToList();
-            
-            return validBots;
-        }
-        finally
-        {
-            // Cleanup test directory
-            if (Directory.Exists(testBotsDirectory))
-            {
-                try
-                {
-                    Directory.Delete(testBotsDirectory, recursive: true);
-                }
-                catch { /* Ignore cleanup errors */ }
-            }
-        }
-    }
-
-    private static string GetBotCode(int botNumber, string teamName)
-    {
-        return $@"using System;
-using System.Threading;
-using System.Threading.Tasks;
-using TournamentEngine.Core.Common;
-
-public class Bot{botNumber} : IBot
-{{
-    public string TeamName => ""{teamName}"";
-    public GameType GameType => GameType.RPSLS;
-
-    public async Task<string> MakeMove(GameState gameState, CancellationToken cancellationToken)
-    {{
-        await Task.CompletedTask;
-        var moves = new[] {{ ""Rock"", ""Paper"", ""Scissors"" }};
-        return moves[gameState.CurrentRound % 3];
-    }}
-
-    public async Task<int[]> AllocateTroops(GameState gameState, CancellationToken cancellationToken)
-    {{
-        await Task.CompletedTask;
-        return new int[] {{ 20, 20, 20, 20, 20 }};
-    }}
-
-    public async Task<string> MakePenaltyDecision(GameState gameState, CancellationToken cancellationToken)
-    {{
-        await Task.CompletedTask;
-        return ""Left"";
-    }}
-
-    public async Task<string> MakeSecurityMove(GameState gameState, CancellationToken cancellationToken)
-    {{
-        await Task.CompletedTask;
-        return ""Scan"";
-    }}
-}}";
-    }
-
-    private static TournamentConfig CreateConfig()
-    {
-        return new TournamentConfig
-        {
-            Games = new List<GameType> { GameType.RPSLS },
-            ImportTimeout = TimeSpan.FromSeconds(5),
-            MoveTimeout = TimeSpan.FromSeconds(1),
-            MemoryLimitMB = 512,
-            MaxRoundsRPSLS = 50,
-            LogLevel = "INFO",
-            LogFilePath = "tournament.log",
-            BotsDirectory = "demo_bots",
-            ResultsFilePath = "results.json"
-        };
-    }
 }
