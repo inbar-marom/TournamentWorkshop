@@ -1,8 +1,14 @@
 ﻿using Microsoft.AspNetCore.SignalR.Client;
+using Microsoft.Extensions.Logging;
 using TournamentEngine.Core.Common;
 using TournamentEngine.Core.Common.Dashboard;
+using TournamentEngine.Core.Events;
+using TournamentEngine.Core.GameRunner;
+using TournamentEngine.Core.Scoring;
+using TournamentEngine.Core.Tournament;
+using TournamentEngine.Tests.Helpers;
 
-Console.WriteLine("🎮 Tournament Simulator - Starting...\n");
+Console.WriteLine("🎮 Tournament Simulator - Live Real-Time Streaming!\n");
 
 // Connect to Dashboard SignalR Hub
 var connection = new HubConnectionBuilder()
@@ -29,209 +35,122 @@ catch (Exception ex)
     return;
 }
 
-// Simulate a tournament
-var teams = new[] { "TeamAlpha", "TeamBeta", "TeamGamma", "TeamDelta", 
-                   "TeamEpsilon", "TeamZeta", "TeamEta", "TeamTheta" };
-var random = new Random();
-var standings = teams.Select((team, index) => new TeamStandingDto
-{
-    Rank = index + 1,
-    TeamName = team,
-    TotalPoints = 0,
-    TotalWins = 0,
-    TotalLosses = 0,
-    TournamentWins = 0,
-    RankChange = 0
-}).ToList();
+// Create a SignalR event publisher that streams events in real-time
+var eventPublisher = new SignalRSimulatorEventPublisher(connection);
 
-Console.WriteLine("🏆 Starting Simulated Tournament: RPSLS Championship");
-Console.WriteLine("📊 8 teams competing in round-robin format\n");
+// Create real tournament components
+var config = new TournamentConfig
+{
+    MaxParallelMatches = 1,
+    MaxRoundsRPSLS = 50
+};
+
+var gameRunner = new GameRunner(config);
+var scoringSystem = new ScoringSystem();
+var engine = new GroupStageTournamentEngine(gameRunner, scoringSystem);
+var tournamentManager = new TournamentManager(engine, gameRunner, eventPublisher);
+
+// Create demo bots
+Console.WriteLine("🤖 Creating 8 demo bots...");
+var bots = await IntegrationTestHelpers.CreateDemoBots(8);
+Console.WriteLine($"✅ Created: {string.Join(", ", bots.Select(b => b.TeamName))}\n");
+
+Console.WriteLine("🏆 Starting REAL Tournament: RPSLS Championship");
+Console.WriteLine("📊 Events will stream to Dashboard in REAL-TIME as matches execute!\n");
 await Task.Delay(2000);
 
-// Publish initial state
-await PublishStateUpdate(connection, TournamentStatus.InProgress, 
-    "Tournament started - Round 1 of 7", standings, new List<RecentMatchDto>());
+// Run tournament - events stream automatically as matches complete!
+var tournamentInfo = await tournamentManager.RunTournamentAsync(bots, GameType.RPSLS, config);
 
-var allMatches = new List<RecentMatchDto>();
-int matchCounter = 1;
-int round = 1;
-int totalRounds = 7;
-
-// Simulate rounds
-for (round = 1; round <= totalRounds; round++)
-{
-    Console.WriteLine($"\n{new string('=', 60)}");
-    Console.WriteLine($"🎯 ROUND {round}/{totalRounds}");
-    Console.WriteLine($"{new string('=', 60)}\n");
-    
-    // Generate matches for this round
-    var roundMatches = GenerateRoundMatches(teams, round);
-    
-    foreach (var (team1, team2) in roundMatches)
-    {
-        await Task.Delay(1500); // Match duration
-        
-        // Simulate match result
-        var bot1Score = random.Next(0, 16);
-        var bot2Score = random.Next(0, 16);
-        var match = new RecentMatchDto
-        {
-            MatchId = $"match-{matchCounter++}",
-            Bot1Name = team1,
-            Bot2Name = team2,
-            Bot1Score = bot1Score,
-            Bot2Score = bot2Score,
-            WinnerName = bot1Score > bot2Score ? team1 : (bot2Score > bot1Score ? team2 : null),
-            Outcome = bot1Score > bot2Score ? MatchOutcome.Player1Wins : 
-                     (bot2Score > bot1Score ? MatchOutcome.Player2Wins : MatchOutcome.Draw),
-            CompletedAt = DateTime.UtcNow,
-            GameType = GameType.RPSLS
-        };
-        
-        allMatches.Add(match);
-        
-        // Update standings
-        UpdateStandings(standings, match);
-        
-        // Console output
-        var result = match.WinnerName != null 
-            ? $"{match.WinnerName} wins!" 
-            : "Draw";
-        Console.WriteLine($"⚔️  {team1,-15} vs {team2,-15} → {bot1Score,2}-{bot2Score,-2} ({result})");
-        
-        // Publish match completion
-        await connection.InvokeAsync("PublishMatchCompleted", match);
-        
-        // Publish updated standings every few matches
-        if (matchCounter % 3 == 0)
-        {
-            await PublishStateUpdate(connection, TournamentStatus.InProgress,
-                $"Round {round}/{totalRounds} - {matchCounter-1} matches completed", 
-                standings, allMatches.TakeLast(10).ToList());
-        }
-    }
-    
-    Console.WriteLine($"\n📊 Round {round} Complete!");
-    await PublishStateUpdate(connection, TournamentStatus.InProgress,
-        $"Round {round}/{totalRounds} completed", standings, allMatches.TakeLast(10).ToList());
-}
-
-// Tournament complete
 Console.WriteLine("\n" + new string('=', 60));
 Console.WriteLine("🏆 TOURNAMENT COMPLETE!");
 Console.WriteLine(new string('=', 60));
-Console.WriteLine("\n📊 Final Standings:\n");
+Console.WriteLine($"\n🥇 Champion: {tournamentInfo.Champion}");
+Console.WriteLine($"📊 Total Matches: {tournamentInfo.MatchResults.Count}");
+Console.WriteLine($"🎯 Tournament ID: {tournamentInfo.TournamentId}\n");
 
-foreach (var team in standings.OrderBy(t => t.Rank).Take(5))
+var rankings = scoringSystem.GetCurrentRankings(tournamentInfo);
+Console.WriteLine("Final Standings:\n");
+
+foreach (var ranking in rankings.Take(5))
 {
-    var medal = team.Rank switch
+    var medal = ranking.FinalPlacement switch
     {
         1 => "🥇",
         2 => "🥈",
         3 => "🥉",
         _ => "  "
     };
-    Console.WriteLine($"{medal} {team.Rank}. {team.TeamName,-15} - {team.TotalPoints,3} pts  ({team.TotalWins}W-{team.TotalLosses}L)");
+    Console.WriteLine($"{medal} {ranking.FinalPlacement}. {ranking.BotName,-15} - {ranking.TotalScore,3} pts  ({ranking.Wins}W-{ranking.Losses}L)");
 }
 
-var champion = standings.OrderBy(s => s.Rank).First();
-await PublishStateUpdate(connection, TournamentStatus.Completed,
-    $"Tournament finished! Champion: {champion.TeamName}", 
-    standings, allMatches.TakeLast(10).ToList());
-
-Console.WriteLine("\n✨ Simulation complete! Check the dashboard for final results.");
-Console.WriteLine("Press any key to exit...");
+Console.WriteLine("\n✨ All events streamed to Dashboard in real-time!");
+Console.WriteLine("Check http://localhost:5000 for the live dashboard view.");
+Console.WriteLine("\nPress any key to exit...");
 Console.ReadKey();
 
 await connection.StopAsync();
 
-// Helper methods
-static List<(string, string)> GenerateRoundMatches(string[] teams, int round)
+/// <summary>
+/// SignalR event publisher for the simulator
+/// Publishes tournament events directly to the Dashboard Hub
+/// </summary>
+class SignalRSimulatorEventPublisher : ITournamentEventPublisher
 {
-    var matches = new List<(string, string)>();
-    var n = teams.Length;
-    
-    // Simple round-robin pairing
-    for (int i = 0; i < n / 2; i++)
-    {
-        var idx1 = (round - 1 + i) % n;
-        var idx2 = (n - 1 - i + round - 1) % n;
-        if (idx1 != idx2)
-        {
-            matches.Add((teams[idx1], teams[idx2]));
-        }
-    }
-    
-    return matches;
-}
+    private readonly HubConnection _connection;
 
-static void UpdateStandings(List<TeamStandingDto> standings, RecentMatchDto match)
-{
-    var team1 = standings.First(s => s.TeamName == match.Bot1Name);
-    var team2 = standings.First(s => s.TeamName == match.Bot2Name);
-    
-    if (match.Outcome == MatchOutcome.Player1Wins)
+    public SignalRSimulatorEventPublisher(HubConnection connection)
     {
-        team1.TotalWins++;
-        team1.TotalPoints += 3;
-        team2.TotalLosses++;
+        _connection = connection;
     }
-    else if (match.Outcome == MatchOutcome.Player2Wins)
-    {
-        team2.TotalWins++;
-        team2.TotalPoints += 3;
-        team1.TotalLosses++;
-    }
-    else
-    {
-        team1.TotalPoints += 1;
-        team2.TotalPoints += 1;
-    }
-    
-    // Recalculate ranks
-    var ranked = standings.OrderByDescending(s => s.TotalPoints)
-                         .ThenByDescending(s => s.TotalWins)
-                         .ToList();
-    
-    for (int i = 0; i < ranked.Count; i++)
-    {
-        var oldRank = ranked[i].Rank;
-        ranked[i].Rank = i + 1;
-        ranked[i].RankChange = oldRank - ranked[i].Rank;
-    }
-}
 
-static async Task PublishStateUpdate(HubConnection connection, 
-    TournamentStatus status, string message, 
-    List<TeamStandingDto> standings, List<RecentMatchDto> matches)
-{
-    var state = new TournamentStateDto
+    public async Task PublishMatchCompletedAsync(MatchCompletedDto matchEvent)
     {
-        TournamentId = "simulated-tournament-" + DateTime.Now.ToString("yyyyMMdd-HHmmss"),
-        Status = status,
-        Message = message,
-        OverallLeaderboard = new List<TeamStandingDto>(standings.OrderBy(s => s.Rank)),
-        RecentMatches = matches,
-        LastUpdated = DateTime.UtcNow,
-        CurrentTournament = new CurrentTournamentDto
+        Console.WriteLine($"⚔️  {matchEvent.Bot1Name,-15} vs {matchEvent.Bot2Name,-15} → {matchEvent.Bot1Score,2}-{matchEvent.Bot2Score,-2} ({matchEvent.WinnerName ?? "Draw"})");
+        
+        var recentMatch = new RecentMatchDto
         {
-            TournamentNumber = 1,
-            GameType = GameType.RPSLS,
-            Stage = TournamentStage.GroupStage,
-            CurrentRound = 1,
-            TotalRounds = 7,
-            MatchesCompleted = matches.Count,
-            TotalMatches = 28,
-            ProgressPercentage = (matches.Count / 28.0) * 100
-        }
-    };
-    
-    try
-    {
-        await connection.InvokeAsync("PublishStateUpdate", state);
+            MatchId = matchEvent.MatchId,
+            Bot1Name = matchEvent.Bot1Name,
+            Bot2Name = matchEvent.Bot2Name,
+            Outcome = matchEvent.Outcome,
+            WinnerName = matchEvent.WinnerName,
+            Bot1Score = matchEvent.Bot1Score,
+            Bot2Score = matchEvent.Bot2Score,
+            CompletedAt = matchEvent.CompletedAt,
+            GameType = matchEvent.GameType
+        };
+        
+        await _connection.InvokeAsync("PublishMatchCompleted", recentMatch);
     }
-    catch (Exception ex)
+
+    public async Task PublishStandingsUpdatedAsync(StandingsUpdatedDto standingsEvent)
     {
-        Console.WriteLine($"⚠️  Warning: Failed to publish state update: {ex.Message}");
+        await _connection.SendAsync("StandingsUpdated", standingsEvent);
+    }
+
+    public async Task PublishTournamentStartedAsync(TournamentStartedDto startEvent)
+    {
+        Console.WriteLine($"\n🎯 Starting {startEvent.GameType} tournament with {startEvent.TotalBots} bots\n");
+        await _connection.SendAsync("TournamentStarted", startEvent);
+    }
+
+    public async Task PublishTournamentCompletedAsync(TournamentCompletedDto completedEvent)
+    {
+        Console.WriteLine($"\n🏆 Tournament {completedEvent.TournamentNumber} completed! Champion: {completedEvent.Champion}");
+        await _connection.SendAsync("TournamentCompleted", completedEvent);
+    }
+
+    public async Task PublishRoundStartedAsync(RoundStartedDto roundEvent)
+    {
+        Console.WriteLine($"\n{new string('=', 60)}");
+        Console.WriteLine($"🎯 ROUND {roundEvent.RoundNumber}");
+        Console.WriteLine($"{new string('=', 60)}\n");
+        await _connection.SendAsync("RoundStarted", roundEvent);
+    }
+
+    public async Task UpdateCurrentStateAsync(TournamentStateDto state)
+    {
+        await _connection.InvokeAsync("PublishStateUpdate", state);
     }
 }
