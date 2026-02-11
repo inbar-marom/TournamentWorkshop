@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using TournamentEngine.Core.Common;
+using TournamentEngine.Core.GameRunner;
 using TournamentEngine.Core.Scoring;
 using TournamentEngine.Core.Tournament;
 using TournamentEngine.Core.BotLoader;
@@ -15,7 +16,7 @@ using TournamentEngine.Tests.Helpers;
 [TestClass]
 public class TournamentIntegrationTests
 {
-    private MockGameRunner _gameRunner = null!;
+    private GameRunner _gameRunner = null!;
     private ScoringSystem _scoringSystem = null!;
     private GroupStageTournamentEngine _engine = null!;
     private TournamentManager _tournamentManager = null!;
@@ -24,11 +25,11 @@ public class TournamentIntegrationTests
     [TestInitialize]
     public void Setup()
     {
-        _gameRunner = new MockGameRunner();
+        _config = CreateConfig();
+        _gameRunner = new GameRunner(_config);
         _scoringSystem = new ScoringSystem();
         _engine = new GroupStageTournamentEngine(_gameRunner, _scoringSystem);
         _tournamentManager = new TournamentManager(_engine, _gameRunner);
-        _config = CreateConfig();
     }
 
     [TestMethod]
