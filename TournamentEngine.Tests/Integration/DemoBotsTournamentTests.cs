@@ -12,6 +12,27 @@ namespace TournamentEngine.Tests.Integration;
 [TestClass]
 public class DemoBotsTournamentTests
 {
+    // Inline minimal demo bots to avoid external files
+    private sealed class InlineRockBot : IBot
+    {
+        public string TeamName => "TeamRock";
+        public GameType GameType => GameType.RPSLS;
+        public Task<string> MakeMove(GameState gameState, CancellationToken ct) => Task.FromResult("Rock");
+        public Task<int[]> AllocateTroops(GameState gameState, CancellationToken ct) => Task.FromResult(new[] { 20, 20, 20, 20, 20 });
+        public Task<string> MakePenaltyDecision(GameState gameState, CancellationToken ct) => Task.FromResult("Left");
+        public Task<string> MakeSecurityMove(GameState gameState, CancellationToken ct) => Task.FromResult("Defend");
+    }
+
+    private sealed class InlinePaperBot : IBot
+    {
+        public string TeamName => "TeamPaper";
+        public GameType GameType => GameType.RPSLS;
+        public Task<string> MakeMove(GameState gameState, CancellationToken ct) => Task.FromResult("Paper");
+        public Task<int[]> AllocateTroops(GameState gameState, CancellationToken ct) => Task.FromResult(new[] { 20, 20, 20, 20, 20 });
+        public Task<string> MakePenaltyDecision(GameState gameState, CancellationToken ct) => Task.FromResult("Left");
+        public Task<string> MakeSecurityMove(GameState gameState, CancellationToken ct) => Task.FromResult("Defend");
+    }
+
     private static TournamentConfig CreateConfig() => new TournamentConfig
     {
         Games = new List<GameType> { GameType.RPSLS },
@@ -37,7 +58,7 @@ public class DemoBotsTournamentTests
                 IsValid = true,
                 ValidationErrors = new List<string>(),
                 LoadTime = DateTime.UtcNow,
-                BotInstance = new TeamRockBot()
+                BotInstance = new InlineRockBot()
             },
             new BotInfo
             {
@@ -45,7 +66,7 @@ public class DemoBotsTournamentTests
                 IsValid = true,
                 ValidationErrors = new List<string>(),
                 LoadTime = DateTime.UtcNow,
-                BotInstance = new TeamPaperBot()
+                BotInstance = new InlinePaperBot()
             }
         };
 
