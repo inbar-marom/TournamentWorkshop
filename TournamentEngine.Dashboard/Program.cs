@@ -26,6 +26,12 @@ builder.Services.AddSingleton<TournamentStatusService>();
 builder.Services.AddSingleton<RealtimeUIUpdateService>();
 builder.Services.AddSingleton<SignalREventPublisher>();
 
+// Register Phase 5 services
+builder.Services.AddSingleton<GroupStandingsGridService>();
+builder.Services.AddSingleton<ChartsService>();
+builder.Services.AddSingleton<MatchDetailsService>();
+builder.Services.AddSingleton<TournamentVisualizationService>();
+
 // Configure to listen on all network interfaces for remote access
 builder.WebHost.UseUrls("http://0.0.0.0:5000", "https://0.0.0.0:5001");
 

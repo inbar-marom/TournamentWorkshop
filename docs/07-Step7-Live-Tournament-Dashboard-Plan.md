@@ -359,13 +359,7 @@ public class RecentMatchDto
 
 **Display:**
 - Show upcoming match pairing
-- Countdown timer until match starts
 - Team statistics comparison
-- Head-to-head history (if available)
-
-**Optional:**
-- Predicted winner based on past performance
-- Live match view (if watching individual match execution)
 
 ---
 
