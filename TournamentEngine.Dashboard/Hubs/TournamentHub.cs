@@ -94,4 +94,41 @@ public class TournamentHub : Hub
     {
         await Clients.Caller.SendAsync("Pong", DateTime.UtcNow);
     }
+
+    /// <summary>
+    /// Publish a state update from tournament engine (simulator or real engine).
+    /// This updates the state and broadcasts to all connected clients.
+    /// </summary>
+    public async Task PublishStateUpdate(TournamentStateDto state)
+    {
+        _logger.LogInformation("Received state update: {Status} - {Message}", state.Status, state.Message);
+        
+        // Update the state manager
+        await _stateManager.UpdateStateAsync(state);
+        
+        // Broadcast to all connected viewers
+        await Clients.Group("TournamentViewers").SendAsync("CurrentState", state);
+        
+        // Also broadcast standings update if available
+        if (state.OverallLeaderboard?.Count > 0)
+        {
+            await Clients.Group("TournamentViewers").SendAsync("StandingsUpdated", new
+            {
+                OverallStandings = state.OverallLeaderboard,
+                Timestamp = DateTime.UtcNow
+            });
+        }
+    }
+
+    /// <summary>
+    /// Publish a match completion event from tournament engine.
+    /// </summary>
+    public async Task PublishMatchCompleted(RecentMatchDto match)
+    {
+        _logger.LogInformation("Match completed: {Bot1} vs {Bot2} - Winner: {Winner}", 
+            match.Bot1Name, match.Bot2Name, match.WinnerName ?? "Draw");
+        
+        // Broadcast match completion to all viewers
+        await Clients.Group("TournamentViewers").SendAsync("MatchCompleted", match);
+    }
 }

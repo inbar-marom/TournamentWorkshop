@@ -312,8 +312,14 @@
 
         function updateCurrentStatus(state) {
             const statusDiv = document.getElementById('currentStatus');
+            // Handle both string enum names and numeric values
+            let statusText = state.status;
+            if (typeof state.status === 'number') {
+                const statusNames = ['Not Started', 'In Progress', 'Paused', 'Completed'];
+                statusText = statusNames[state.status] || state.status;
+            }
             statusDiv.innerHTML = `
-                <p><strong>Status:</strong> ${state.status}</p>
+                <p><strong>Status:</strong> ${statusText}</p>
                 <p><strong>Message:</strong> ${state.message}</p>
                 <p><strong>Last Updated:</strong> ${new Date(state.lastUpdated).toLocaleString()}</p>
             `;

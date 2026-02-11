@@ -1,11 +1,21 @@
+using System.Text.Json.Serialization;
 using TournamentEngine.Dashboard.Hubs;
 using TournamentEngine.Dashboard.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container
-builder.Services.AddSignalR();
-builder.Services.AddControllers();
+builder.Services.AddSignalR()
+    .AddJsonProtocol(options =>
+    {
+        options.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    });
+
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    });
 
 // Add CORS for remote browser access
 builder.Services.AddCors(options =>
