@@ -566,9 +566,14 @@ public class GroupStageTournamentEngine : ITournamentEngine
 
         var botInfo = _tournamentInfo.Bots.FirstOrDefault(bot => bot.TeamName == botName);
         if (botInfo != null)
-            return new BotInfoAdapter(botInfo.TeamName, _tournamentInfo.GameType);
+            return new BotInfoAdapter(botInfo, _tournamentInfo.GameType);
 
-        return new BotInfoAdapter(botName, _tournamentInfo.GameType);
+        return new BotInfoAdapter(new BotInfo
+        {
+            TeamName = botName,
+            IsValid = false,
+            BotInstance = null
+        }, _tournamentInfo.GameType);
     }
 
     internal List<Group> CreateInitialGroups(List<IBot> bots)
@@ -745,7 +750,7 @@ public class GroupStageTournamentEngine : ITournamentEngine
         var adapters = new List<IBot>(bots.Count);
         foreach (var bot in bots)
         {
-            adapters.Add(new BotInfoAdapter(bot.TeamName, gameType));
+            adapters.Add(new BotInfoAdapter(bot, gameType));
         }
 
         return adapters;
@@ -762,33 +767,46 @@ public class GroupStageTournamentEngine : ITournamentEngine
 /// </summary>
 internal sealed class BotInfoAdapter : IBot
 {
+    private readonly IBot? _botInstance;
     public string TeamName { get; }
     public GameType GameType { get; }
 
-    public BotInfoAdapter(string teamName, GameType gameType)
+    public BotInfoAdapter(BotInfo botInfo, GameType gameType)
     {
-        TeamName = teamName;
+        if (botInfo == null)
+            throw new ArgumentNullException(nameof(botInfo));
+
+        TeamName = botInfo.TeamName;
         GameType = gameType;
+        _botInstance = botInfo.BotInstance;
     }
 
     public Task<string> MakeMove(GameState gameState, CancellationToken cancellationToken)
     {
-        throw new NotImplementedException("Bot execution is not available for adapters");
+        return GetBotOrThrow().MakeMove(gameState, cancellationToken);
     }
 
     public Task<int[]> AllocateTroops(GameState gameState, CancellationToken cancellationToken)
     {
-        throw new NotImplementedException("Bot execution is not available for adapters");
+        return GetBotOrThrow().AllocateTroops(gameState, cancellationToken);
     }
 
     public Task<string> MakePenaltyDecision(GameState gameState, CancellationToken cancellationToken)
     {
-        throw new NotImplementedException("Bot execution is not available for adapters");
+        return GetBotOrThrow().MakePenaltyDecision(gameState, cancellationToken);
     }
 
     public Task<string> MakeSecurityMove(GameState gameState, CancellationToken cancellationToken)
     {
-        throw new NotImplementedException("Bot execution is not available for adapters");
+        return GetBotOrThrow().MakeSecurityMove(gameState, cancellationToken);
+    }
+
+    private IBot GetBotOrThrow()
+    {
+        if (_botInstance == null)
+            throw new InvalidOperationException($"Bot instance not loaded for team '{TeamName}'.");
+
+        return _botInstance;
     }
 }
 

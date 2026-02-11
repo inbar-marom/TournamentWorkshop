@@ -118,4 +118,25 @@ public class Bot{botNumber} : IBot
             ResultsFilePath = "results.json"
         };
     }
+
+    /// <summary>
+    /// Creates varied bots with different strategies for realistic tournament simulations.
+    /// Each bot has a unique seed that determines its move patterns, troop allocations, and penalty decisions.
+    /// </summary>
+    public static List<BotInfo> CreateVariedBots(int count)
+    {
+        var bots = new List<BotInfo>(count);
+        for (int i = 1; i <= count; i++)
+        {
+            var teamName = $"Team{i}";
+            bots.Add(new BotInfo
+            {
+                TeamName = teamName,
+                IsValid = true,
+                BotInstance = new DummyBots.VariedBot(teamName, i)
+            });
+        }
+
+        return bots;
+    }
 }

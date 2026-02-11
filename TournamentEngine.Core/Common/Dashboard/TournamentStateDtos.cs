@@ -8,6 +8,7 @@ using TournamentEngine.Core.Common;
 public class TournamentStateDto
 {
     public string? TournamentId { get; set; }
+    public string? Champion { get; set; }
     public TournamentStatus Status { get; set; }
     public string Message { get; set; } = string.Empty;
     public SeriesProgressDto? SeriesProgress { get; set; }

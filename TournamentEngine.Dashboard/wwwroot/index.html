@@ -240,7 +240,7 @@
             logMessage('Received current state', 'success');
             console.log('State:', state);
             updateCurrentStatus(state);
-            updateLeaderboard(state.overallLeaders);
+            updateLeaderboard(state.overallLeaderboard);
             updateRecentMatches(state.recentMatches);
         });
 
@@ -318,9 +318,13 @@
                 const statusNames = ['Not Started', 'In Progress', 'Paused', 'Completed'];
                 statusText = statusNames[state.status] || state.status;
             }
+            const championLine = state.champion
+                ? `<p><strong>Champion:</strong> ${state.champion}</p>`
+                : '';
             statusDiv.innerHTML = `
                 <p><strong>Status:</strong> ${statusText}</p>
                 <p><strong>Message:</strong> ${state.message}</p>
+                ${championLine}
                 <p><strong>Last Updated:</strong> ${new Date(state.lastUpdated).toLocaleString()}</p>
             `;
         }
