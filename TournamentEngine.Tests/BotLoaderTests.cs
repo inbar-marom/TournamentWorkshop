@@ -45,18 +45,30 @@ using TournamentEngine.Core.Common;
 public class TestBot : IBot
 {
     public string TeamName => ""TestTeam"";
+    public GameType GameType => GameType.RPSLS;
 
-    public async Task<string> GetMoveAsync(GameState state, CancellationToken cancellationToken)
+    public async Task<string> MakeMove(GameState gameState, CancellationToken cancellationToken)
     {
-        // Simple bot that handles all game types
-        return state.GameType switch
-        {
-            GameType.RPSLS => ""Rock"",
-            GameType.ColonelBlotto => ""10,10,10,10,10,10,10,10,10,10"",
-            GameType.PenaltyKick => ""Left"",
-            GameType.Security => ""Scan"",
-            _ => ""Unknown""
-        };
+        await Task.CompletedTask;
+        return ""Rock"";
+    }
+
+    public async Task<int[]> AllocateTroops(GameState gameState, CancellationToken cancellationToken)
+    {
+        await Task.CompletedTask;
+        return new int[] { 20, 20, 20, 20, 20 };
+    }
+
+    public async Task<string> MakePenaltyDecision(GameState gameState, CancellationToken cancellationToken)
+    {
+        await Task.CompletedTask;
+        return ""Left"";
+    }
+
+    public async Task<string> MakeSecurityMove(GameState gameState, CancellationToken cancellationToken)
+    {
+        await Task.CompletedTask;
+        return ""Scan"";
     }
 }";
 

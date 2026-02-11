@@ -339,8 +339,7 @@ public class TournamentSeriesIntegrationTests
             bots.Add(new BotInfo
             {
                 TeamName = $"Team{i}",
-                GameType = GameType.RPSLS,
-                FilePath = $"demo/team{i}.cs",
+                FolderPath = $"demo/team{i}",
                 IsValid = true,
                 ValidationErrors = new List<string>(),
                 LoadTime = DateTime.UtcNow
