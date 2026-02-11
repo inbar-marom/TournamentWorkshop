@@ -256,7 +256,15 @@ class Program
         services.AddSingleton<IBotLoader, BotLoader>();
         services.AddSingleton<IGameRunner, GameRunner>();
         services.AddSingleton<IScoringSystem, ScoringSystem>();
-        services.AddSingleton<ITournamentEventPublisher, NoOpEventPublisher>();
+        
+        // Add event publisher with dashboard URL from configuration
+        services.AddSingleton<ITournamentEventPublisher>(sp =>
+        {
+            var logger = sp.GetRequiredService<ILogger<ConsoleEventPublisher>>();
+            var dashboardUrl = config.TournamentEngine?.DashboardUrl ?? "http://localhost:5000/tournamentHub";
+            return new ConsoleEventPublisher(dashboardUrl, logger);
+        });
+        
         services.AddSingleton<ITournamentManager, TournamentManager>();
         services.AddSingleton<TournamentSeriesManager>();
         
