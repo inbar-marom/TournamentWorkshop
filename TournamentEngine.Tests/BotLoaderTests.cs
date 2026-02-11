@@ -427,4 +427,280 @@ namespace LargeBot
     }
 
     #endregion
+
+    #region Step 1.3: Namespace Restriction Tests
+
+    [TestMethod]
+    public async Task LoadBotFromFolder_UsesSystemIO_ReturnsError()
+    {
+        // Arrange
+        var teamName = "FileAccessTeam";
+        var botFolder = Path.Combine(_testBotsDirectory, $"{teamName}_v1");
+        Directory.CreateDirectory(botFolder);
+
+        // Create a bot that tries to use System.IO
+        var botCode = @"
+using System;
+using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
+using TournamentEngine.Core.Common;
+
+public class FileBot : IBot
+{
+    public string TeamName => ""FileAccessTeam"";
+    public GameType GameType => GameType.RPSLS;
+
+    public async Task<string> MakeMove(GameState gameState, CancellationToken cancellationToken)
+    {
+        // Trying to access file system (blocked)
+        var data = File.ReadAllText(""some-file.txt"");
+        await Task.CompletedTask;
+        return ""Rock"";
+    }
+
+    public async Task<int[]> AllocateTroops(GameState gameState, CancellationToken cancellationToken)
+    {
+        await Task.CompletedTask;
+        return new int[] { 20, 20, 20, 20, 20 };
+    }
+
+    public async Task<string> MakePenaltyDecision(GameState gameState, CancellationToken cancellationToken)
+    {
+        await Task.CompletedTask;
+        return ""Left"";
+    }
+
+    public async Task<string> MakeSecurityMove(GameState gameState, CancellationToken cancellationToken)
+    {
+        await Task.CompletedTask;
+        return ""Scan"";
+    }
+}";
+
+        await File.WriteAllTextAsync(Path.Combine(botFolder, "FileBot.cs"), botCode);
+
+        var botLoader = new Core.BotLoader.BotLoader();
+
+        // Act
+        var result = await botLoader.LoadBotFromFolderAsync(botFolder);
+
+        // Assert
+        Assert.IsFalse(result.IsValid, "Bot using System.IO should be invalid");
+        Assert.IsNull(result.BotInstance, "BotInstance should be null for bot with blocked namespace");
+        Assert.IsTrue(result.ValidationErrors.Count > 0, "Should have validation errors");
+        Assert.IsTrue(result.ValidationErrors.Any(e => e.Contains("System.IO") || e.Contains("namespace")), 
+            "Error message should mention blocked namespace System.IO");
+    }
+
+    [TestMethod]
+    public async Task LoadBotFromFolder_UsesSystemNet_ReturnsError()
+    {
+        // Arrange
+        var teamName = "NetworkTeam";
+        var botFolder = Path.Combine(_testBotsDirectory, $"{teamName}_v1");
+        Directory.CreateDirectory(botFolder);
+
+        // Create a bot that tries to use System.Net
+        var botCode = @"
+using System;
+using System.Net;
+using System.Threading;
+using System.Threading.Tasks;
+using TournamentEngine.Core.Common;
+
+public class NetworkBot : IBot
+{
+    public string TeamName => ""NetworkTeam"";
+    public GameType GameType => GameType.RPSLS;
+
+    public async Task<string> MakeMove(GameState gameState, CancellationToken cancellationToken)
+    {
+        await Task.CompletedTask;
+        return ""Rock"";
+    }
+
+    public async Task<int[]> AllocateTroops(GameState gameState, CancellationToken cancellationToken)
+    {
+        await Task.CompletedTask;
+        return new int[] { 20, 20, 20, 20, 20 };
+    }
+
+    public async Task<string> MakePenaltyDecision(GameState gameState, CancellationToken cancellationToken)
+    {
+        await Task.CompletedTask;
+        return ""Left"";
+    }
+
+    public async Task<string> MakeSecurityMove(GameState gameState, CancellationToken cancellationToken)
+    {
+        await Task.CompletedTask;
+        return ""Scan"";
+    }
+}";
+
+        await File.WriteAllTextAsync(Path.Combine(botFolder, "NetworkBot.cs"), botCode);
+
+        var botLoader = new Core.BotLoader.BotLoader();
+
+        // Act
+        var result = await botLoader.LoadBotFromFolderAsync(botFolder);
+
+        // Assert
+        Assert.IsFalse(result.IsValid, "Bot using System.Net should be invalid");
+        Assert.IsNull(result.BotInstance, "BotInstance should be null for bot with blocked namespace");
+        Assert.IsTrue(result.ValidationErrors.Count > 0, "Should have validation errors");
+        Assert.IsTrue(result.ValidationErrors.Any(e => e.Contains("System.Net") || e.Contains("namespace")), 
+            "Error message should mention blocked namespace System.Net");
+    }
+
+    [TestMethod]
+    public async Task LoadBotFromFolder_BlockedNamespaceInSecondFile_ReturnsError()
+    {
+        // Arrange
+        var teamName = "MultiFileBlockedTeam";
+        var botFolder = Path.Combine(_testBotsDirectory, $"{teamName}_v1");
+        Directory.CreateDirectory(botFolder);
+
+        // File 1: Clean main bot
+        var mainBotCode = @"
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+using TournamentEngine.Core.Common;
+
+namespace MultiFileBlockedBot
+{
+    public class MainBot : IBot
+    {
+        public string TeamName => ""MultiFileBlockedTeam"";
+        public GameType GameType => GameType.RPSLS;
+
+        public async Task<string> MakeMove(GameState gameState, CancellationToken cancellationToken)
+        {
+            // Uses helper from second file
+            var helper = new SneakyHelper();
+            await Task.CompletedTask;
+            return ""Rock"";
+        }
+
+        public async Task<int[]> AllocateTroops(GameState gameState, CancellationToken cancellationToken)
+        {
+            await Task.CompletedTask;
+            return new int[] { 20, 20, 20, 20, 20 };
+        }
+
+        public async Task<string> MakePenaltyDecision(GameState gameState, CancellationToken cancellationToken)
+        {
+            await Task.CompletedTask;
+            return ""Left"";
+        }
+
+        public async Task<string> MakeSecurityMove(GameState gameState, CancellationToken cancellationToken)
+        {
+            await Task.CompletedTask;
+            return ""Scan"";
+        }
+    }
+}";
+
+        // File 2: Helper with blocked namespace (System.Reflection)
+        var helperCode = @"
+using System;
+using System.Reflection;
+
+namespace MultiFileBlockedBot
+{
+    public class SneakyHelper
+    {
+        public void DoSomethingSneaky()
+        {
+            // Trying to use reflection (blocked)
+            var assembly = Assembly.GetExecutingAssembly();
+        }
+    }
+}";
+
+        await File.WriteAllTextAsync(Path.Combine(botFolder, "MainBot.cs"), mainBotCode);
+        await File.WriteAllTextAsync(Path.Combine(botFolder, "SneakyHelper.cs"), helperCode);
+
+        var botLoader = new Core.BotLoader.BotLoader();
+
+        // Act
+        var result = await botLoader.LoadBotFromFolderAsync(botFolder);
+
+        // Assert
+        Assert.IsFalse(result.IsValid, "Bot with blocked namespace in any file should be invalid");
+        Assert.IsNull(result.BotInstance, "BotInstance should be null when blocked namespace found");
+        Assert.IsTrue(result.ValidationErrors.Count > 0, "Should have validation errors");
+        Assert.IsTrue(result.ValidationErrors.Any(e => e.Contains("System.Reflection") || e.Contains("namespace")), 
+            "Error message should mention blocked namespace");
+        Assert.IsTrue(result.ValidationErrors.Any(e => e.Contains("SneakyHelper.cs")), 
+            "Error message should indicate which file has the blocked namespace");
+    }
+
+    [TestMethod]
+    public async Task LoadBotFromFolder_AllowedNamespaces_CompilesSuccessfully()
+    {
+        // Arrange
+        var teamName = "CleanTeam";
+        var botFolder = Path.Combine(_testBotsDirectory, $"{teamName}_v1");
+        Directory.CreateDirectory(botFolder);
+
+        // Create a bot with only allowed namespaces
+        var botCode = @"
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using TournamentEngine.Core.Common;
+
+public class CleanBot : IBot
+{
+    public string TeamName => ""CleanTeam"";
+    public GameType GameType => GameType.RPSLS;
+
+    public async Task<string> MakeMove(GameState gameState, CancellationToken cancellationToken)
+    {
+        // Using allowed namespaces
+        var moves = new List<string> { ""Rock"", ""Paper"", ""Scissors"" };
+        var selectedMove = moves.FirstOrDefault();
+        await Task.CompletedTask;
+        return selectedMove ?? ""Rock"";
+    }
+
+    public async Task<int[]> AllocateTroops(GameState gameState, CancellationToken cancellationToken)
+    {
+        await Task.CompletedTask;
+        return new int[] { 20, 20, 20, 20, 20 };
+    }
+
+    public async Task<string> MakePenaltyDecision(GameState gameState, CancellationToken cancellationToken)
+    {
+        await Task.CompletedTask;
+        return ""Left"";
+    }
+
+    public async Task<string> MakeSecurityMove(GameState gameState, CancellationToken cancellationToken)
+    {
+        await Task.CompletedTask;
+        return ""Scan"";
+    }
+}";
+
+        await File.WriteAllTextAsync(Path.Combine(botFolder, "CleanBot.cs"), botCode);
+
+        var botLoader = new Core.BotLoader.BotLoader();
+
+        // Act
+        var result = await botLoader.LoadBotFromFolderAsync(botFolder);
+
+        // Assert
+        Assert.IsTrue(result.IsValid, "Bot with only allowed namespaces should be valid");
+        Assert.IsNotNull(result.BotInstance, "BotInstance should be created for clean bot");
+        Assert.AreEqual(0, result.ValidationErrors.Count, "Clean bot should have no validation errors");
+    }
+
+    #endregion
 }

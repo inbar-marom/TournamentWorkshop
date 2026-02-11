@@ -73,13 +73,26 @@ public class BotLoader : IBotLoader
                 };
             }
 
-            // 3. Parse each file into a syntax tree
+            // 3. Parse each file into a syntax tree and validate namespaces
             var syntaxTrees = new List<SyntaxTree>();
             foreach (var filePath in csFiles)
             {
                 var code = await File.ReadAllTextAsync(filePath, cancellationToken);
                 var syntaxTree = CSharpSyntaxTree.ParseText(code, path: filePath, cancellationToken: cancellationToken);
                 syntaxTrees.Add(syntaxTree);
+
+                // Validate namespaces in this file
+                var namespaceErrors = ValidateNamespaces(code, Path.GetFileName(filePath));
+                if (namespaceErrors.Count > 0)
+                {
+                    return new BotInfo
+                    {
+                        TeamName = teamName,
+                        FolderPath = teamFolder,
+                        IsValid = false,
+                        ValidationErrors = namespaceErrors
+                    };
+                }
             }
 
             // 4. Get metadata references for compilation
@@ -197,6 +210,46 @@ public class BotLoader : IBotLoader
     public BotValidationResult ValidateBotCode(Dictionary<string, string> files)
     {
         throw new NotImplementedException("ValidateBotCode not yet implemented");
+    }
+
+    /// <summary>
+    /// Validates that the code doesn't use blocked namespaces
+    /// </summary>
+    private static List<string> ValidateNamespaces(string code, string fileName)
+    {
+        var errors = new List<string>();
+        
+        // List of blocked namespaces
+        var blockedNamespaces = new[]
+        {
+            "System.IO",
+            "System.Net",
+            "System.Reflection",
+            "System.Runtime.InteropServices"
+        };
+
+        // Check for using statements with blocked namespaces
+        var lines = code.Split('\n');
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i].Trim();
+            
+            // Check if line is a using statement
+            if (line.StartsWith("using ") && line.Contains(";"))
+            {
+                foreach (var blockedNs in blockedNamespaces)
+                {
+                    // Check if the using statement references the blocked namespace
+                    // Pattern: "using System.IO;" or "using System.IO.File;"
+                    if (line.Contains(blockedNs))
+                    {
+                        errors.Add($"Blocked namespace '{blockedNs}' detected in file '{fileName}' at line {i + 1}");
+                    }
+                }
+            }
+        }
+
+        return errors;
     }
 
     /// <summary>
