@@ -6,13 +6,13 @@ Build the Tournament Engine in C# as a console application with clean components
 
 ## Implementation Progress
 
-**Overall Status:** 9/15 steps completed, 2 partially completed, 4 not started
+**Overall Status:** 9/15 steps completed, 3 partially completed, 3 not started
 
-- ✅ **Completed (7):** Steps 1, 2, 3, 4, 5, 6, 9, 11, 12
-- ⏳ **Partial (4):** Steps 8, 14  
-- ❌ **Not Started (4):** Steps 7, 10, 13, 15
+- ✅ **Completed (9):** Steps 1, 2, 3, 4, 5, 6, 9, 11, 12
+- ⏳ **Partial (3):** Steps 8, 14  
+- ❌ **Not Started (3):** Steps 7, 10, 13, 15
 
-**Latest Achievement:** Multi-Tournament Orchestrator (Step 9) with comprehensive thread-safety documentation and 124 passing tests.
+**Latest Achievement:** CLI Entrypoint Plan (Step 8) with multi-service orchestration design and configuration strategy.
 
 ---
 
@@ -66,7 +66,7 @@ Build the Tournament Engine in C# as a console application with clean components
 
 ---
 
-### ⏳ 4. Implement Game Runner
+### ✅ 4. Implement Game Runner
 
 **Status:** COMPLETED
 
@@ -134,16 +134,22 @@ Build the Tournament Engine in C# as a console application with clean components
 
 ### ⏳ 8. Implement CLI Entrypoint
 
-**Status:** SKELETON ONLY (TODO)
+**Status:** PHASE 1 COMPLETE - Configuration Infrastructure (See detailed plan)
 
 **Location:** `TournamentEngine.Console/Program.cs`
 
-**Responsibilities:**
-- Load `appsettings.json`
-- Orchestrate bot loading
-- Create bracket
-- Run rounds
-- Save results to JSON
+**Documentation:** See [08-Step8-CLI-Entrypoint-Plan.md](08-Step8-CLI-Entrypoint-Plan.md)
+
+**Completed (Phase 1):**
+- ✅ Configuration files (appsettings.json, Development, Production)
+- ✅ TournamentConfiguration POCO classes
+- ✅ ConfigurationManager with validation and environment variable support
+- ✅ Extension methods for creating TournamentConfig and TournamentSeriesConfig
+
+**Next (Phase 2):**
+- Dashboard Service Management
+- Results Export
+- Enhanced Program.cs orchestration
 
 ---
 
@@ -425,9 +431,10 @@ TournamentEngine.Tests
 - ✅ Cancellation token support throughout
 
 ### In Progress ⏳
-- ⏳ Console application entrypoint (skeleton exists)
-- ⏳ Configuration management (appsettings.json)
-- ⏳ Real game runner implementation
+- ⏳ Console application entrypoint with multi-service orchestration
+- ⏳ Configuration management (appsettings.json + environment variables)
+- ⏳ Service management and startup/shutdown
+- ⏳ Results export to JSON
 
 ### Not Started ❌
 - ❌ Bot loader with sandboxing
