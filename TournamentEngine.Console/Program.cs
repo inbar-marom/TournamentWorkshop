@@ -15,6 +15,7 @@ using TournamentEngine.Core.Tournament;
 using TournamentEngine.Core.BotLoader;
 using TournamentEngine.Core.GameRunner;
 using TournamentEngine.Core.Scoring;
+using TournamentEngine.Core.Events;
 
 class Program
 {
@@ -255,6 +256,7 @@ class Program
         services.AddSingleton<IBotLoader, BotLoader>();
         services.AddSingleton<IGameRunner, GameRunner>();
         services.AddSingleton<IScoringSystem, ScoringSystem>();
+        services.AddSingleton<ITournamentEventPublisher, NoOpEventPublisher>();
         services.AddSingleton<ITournamentManager, TournamentManager>();
         services.AddSingleton<TournamentSeriesManager>();
         
