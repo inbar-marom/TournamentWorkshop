@@ -1,3 +1,4 @@
+using System.Text.Json;
 using TournamentEngine.Core.Common.Dashboard;
 
 namespace TournamentEngine.Dashboard.Services;
@@ -40,10 +41,13 @@ public class ShareService
         var state = await _stateManager.GetCurrentStateAsync();
         var id = GenerateShortId();
 
+        // Create a deep copy of the state to ensure snapshot independence
+        var stateCopy = DeepCopy(state);
+
         var snapshot = new TournamentSnapshotDto
         {
             Id = id,
-            State = state,
+            State = stateCopy,
             CreatedAt = DateTime.UtcNow
         };
 
@@ -110,6 +114,15 @@ public class ShareService
     private string GenerateShortId()
     {
         return Guid.NewGuid().ToString("N")[..8];
+    }
+
+    /// <summary>
+    /// Creates a deep copy of an object using JSON serialization
+    /// </summary>
+    private T DeepCopy<T>(T obj)
+    {
+        var json = JsonSerializer.Serialize(obj);
+        return JsonSerializer.Deserialize<T>(json)!;
     }
 }
 
