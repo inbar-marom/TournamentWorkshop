@@ -53,6 +53,17 @@ public class TournamentApiController : ControllerBase
     }
 
     /// <summary>
+    /// Clear all tournament data from backend and reset state
+    /// </summary>
+    [HttpPost("clear")]
+    public async Task<ActionResult> ClearAllData()
+    {
+        _logger.LogWarning("Clearing all tournament data - initiated from dashboard");
+        await _stateManager.ClearStateAsync();
+        return Ok(new { Message = "All tournament data cleared successfully" });
+    }
+
+    /// <summary>
     /// Health check endpoint
     /// </summary>
     [HttpGet("health")]

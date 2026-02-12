@@ -542,6 +542,7 @@
                     <div style="margin-top: 10px;">
                         <button onclick="requestCurrentState()">Get Current State</button>
                         <button onclick="clearLog()">Clear Log</button>
+                        <button onclick="clearAllData()" style="background: #dc2626;">Clear All Data</button>
                     </div>
                 </div>
             </div>
@@ -1099,6 +1100,41 @@
 
         function clearLog() {
             document.getElementById('messages').innerHTML = '';
+        }
+
+        async function clearAllData() {
+            if (!confirm('Are you sure you want to clear all tournament data from both Frontend and Backend? This action cannot be undone.')) {
+                return;
+            }
+
+            try {
+                logMessage('Clearing all data...', 'info');
+                const response = await fetch('/api/tournament/clear', { method: 'POST' });
+                if (!response.ok) {
+                    throw new Error(`Clear failed: ${response.status}`);
+                }
+                logMessage('✅ All data cleared successfully!', 'success');
+                
+                // Clear local UI
+                document.getElementById('nowRunning').innerHTML = '<div class="status-message">Waiting for series data...</div>';
+                document.getElementById('winnersRow').innerHTML = '<div class="status-message">No winners yet</div>';
+                document.getElementById('upNext').innerHTML = '<div class="status-message">Awaiting schedule</div>';
+                document.getElementById('leaderboard').innerHTML = '<p class="status-message">No data available</p>';
+                document.getElementById('recentMatches').innerHTML = '<p class="status-message">No matches yet</p>';
+                document.getElementById('messages').innerHTML = '';
+                
+                // Reset series bar
+                document.getElementById('seriesTitle').textContent = 'Tournament Series';
+                document.getElementById('seriesStatusBadge').textContent = 'Not Started';
+                document.getElementById('seriesStatusBadge').className = 'status-badge not-started';
+                document.getElementById('seriesStepReadout').textContent = 'Step 0 of 0';
+                document.getElementById('seriesStepTrack').innerHTML = '';
+                
+                // Refresh state
+                setTimeout(() => refreshSeriesView(), 500);
+            } catch (err) {
+                logMessage(`Error clearing data: ${err}`, 'error');
+            }
         }
 
         // Start the connection
