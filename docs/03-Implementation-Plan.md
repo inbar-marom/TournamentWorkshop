@@ -6,11 +6,11 @@ Build the Tournament Engine in C# as a console application with clean components
 
 ## Implementation Progress
 
-**Overall Status:** 10/15 steps completed, 1 partially completed, 4 not started
+**Overall Status:** 11/16 steps completed, 1 partially completed, 4 not started
 
-- ✅ **Completed (10):** Steps 1, 2, 3, 4, 5, 6, 8, 9, 11, 12
+- ✅ **Completed (11):** Steps 1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12
 - ⏳ **Partial (1):** Step 14  
-- ❌ **Not Started (4):** Steps 7, 10, 13, 15
+- ❌ **Not Started (4):** Steps 10, 13, 15, 16
 
 **Latest Achievement:** CLI Entrypoint Plan (Step 8) with multi-service orchestration design and configuration strategy.
 
@@ -116,19 +116,19 @@ Build the Tournament Engine in C# as a console application with clean components
 
 ---
 
-### ❌ 7. Implement Output/Display
+### ✅ 7. Implement Output/Display
 
-**Status:** NOT STARTED
+**Status:** COMPLETED (Basic view only)
 
 **Location:** `TournamentEngine.Console/Display/ConsoleDisplay.cs`
 
 **Features:**
-- Round headers
-- Match summaries
-- Bracket view
-- Final rankings
-- Statistics display
-- Structured logging
+- ✅ Round headers (basic)
+- ✅ Match summaries (basic)
+- ✅ Final rankings (basic)
+- ⚪ Bracket view (deferred)
+- ⚪ Statistics display (deferred)
+- ⚪ Structured logging (deferred)
 
 ---
 
@@ -354,6 +354,25 @@ Display and manage submitted bots from Step 13 with real-time status visibility
 
 ---
 
+---
+
+### ❌ 16. Align Dashboard for Tournament Series View
+
+**Status:** NOT STARTED
+
+**Location:** `TournamentEngine.Dashboard/` (SignalR hub, StateManagerService, UI)
+
+**Documentation:** See [16-Step16-Series-Dashboard-Alignment-Plan.md](16-Step16-Series-Dashboard-Alignment-Plan.md)
+
+**Purpose:** Present series-level progress (current step, winners per step, upcoming steps) without overloading the single-screen dashboard.
+
+**Notes:**
+- Keep one-screen, no-scroll default view
+- Provide a compact, collapsible details area for lower-priority data
+- Preserve existing tournament badges and per-match data
+
+---
+
 ## Further Considerations
 
 ### 1. Bot Sandboxing
@@ -429,6 +448,7 @@ TournamentEngine.Tests
 - ✅ Error handling with custom exceptions
 - ✅ Thread-safe concurrent match execution
 - ✅ Cancellation token support throughout
+- ✅ Console output/display (basic view)
 
 ### In Progress ⏳
 - ⏳ Documentation and configuration files (Step 14)
@@ -436,7 +456,7 @@ TournamentEngine.Tests
 ### Not Started ❌
 - ❌ Bot loader with sandboxing
 - ❌ Game modules (RPSLS, Blotto, Penalty, Security implementations)
-- ❌ Console display/output formatting (Step 7)
 - ❌ Bot timeout enforcement in real game execution
 - ❌ Remote bot registration API (Step 13)
 - ❌ Bot submission dashboard (Step 15)
+- ❌ Series-aligned dashboard view (Step 16)
