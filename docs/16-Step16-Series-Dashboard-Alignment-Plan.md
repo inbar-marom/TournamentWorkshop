@@ -81,13 +81,13 @@ Align the Dashboard to present a tournament series as a structured sequence with
 - Update SignalR handlers to process series events and update the UI.
 
 ## Implementation Steps
-1. **DTOs + Events**: Add `SeriesStateDto`, `SeriesStepDto`, and event DTOs.
-2. **Series Manager Publishing**: Emit series events with step index and winner.
-3. **Dashboard Hub + State Manager**: Store and serve series state.
-4. **UI Layout**: Implement Series Control Bar + three panels.
-5. **Details Drawer**: Add toggle and collapsed layout.
-6. **Styling**: Compact panels, chips, and progress dots.
-7. **Testing**: Add tests for state updates and API responses.
+1. ✅ **DTOs + Events**: Add `SeriesStateDto`, `SeriesStepDto`, and event DTOs.
+2. ✅ **Series Manager Publishing**: Emit series events with step index and winner.
+3. ✅ **Dashboard Hub + State Manager**: Store and serve series state.
+4. ✅ **UI Layout**: Implement Series Control Bar + three panels.
+5. ✅ **Details Drawer**: Add toggle and collapsed layout + persistent state + auto-collapse cue.
+6. ✅ **Styling**: Compact panels, chips, progress dots, winner badges, highlights.
+7. ✅ **Testing**: Unit tests for services + API tests + Playwright UI tests.
 
 ## Testing
 - Unit tests for series DTO updates in `StateManagerService`.
@@ -95,10 +95,16 @@ Align the Dashboard to present a tournament series as a structured sequence with
 - Manual smoke test with simulator to verify compact layout.
 
 ## Acceptance Criteria
-- Single-screen view at load (no scrolling required).
-- Current step, completed winners, and upcoming steps visible.
-- Details drawer collapses/expands without breaking layout.
-- Existing tournament badges and match feed remain intact.
+✅ Single-screen view at load (no scrolling required).
+✅ Current step, completed winners, and upcoming steps visible.
+✅ Details drawer collapses/expands without breaking layout.
+✅ Existing tournament badges and match feed remain intact.
+✅ Details drawer persists open/closed state across page reloads.
+✅ Auto-collapse on series start with visual cue (pulse animation).
+✅ Winners Row highlights briefly on step completion.
+✅ Winner items show compact "W" badge.
+✅ Step track dots show running/completed/pending status.
+✅ Comprehensive test coverage (unit + UI).
 
 ## Open Questions
 - How many steps should be supported before compressing into a dropdown?

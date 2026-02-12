@@ -334,6 +334,46 @@
             font-size: 0.95em;
         }
 
+        .winner-meta {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .winner-badge {
+            width: 22px;
+            height: 22px;
+            border-radius: 999px;
+            background: rgba(245, 158, 11, 0.18);
+            color: #b45309;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.72em;
+            letter-spacing: 0.04em;
+        }
+
+        .winner-name {
+            font-weight: 600;
+        }
+
+        .winners-highlight {
+            animation: winnersPulse 0.8s ease;
+        }
+
+        @keyframes winnersPulse {
+            0% {
+                background: transparent;
+            }
+            30% {
+                background: rgba(245, 158, 11, 0.16);
+            }
+            100% {
+                background: transparent;
+            }
+        }
+
         .next-item.highlight {
             border-color: rgba(15, 118, 110, 0.4);
             background: rgba(15, 118, 110, 0.08);
@@ -355,6 +395,56 @@
             font-size: 1.05em;
             font-weight: 600;
             color: var(--accent-strong);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        .details-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.75em;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+
+        .details-toggle-state {
+            background: var(--accent-soft);
+            color: var(--accent-strong);
+            padding: 4px 10px;
+            border-radius: 999px;
+        }
+
+        .details-toggle-icon {
+            width: 8px;
+            height: 8px;
+            border-right: 2px solid var(--accent-strong);
+            border-bottom: 2px solid var(--accent-strong);
+            transform: rotate(45deg);
+            transition: transform 0.2s ease;
+        }
+
+        .details-drawer[open] .details-toggle-icon {
+            transform: rotate(-135deg);
+        }
+
+        .details-drawer.auto-collapsed summary {
+            animation: drawerPulse 0.6s ease;
+        }
+
+        @keyframes drawerPulse {
+            0% {
+                background: transparent;
+            }
+            40% {
+                background: rgba(15, 118, 110, 0.12);
+            }
+            100% {
+                background: transparent;
+            }
         }
 
         .details-drawer summary::-webkit-details-marker {
@@ -424,7 +514,13 @@
         </section>
 
         <details class="details-drawer" id="detailsDrawer">
-            <summary>Details</summary>
+            <summary>
+                <span>Details</span>
+                <span class="details-toggle">
+                    <span class="details-toggle-state" id="detailsToggleState">Show</span>
+                    <span class="details-toggle-icon" aria-hidden="true"></span>
+                </span>
+            </summary>
             <div class="details-grid">
                 <div class="card">
                     <h2>Overall Leaders</h2>
@@ -531,6 +627,7 @@
         connection.on("SeriesStepCompleted", (stepEvent) => {
             logMessage(`Series step ${stepEvent.StepIndex || stepEvent.stepIndex} completed`, 'success');
             refreshSeriesView();
+            triggerWinnersRowHighlight();
         });
 
         connection.on("SeriesCompleted", (seriesEvent) => {
@@ -710,7 +807,10 @@
                 return `
                     <div class="winner-item">
                         <span>Step ${step.StepIndex || step.stepIndex} · ${formatGameType(step.GameType || step.gameType)}</span>
-                        <span>${winnerName}</span>
+                        <span class="winner-meta">
+                            <span class="winner-badge">W</span>
+                            <span class="winner-name">${winnerName}</span>
+                        </span>
                     </div>
                 `;
             }).join('');
@@ -735,9 +835,86 @@
 
         function collapseDetailsDrawer() {
             const drawer = document.getElementById('detailsDrawer');
-            if (drawer && drawer.open) {
+            if (!drawer) {
+                return;
+            }
+
+            const wasOpen = drawer.open;
+            if (wasOpen) {
                 drawer.open = false;
             }
+
+            saveDetailsDrawerState(false);
+            updateDetailsToggleState(false);
+            triggerDetailsAutoCollapseCue();
+        }
+
+        function triggerDetailsAutoCollapseCue() {
+            const drawer = document.getElementById('detailsDrawer');
+            if (!drawer) {
+                return;
+            }
+
+            drawer.classList.add('auto-collapsed');
+            window.setTimeout(() => {
+                drawer.classList.remove('auto-collapsed');
+            }, 650);
+        }
+
+        function triggerWinnersRowHighlight() {
+            const winnersEl = document.getElementById('winnersRow');
+            if (!winnersEl) {
+                return;
+            }
+
+            winnersEl.classList.add('winners-highlight');
+            window.setTimeout(() => {
+                winnersEl.classList.remove('winners-highlight');
+            }, 850);
+        }
+
+        function saveDetailsDrawerState(isOpen) {
+            if (!window.localStorage) {
+                return;
+            }
+
+            localStorage.setItem('detailsDrawerOpen', isOpen ? 'true' : 'false');
+        }
+
+        function loadDetailsDrawerState() {
+            if (!window.localStorage) {
+                return null;
+            }
+
+            return localStorage.getItem('detailsDrawerOpen');
+        }
+
+        function updateDetailsToggleState(isOpen) {
+            const label = document.getElementById('detailsToggleState');
+            if (label) {
+                label.textContent = isOpen ? 'Hide' : 'Show';
+            }
+        }
+
+        function initializeDetailsDrawer() {
+            const drawer = document.getElementById('detailsDrawer');
+            if (!drawer) {
+                return;
+            }
+
+            const storedState = loadDetailsDrawerState();
+            if (storedState === null) {
+                drawer.open = false;
+            } else {
+                drawer.open = storedState === 'true';
+            }
+
+            updateDetailsToggleState(drawer.open);
+
+            drawer.addEventListener('toggle', () => {
+                saveDetailsDrawerState(drawer.open);
+                updateDetailsToggleState(drawer.open);
+            });
         }
 
         function updateLeaderboard(leaders) {
@@ -823,6 +1000,7 @@
         }
 
         // Start the connection
+        initializeDetailsDrawer();
         start();
     </script>
 </body>
