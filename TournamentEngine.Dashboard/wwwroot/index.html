@@ -131,6 +131,17 @@
             color: #667eea;
         }
 
+        .tournament-badge {
+            display: inline-block;
+            background: #e0e7ff;
+            color: #4f46e5;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.75em;
+            margin-left: 8px;
+            font-weight: normal;
+        }
+
         .timestamp {
             color: #999;
             font-size: 0.85em;
@@ -245,13 +256,60 @@
         });
 
         connection.on("MatchCompleted", (match) => {
-            logMessage(`Match completed: ${match.bot1Name} vs ${match.bot2Name}`, 'info');
-            addMatchToFeed(match);
+            console.log('MatchCompleted event received:', match);
+            const displayMatch = {
+                bot1Name: match.Bot1Name || match.bot1Name,
+                bot2Name: match.Bot2Name || match.bot2Name,
+                winnerName: match.WinnerName || match.winnerName,
+                bot1Score: match.Bot1Score || match.bot1Score,
+                bot2Score: match.Bot2Score || match.bot2Score,
+                completedAt: match.CompletedAt || match.completedAt,
+                tournamentId: match.TournamentId || match.tournamentId,
+                tournamentName: match.TournamentName || match.tournamentName
+            };
+            const tournamentInfo = displayMatch.tournamentName ? ` [${displayMatch.tournamentName}]` : '';
+            logMessage(`Match: ${displayMatch.bot1Name} vs ${displayMatch.bot2Name} - Winner: ${displayMatch.winnerName || 'Draw'}${tournamentInfo}`, 'info');
+            addMatchToFeed(displayMatch);
         });
 
         connection.on("StandingsUpdated", (standings) => {
-            logMessage('Standings updated', 'info');
-            updateLeaderboard(standings.overallStandings);
+            const tournamentInfo = standings.TournamentName || standings.tournamentName 
+                ? ` [${standings.TournamentName || standings.tournamentName}]` 
+                : '';
+            logMessage(`Standings updated${tournamentInfo}`, 'info');
+            console.log('Standings received:', standings);
+            updateLeaderboard(standings.OverallStandings || standings.overallStandings);
+        });
+
+        connection.on("TournamentStarted", (tournamentEvent) => {
+            logMessage(`Tournament started: ${tournamentEvent.TournamentName || tournamentEvent.tournamentName}`, 'info');
+            updateCurrentStatus({
+                tournamentId: tournamentEvent.TournamentId || tournamentEvent.tournamentId,
+                tournamentName: tournamentEvent.TournamentName || tournamentEvent.tournamentName,
+                status: 1, // InProgress
+                message: `Tournament started: ${tournamentEvent.GameType || tournamentEvent.gameType} with ${tournamentEvent.TotalBots || tournamentEvent.totalBots} bots`,
+                lastUpdated: tournamentEvent.StartedAt || tournamentEvent.startedAt
+            });
+        });
+
+        connection.on("TournamentCompleted", (completedEvent) => {
+            const tournamentName = completedEvent.TournamentName || completedEvent.tournamentName || '';
+            logMessage(`Tournament completed: ${tournamentName} - Champion: ${completedEvent.Champion || completedEvent.champion}`, 'success');
+            updateCurrentStatus({
+                tournamentId: completedEvent.TournamentId || completedEvent.tournamentId,
+                tournamentName: tournamentName,
+                status: 3, // Completed
+                message: `Tournament completed! Champion: ${completedEvent.Champion || completedEvent.champion}`,
+                champion: completedEvent.Champion || completedEvent.champion,
+                lastUpdated: completedEvent.CompletedAt || completedEvent.completedAt
+            });
+        });
+
+        connection.on("RoundStarted", (roundEvent) => {
+            const tournamentInfo = roundEvent.TournamentName || roundEvent.tournamentName 
+                ? ` [${roundEvent.TournamentName || roundEvent.tournamentName}]` 
+                : '';
+            logMessage(`Round ${roundEvent.RoundNumber || roundEvent.roundNumber} started${tournamentInfo}`, 'info');
         });
 
         connection.on("SubscriptionConfirmed", (data) => {
@@ -318,10 +376,20 @@
                 const statusNames = ['Not Started', 'In Progress', 'Paused', 'Completed'];
                 statusText = statusNames[state.status] || state.status;
             }
-            const championLine = state.champion
-                ? `<p><strong>Champion:</strong> ${state.champion}</p>`
+            
+            const tournamentNameLine = state.tournamentName || state.TournamentName
+                ? `<p><strong>🎯 Tournament:</strong> ${state.tournamentName || state.TournamentName}</p>`
                 : '';
+            const tournamentIdLine = state.tournamentId || state.TournamentId
+                ? `<p style="font-size: 0.85em; color: #666;"><strong>ID:</strong> ${state.tournamentId || state.TournamentId}</p>`
+                : '';
+            const championLine = state.champion
+                ? `<p><strong>🏆 Champion:</strong> ${state.champion}</p>`
+                : '';
+                
             statusDiv.innerHTML = `
+                ${tournamentNameLine}
+                ${tournamentIdLine}
                 <p><strong>Status:</strong> ${statusText}</p>
                 <p><strong>Message:</strong> ${state.message}</p>
                 ${championLine}
@@ -351,22 +419,35 @@
                 return;
             }
             
-            matchesDiv.innerHTML = matches.slice(-10).reverse().map(match => `
-                <div class="match-item">
-                    <div class="match-result">${match.bot1Name} vs ${match.bot2Name}</div>
-                    <div>Result: ${match.winnerName || 'Draw'} (${match.bot1Score}-${match.bot2Score})</div>
-                    <div class="timestamp">${new Date(match.completedAt).toLocaleTimeString()}</div>
-                </div>
-            `).join('');
+            matchesDiv.innerHTML = matches.slice(-10).reverse().map(match => {
+                const tournamentName = match.TournamentName || match.tournamentName || '';
+                const tournamentBadge = tournamentName ? `<span class="tournament-badge">${tournamentName}</span>` : '';
+                return `
+                    <div class="match-item">
+                        <div class="match-result">${match.Bot1Name || match.bot1Name} vs ${match.Bot2Name || match.bot2Name}${tournamentBadge}</div>
+                        <div>Result: ${match.WinnerName || match.winnerName || 'Draw'} (${match.Bot1Score || match.bot1Score}-${match.Bot2Score || match.bot2Score})</div>
+                        <div class="timestamp">${new Date(match.CompletedAt || match.completedAt).toLocaleTimeString()}</div>
+                    </div>
+                `;
+            }).join('');
         }
 
         function addMatchToFeed(match) {
             const matchesDiv = document.getElementById('recentMatches');
+            const bot1Name = match.Bot1Name || match.bot1Name;
+            const bot2Name = match.Bot2Name || match.bot2Name;
+            const winnerName = match.WinnerName || match.winnerName;
+            const bot1Score = match.Bot1Score || match.bot1Score;
+            const bot2Score = match.Bot2Score || match.bot2Score;
+            const completedAt = match.CompletedAt || match.completedAt;
+            const tournamentName = match.TournamentName || match.tournamentName || '';
+            const tournamentBadge = tournamentName ? `<span class="tournament-badge">${tournamentName}</span>` : '';
+            
             const matchHtml = `
                 <div class="match-item" style="animation: slideIn 0.3s;">
-                    <div class="match-result">${match.bot1Name} vs ${match.bot2Name}</div>
-                    <div>Result: ${match.winnerName || 'Draw'} (${match.bot1Score}-${match.bot2Score})</div>
-                    <div class="timestamp">${new Date(match.completedAt).toLocaleTimeString()}</div>
+                    <div class="match-result">${bot1Name} vs ${bot2Name}${tournamentBadge}</div>
+                    <div>Result: ${winnerName || 'Draw'} (${bot1Score}-${bot2Score})</div>
+                    <div class="timestamp">${new Date(completedAt).toLocaleTimeString()}</div>
                 </div>
             `;
             matchesDiv.insertAdjacentHTML('afterbegin', matchHtml);

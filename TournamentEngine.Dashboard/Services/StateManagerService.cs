@@ -11,7 +11,7 @@ public class StateManagerService
     private readonly ILogger<StateManagerService> _logger;
     private readonly SemaphoreSlim _stateLock = new(1, 1);
     private TournamentStateDto? _currentState;
-    private readonly ConcurrentQueue<MatchCompletedDto> _recentMatches = new();
+    private readonly ConcurrentQueue<RecentMatchDto> _recentMatches = new();
     private const int MaxRecentMatches = 50;
 
     public StateManagerService(ILogger<StateManagerService> logger)
@@ -33,12 +33,17 @@ public class StateManagerService
         await _stateLock.WaitAsync();
         try
         {
-            return _currentState ?? new TournamentStateDto
+            var state = _currentState ?? new TournamentStateDto
             {
                 Status = TournamentStatus.NotStarted,
                 Message = "No tournament data available",
                 LastUpdated = DateTime.UtcNow
             };
+            
+            // Populate recent matches from the queue
+            state.RecentMatches = GetRecentMatches(20);
+            
+            return state;
         }
         finally
         {
@@ -69,7 +74,23 @@ public class StateManagerService
     /// </summary>
     public virtual void AddRecentMatch(MatchCompletedDto match)
     {
-        _recentMatches.Enqueue(match);
+        // Convert MatchCompletedDto to RecentMatchDto
+        var recentMatch = new RecentMatchDto
+        {
+            MatchId = match.MatchId,
+            TournamentId = match.TournamentId,
+            TournamentName = match.TournamentName,
+            Bot1Name = match.Bot1Name,
+            Bot2Name = match.Bot2Name,
+            Outcome = match.Outcome,
+            WinnerName = match.WinnerName,
+            Bot1Score = match.Bot1Score,
+            Bot2Score = match.Bot2Score,
+            CompletedAt = match.CompletedAt,
+            GameType = match.GameType
+        };
+        
+        _recentMatches.Enqueue(recentMatch);
         
         // Keep only the most recent matches
         while (_recentMatches.Count > MaxRecentMatches)
@@ -81,7 +102,7 @@ public class StateManagerService
     /// <summary>
     /// Gets recent matches
     /// </summary>
-    public virtual List<MatchCompletedDto> GetRecentMatches(int count = 20)
+    public virtual List<RecentMatchDto> GetRecentMatches(int count = 20)
     {
         return _recentMatches.TakeLast(count).Reverse().ToList();
     }
@@ -100,8 +121,85 @@ public class StateManagerService
                 Message = "State cleared",
                 LastUpdated = DateTime.UtcNow
             };
-            _recentMatches.Clear ();
+            _recentMatches.Clear();
             _logger.LogInformation("Tournament state cleared");
+        }
+        finally
+        {
+            _stateLock.Release();
+        }
+    }
+
+    /// <summary>
+    /// Handle TournamentStarted event
+    /// </summary>
+    public virtual async Task UpdateTournamentStartedAsync(TournamentStartedDto tournamentEvent)
+    {
+        await _stateLock.WaitAsync();
+        try
+        {
+            _currentState = new TournamentStateDto
+            {
+                TournamentId = tournamentEvent.TournamentId,
+                TournamentName = tournamentEvent.TournamentName,
+                Status = TournamentStatus.InProgress,
+                Message = $"Tournament started: {tournamentEvent.GameType}",
+                LastUpdated = DateTime.UtcNow
+            };
+            _logger.LogInformation("Tournament started: {Id} - {Name} - {GameType}", 
+                tournamentEvent.TournamentId, tournamentEvent.TournamentName, tournamentEvent.GameType);
+        }
+        finally
+        {
+            _stateLock.Release();
+        }
+    }
+
+    /// <summary>
+    /// Handle MatchCompleted event (async version)
+    /// </summary>
+    public virtual async Task AddMatchAsync(MatchCompletedDto match)
+    {
+        await Task.Run(() => AddRecentMatch(match));
+        _logger.LogDebug("Match added: {Bot1} vs {Bot2}", match.Bot1Name, match.Bot2Name);
+    }
+
+    /// <summary>
+    /// Handle StandingsUpdated event
+    /// </summary>
+    public virtual async Task UpdateStandingsAsync(StandingsUpdatedDto standingsEvent)
+    {
+        await _stateLock.WaitAsync();
+        try
+        {
+            if (_currentState != null)
+            {
+                _currentState.OverallLeaderboard = standingsEvent.OverallStandings;
+                _currentState.LastUpdated = DateTime.UtcNow;
+                _logger.LogInformation("Standings updated: {BotCount} bots", standingsEvent.OverallStandings.Count);
+            }
+        }
+        finally
+        {
+            _stateLock.Release();
+        }
+    }
+
+    /// <summary>
+    /// Handle TournamentCompleted event
+    /// </summary>
+    public virtual async Task UpdateTournamentCompletedAsync(TournamentCompletedDto completedEvent)
+    {
+        await _stateLock.WaitAsync();
+        try
+        {
+            if (_currentState != null)
+            {
+                _currentState.Status = TournamentStatus.Completed;
+                _currentState.Message = $"Tournament completed! Champion: {completedEvent.Champion}";
+                _currentState.LastUpdated = DateTime.UtcNow;
+                _logger.LogInformation("Tournament completed: {Champion} wins!", completedEvent.Champion);
+            }
         }
         finally
         {

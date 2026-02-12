@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\TournamentEngine.Dashboard\TournamentEngine.Dashboard.csproj" />
     <ProjectReference Include="..\TournamentEngine.Core\TournamentEngine.Core.csproj" />
+    <ProjectReference Include="..\TournamentEngine.Console\TournamentEngine.Console.csproj" />
     <ProjectReference Include="..\TournamentEngine.Tests\TournamentEngine.Tests.csproj" />
   </ItemGroup>
 
