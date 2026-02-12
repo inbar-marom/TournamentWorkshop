@@ -15,6 +15,8 @@ public class BlottoExecutor : IGameExecutor
 
     public async Task<MatchResult> Execute(IBot bot1, IBot bot2, TournamentConfig config, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         var startTime = DateTime.Now;
         var matchLog = new List<string>();
         var errors = new List<string>();
@@ -191,6 +193,10 @@ public class BlottoExecutor : IGameExecutor
         }
         catch (OperationCanceledException)
         {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
             return (null, $"Timeout exceeded ({timeout.TotalMilliseconds}ms)");
         }
         catch (Exception ex)

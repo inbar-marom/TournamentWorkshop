@@ -35,10 +35,10 @@ public class BlottoValidationTests
         Assert.AreEqual(GameType.ColonelBlotto, result.GameType);
         Assert.AreEqual(rockBot.TeamName, result.Bot1Name);
         Assert.AreEqual(cycleBot.TeamName, result.Bot2Name);
-        Assert.AreEqual(MatchOutcome.Draw, result.Outcome); // Equal allocations = draw
-        Assert.IsNull(result.WinnerName);
-        Assert.AreEqual(0, result.Bot1Score);
-        Assert.AreEqual(0, result.Bot2Score);
+        Assert.AreEqual(MatchOutcome.Player1Wins, result.Outcome); // 20,20,20,20,20 beats 40,15,15,15,15
+        Assert.AreEqual(rockBot.TeamName, result.WinnerName);
+        Assert.AreEqual(4, result.Bot1Score);
+        Assert.AreEqual(1, result.Bot2Score);
         Assert.IsNotNull(result.MatchLog);
         Assert.IsTrue(result.MatchLog.Any(line => line.Contains("Colonel Blotto")));
     }
@@ -143,7 +143,7 @@ public class BlottoValidationTests
         Assert.IsTrue(result.Outcome == MatchOutcome.Player1Wins || 
                      result.Outcome == MatchOutcome.Player2Wins || 
                      result.Outcome == MatchOutcome.Draw);
-        Assert.AreEqual(5, result.Bot1Score + result.Bot2Score); // Total of 5 battlefields decided
+        Assert.IsTrue(result.Bot1Score + result.Bot2Score <= 5); // Draws reduce total wins
     }
 
     [TestMethod]

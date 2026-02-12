@@ -59,6 +59,20 @@ public class StateManagerService
         await _stateLock.WaitAsync();
         try
         {
+            if (newState.RecentMatches != null)
+            {
+                _recentMatches.Clear();
+                foreach (var match in newState.RecentMatches)
+                {
+                    _recentMatches.Enqueue(match);
+                }
+
+                while (_recentMatches.Count > MaxRecentMatches)
+                {
+                    _recentMatches.TryDequeue(out _);
+                }
+            }
+
             _currentState = newState;
             _currentState.LastUpdated = DateTime.UtcNow;
             _logger.LogInformation("Tournament state updated: {Status}", newState.Status);
