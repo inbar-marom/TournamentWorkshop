@@ -6,6 +6,8 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using TournamentEngine.Core.Common;
+using TournamentEngine.Core.Common.Dashboard;
+using TournamentEngine.Core.Events;
 
 /// <summary>
 /// Orchestrates multiple tournaments in a series.
@@ -29,11 +31,16 @@ public class TournamentSeriesManager
 {
     private readonly ITournamentManager _tournamentManager;
     private readonly IScoringSystem _scoringSystem;
+    private readonly ITournamentEventPublisher? _eventPublisher;
 
-    public TournamentSeriesManager(ITournamentManager tournamentManager, IScoringSystem scoringSystem)
+    public TournamentSeriesManager(
+        ITournamentManager tournamentManager,
+        IScoringSystem scoringSystem,
+        ITournamentEventPublisher? eventPublisher = null)
     {
         _tournamentManager = tournamentManager ?? throw new ArgumentNullException(nameof(tournamentManager));
         _scoringSystem = scoringSystem ?? throw new ArgumentNullException(nameof(scoringSystem));
+        _eventPublisher = eventPublisher;
     }
 
     public async Task<TournamentSeriesInfo> RunSeriesAsync(
@@ -56,6 +63,36 @@ public class TournamentSeriesManager
             Config = config
         };
 
+        var seriesName = config.SeriesName ?? "Tournament Series";
+        var steps = config.GameTypes
+            .Select((gameType, index) => new SeriesStepDto
+            {
+                StepIndex = index + 1,
+                GameType = gameType,
+                Status = index == 0 ? SeriesStepStatus.Running : SeriesStepStatus.Pending
+            })
+            .ToList();
+
+        if (_eventPublisher != null)
+        {
+            var seriesStartedEvent = new SeriesStartedDto
+            {
+                SeriesId = seriesInfo.SeriesId,
+                SeriesName = seriesName,
+                TotalSteps = steps.Count,
+                Steps = CloneSteps(steps),
+                StartedAt = seriesInfo.StartTime
+            };
+
+            await _eventPublisher.PublishSeriesStartedAsync(seriesStartedEvent);
+
+            await _eventPublisher.PublishSeriesProgressUpdatedAsync(new SeriesProgressUpdatedDto
+            {
+                SeriesState = CreateSeriesState(seriesInfo.SeriesId, seriesName, steps, 1, SeriesStatus.InProgress),
+                UpdatedAt = DateTime.UtcNow
+            });
+        }
+
         // Run each tournament in the series SEQUENTIALLY
         // THREAD SAFETY: Sequential execution means no concurrent access to seriesInfo.Tournaments
         // If changing to parallel execution (e.g., Task.WhenAll), you must:
@@ -66,10 +103,47 @@ public class TournamentSeriesManager
             cancellationToken.ThrowIfCancellationRequested();
 
             var gameType = config.GameTypes[i];
+            var tournamentName = $"{gameType} Tournament #{i + 1}";
             var tournamentInfo = await _tournamentManager.RunTournamentAsync(
                 bots, gameType, config.BaseConfig, cancellationToken);
 
             seriesInfo.Tournaments.Add(tournamentInfo);
+
+            if (_eventPublisher != null)
+            {
+                var step = steps[i];
+                step.Status = SeriesStepStatus.Completed;
+                step.WinnerName = tournamentInfo.Champion;
+                step.TournamentId = tournamentInfo.TournamentId;
+                step.TournamentName = tournamentName;
+
+                var stepCompletedEvent = new SeriesStepCompletedDto
+                {
+                    SeriesId = seriesInfo.SeriesId,
+                    StepIndex = step.StepIndex,
+                    GameType = step.GameType,
+                    WinnerName = step.WinnerName,
+                    TournamentId = step.TournamentId,
+                    TournamentName = step.TournamentName,
+                    CompletedAt = DateTime.UtcNow
+                };
+
+                await _eventPublisher.PublishSeriesStepCompletedAsync(stepCompletedEvent);
+
+                if (i + 1 < steps.Count)
+                {
+                    steps[i + 1].Status = SeriesStepStatus.Running;
+                }
+
+                var currentStepIndex = Math.Min(i + 2, steps.Count);
+                var status = i + 1 == steps.Count ? SeriesStatus.Completed : SeriesStatus.InProgress;
+
+                await _eventPublisher.PublishSeriesProgressUpdatedAsync(new SeriesProgressUpdatedDto
+                {
+                    SeriesState = CreateSeriesState(seriesInfo.SeriesId, seriesName, steps, currentStepIndex, status),
+                    UpdatedAt = DateTime.UtcNow
+                });
+            }
         }
 
         // Calculate series standings and champion
@@ -80,7 +154,54 @@ public class TournamentSeriesManager
 
         seriesInfo.EndTime = DateTime.UtcNow;
 
+        if (_eventPublisher != null)
+        {
+            var completedEvent = new SeriesCompletedDto
+            {
+                SeriesId = seriesInfo.SeriesId,
+                SeriesName = seriesName,
+                Champion = seriesInfo.SeriesChampion ?? "Unknown",
+                CompletedAt = seriesInfo.EndTime.Value
+            };
+
+            await _eventPublisher.PublishSeriesCompletedAsync(completedEvent);
+        }
+
         return seriesInfo;
+    }
+
+    private static SeriesStateDto CreateSeriesState(
+        string seriesId,
+        string seriesName,
+        List<SeriesStepDto> steps,
+        int currentStepIndex,
+        SeriesStatus status)
+    {
+        return new SeriesStateDto
+        {
+            SeriesId = seriesId,
+            SeriesName = seriesName,
+            TotalSteps = steps.Count,
+            CurrentStepIndex = currentStepIndex,
+            Status = status,
+            Steps = CloneSteps(steps),
+            LastUpdated = DateTime.UtcNow
+        };
+    }
+
+    private static List<SeriesStepDto> CloneSteps(List<SeriesStepDto> steps)
+    {
+        return steps
+            .Select(step => new SeriesStepDto
+            {
+                StepIndex = step.StepIndex,
+                GameType = step.GameType,
+                Status = step.Status,
+                WinnerName = step.WinnerName,
+                TournamentId = step.TournamentId,
+                TournamentName = step.TournamentName
+            })
+            .ToList();
     }
 
     private void CalculateSeriesStandings(TournamentSeriesInfo seriesInfo)

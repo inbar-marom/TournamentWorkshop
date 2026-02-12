@@ -160,4 +160,122 @@ public class TournamentHubTests
                 default),
             Times.Once);
     }
+
+    [Fact]
+    public async Task SeriesStarted_UpdatesStateAndBroadcasts()
+    {
+        // Arrange
+        var seriesEvent = new SeriesStartedDto
+        {
+            SeriesId = "series-1",
+            SeriesName = "Local Series",
+            TotalSteps = 2,
+            Steps = new List<SeriesStepDto>
+            {
+                new() { StepIndex = 1, GameType = GameType.RPSLS, Status = SeriesStepStatus.Running },
+                new() { StepIndex = 2, GameType = GameType.ColonelBlotto, Status = SeriesStepStatus.Pending }
+            },
+            StartedAt = DateTime.UtcNow
+        };
+
+        // Act
+        await _hub.SeriesStarted(seriesEvent);
+
+        // Assert
+        _mockStateManager.Verify(x => x.UpdateSeriesStartedAsync(seriesEvent), Times.Once);
+        _mockClientProxy.Verify(
+            x => x.SendCoreAsync(
+                "SeriesStarted",
+                It.Is<object[]>(args => args.Length == 1 && args[0] == seriesEvent),
+                default),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task SeriesProgressUpdated_UpdatesStateAndBroadcasts()
+    {
+        // Arrange
+        var progressEvent = new SeriesProgressUpdatedDto
+        {
+            SeriesState = new SeriesStateDto
+            {
+                SeriesId = "series-1",
+                SeriesName = "Local Series",
+                TotalSteps = 2,
+                CurrentStepIndex = 1,
+                Status = SeriesStatus.InProgress,
+                Steps = new List<SeriesStepDto>
+                {
+                    new() { StepIndex = 1, GameType = GameType.RPSLS, Status = SeriesStepStatus.Running },
+                    new() { StepIndex = 2, GameType = GameType.ColonelBlotto, Status = SeriesStepStatus.Pending }
+                }
+            },
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        // Act
+        await _hub.SeriesProgressUpdated(progressEvent);
+
+        // Assert
+        _mockStateManager.Verify(x => x.UpdateSeriesProgressAsync(progressEvent), Times.Once);
+        _mockClientProxy.Verify(
+            x => x.SendCoreAsync(
+                "SeriesProgressUpdated",
+                It.Is<object[]>(args => args.Length == 1 && args[0] == progressEvent),
+                default),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task SeriesStepCompleted_UpdatesStateAndBroadcasts()
+    {
+        // Arrange
+        var completedEvent = new SeriesStepCompletedDto
+        {
+            SeriesId = "series-1",
+            StepIndex = 1,
+            GameType = GameType.RPSLS,
+            WinnerName = "Bot1",
+            TournamentId = "tournament-1",
+            TournamentName = "RPSLS Tournament #1",
+            CompletedAt = DateTime.UtcNow
+        };
+
+        // Act
+        await _hub.SeriesStepCompleted(completedEvent);
+
+        // Assert
+        _mockStateManager.Verify(x => x.UpdateSeriesStepCompletedAsync(completedEvent), Times.Once);
+        _mockClientProxy.Verify(
+            x => x.SendCoreAsync(
+                "SeriesStepCompleted",
+                It.Is<object[]>(args => args.Length == 1 && args[0] == completedEvent),
+                default),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task SeriesCompleted_UpdatesStateAndBroadcasts()
+    {
+        // Arrange
+        var completedEvent = new SeriesCompletedDto
+        {
+            SeriesId = "series-1",
+            SeriesName = "Local Series",
+            Champion = "Bot1",
+            CompletedAt = DateTime.UtcNow
+        };
+
+        // Act
+        await _hub.SeriesCompleted(completedEvent);
+
+        // Assert
+        _mockStateManager.Verify(x => x.UpdateSeriesCompletedAsync(completedEvent), Times.Once);
+        _mockClientProxy.Verify(
+            x => x.SendCoreAsync(
+                "SeriesCompleted",
+                It.Is<object[]>(args => args.Length == 1 && args[0] == completedEvent),
+                default),
+            Times.Once);
+    }
 }

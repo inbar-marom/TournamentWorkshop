@@ -63,7 +63,8 @@ public class ConfigurationManager
         return new TournamentSeriesConfig
         {
             GameTypes = config.TournamentEngine?.DefaultGameTypes ?? new List<GameType>(),
-            BaseConfig = CreateTournamentConfig()
+            BaseConfig = CreateTournamentConfig(),
+            SeriesName = config.TournamentSeries?.Name
         };
     }
 

@@ -47,4 +47,24 @@ public class SignalREventPublisher : ITournamentEventPublisher
     {
         await _hubContext.Clients.All.SendAsync("CurrentState", state);
     }
+
+    public async Task PublishSeriesStartedAsync(SeriesStartedDto seriesEvent)
+    {
+        await _hubContext.Clients.All.SendAsync("SeriesStarted", seriesEvent);
+    }
+
+    public async Task PublishSeriesProgressUpdatedAsync(SeriesProgressUpdatedDto progressEvent)
+    {
+        await _hubContext.Clients.All.SendAsync("SeriesProgressUpdated", progressEvent);
+    }
+
+    public async Task PublishSeriesStepCompletedAsync(SeriesStepCompletedDto completedEvent)
+    {
+        await _hubContext.Clients.All.SendAsync("SeriesStepCompleted", completedEvent);
+    }
+
+    public async Task PublishSeriesCompletedAsync(SeriesCompletedDto completedEvent)
+    {
+        await _hubContext.Clients.All.SendAsync("SeriesCompleted", completedEvent);
+    }
 }

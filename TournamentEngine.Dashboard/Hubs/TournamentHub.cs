@@ -167,6 +167,58 @@ public class TournamentHub : Hub
     }
 
     /// <summary>
+    /// Receive SeriesStarted event from ConsoleEventPublisher
+    /// </summary>
+    public async Task SeriesStarted(SeriesStartedDto seriesEvent)
+    {
+        _logger.LogInformation("Series started: {SeriesName} with {TotalSteps} steps",
+            seriesEvent.SeriesName, seriesEvent.TotalSteps);
+
+        await _stateManager.UpdateSeriesStartedAsync(seriesEvent);
+
+        await Clients.Group("TournamentViewers").SendAsync("SeriesStarted", seriesEvent);
+    }
+
+    /// <summary>
+    /// Receive SeriesProgressUpdated event from ConsoleEventPublisher
+    /// </summary>
+    public async Task SeriesProgressUpdated(SeriesProgressUpdatedDto progressEvent)
+    {
+        _logger.LogInformation("Series progress updated: Step {StepIndex}/{TotalSteps}",
+            progressEvent.SeriesState.CurrentStepIndex, progressEvent.SeriesState.TotalSteps);
+
+        await _stateManager.UpdateSeriesProgressAsync(progressEvent);
+
+        await Clients.Group("TournamentViewers").SendAsync("SeriesProgressUpdated", progressEvent);
+    }
+
+    /// <summary>
+    /// Receive SeriesStepCompleted event from ConsoleEventPublisher
+    /// </summary>
+    public async Task SeriesStepCompleted(SeriesStepCompletedDto completedEvent)
+    {
+        _logger.LogInformation("Series step completed: Step {StepIndex} Winner {Winner}",
+            completedEvent.StepIndex, completedEvent.WinnerName ?? "Unknown");
+
+        await _stateManager.UpdateSeriesStepCompletedAsync(completedEvent);
+
+        await Clients.Group("TournamentViewers").SendAsync("SeriesStepCompleted", completedEvent);
+    }
+
+    /// <summary>
+    /// Receive SeriesCompleted event from ConsoleEventPublisher
+    /// </summary>
+    public async Task SeriesCompleted(SeriesCompletedDto completedEvent)
+    {
+        _logger.LogInformation("Series completed: {SeriesName} Champion {Champion}",
+            completedEvent.SeriesName, completedEvent.Champion);
+
+        await _stateManager.UpdateSeriesCompletedAsync(completedEvent);
+
+        await Clients.Group("TournamentViewers").SendAsync("SeriesCompleted", completedEvent);
+    }
+
+    /// <summary>
     /// Update current state (for real-time state sync)
     /// </summary>
     public async Task CurrentState(TournamentStateDto state)

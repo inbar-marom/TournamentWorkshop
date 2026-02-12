@@ -22,6 +22,11 @@ public class TournamentSeriesConfig
     public required TournamentConfig BaseConfig { get; init; }
 
     /// <summary>
+    /// Optional name for the tournament series (defaults to "Tournament Series")
+    /// </summary>
+    public string? SeriesName { get; init; }
+
+    /// <summary>
     /// Whether to aggregate scores across tournaments (default: true)
     /// </summary>
     public bool AggregateScores { get; init; } = true;

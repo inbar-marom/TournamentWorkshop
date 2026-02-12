@@ -13,4 +13,8 @@ public interface ITournamentEventPublisher
     Task PublishTournamentCompletedAsync(TournamentCompletedDto completedEvent);
     Task PublishRoundStartedAsync(RoundStartedDto roundEvent);
     Task UpdateCurrentStateAsync(TournamentStateDto state);
+    Task PublishSeriesStartedAsync(SeriesStartedDto seriesEvent);
+    Task PublishSeriesProgressUpdatedAsync(SeriesProgressUpdatedDto progressEvent);
+    Task PublishSeriesStepCompletedAsync(SeriesStepCompletedDto completedEvent);
+    Task PublishSeriesCompletedAsync(SeriesCompletedDto completedEvent);
 }

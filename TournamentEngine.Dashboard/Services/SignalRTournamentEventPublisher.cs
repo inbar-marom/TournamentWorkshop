@@ -101,4 +101,48 @@ public class SignalRTournamentEventPublisher : ITournamentEventPublisher
         await _hubContext.Clients.Group("TournamentViewers")
             .SendAsync("CurrentState", state);
     }
+
+    public async Task PublishSeriesStartedAsync(SeriesStartedDto seriesEvent)
+    {
+        _logger.LogInformation("Publishing series started: {SeriesName} with {TotalSteps} steps",
+            seriesEvent.SeriesName, seriesEvent.TotalSteps);
+
+        await _stateManager.UpdateSeriesStartedAsync(seriesEvent);
+
+        await _hubContext.Clients.Group("TournamentViewers")
+            .SendAsync("SeriesStarted", seriesEvent);
+    }
+
+    public async Task PublishSeriesProgressUpdatedAsync(SeriesProgressUpdatedDto progressEvent)
+    {
+        _logger.LogInformation("Publishing series progress update: Step {StepIndex}/{TotalSteps}",
+            progressEvent.SeriesState.CurrentStepIndex, progressEvent.SeriesState.TotalSteps);
+
+        await _stateManager.UpdateSeriesProgressAsync(progressEvent);
+
+        await _hubContext.Clients.Group("TournamentViewers")
+            .SendAsync("SeriesProgressUpdated", progressEvent);
+    }
+
+    public async Task PublishSeriesStepCompletedAsync(SeriesStepCompletedDto completedEvent)
+    {
+        _logger.LogInformation("Publishing series step completed: Step {StepIndex} - Winner {Winner}",
+            completedEvent.StepIndex, completedEvent.WinnerName ?? "Unknown");
+
+        await _stateManager.UpdateSeriesStepCompletedAsync(completedEvent);
+
+        await _hubContext.Clients.Group("TournamentViewers")
+            .SendAsync("SeriesStepCompleted", completedEvent);
+    }
+
+    public async Task PublishSeriesCompletedAsync(SeriesCompletedDto completedEvent)
+    {
+        _logger.LogInformation("Publishing series completed: {SeriesName} - Champion {Champion}",
+            completedEvent.SeriesName, completedEvent.Champion);
+
+        await _stateManager.UpdateSeriesCompletedAsync(completedEvent);
+
+        await _hubContext.Clients.Group("TournamentViewers")
+            .SendAsync("SeriesCompleted", completedEvent);
+    }
 }

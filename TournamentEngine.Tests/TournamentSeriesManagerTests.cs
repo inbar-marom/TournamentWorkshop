@@ -5,7 +5,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Moq;
 using TournamentEngine.Core.Common;
+using TournamentEngine.Core.Common.Dashboard;
+using TournamentEngine.Core.Events;
 using TournamentEngine.Core.Tournament;
 using TournamentEngine.Tests.Helpers;
 
@@ -52,6 +55,57 @@ public class TournamentSeriesManagerTests
         
         Assert.IsNotNull(seriesInfo.EndTime, "Series should be complete");
         Assert.IsTrue(seriesInfo.EndTime > seriesInfo.StartTime);
+    }
+
+    [TestMethod]
+    public async Task RunSeriesAsync_PublishesSeriesLifecycleEvents()
+    {
+        // Arrange
+        var bots = TestHelpers.CreateDummyBotInfos(4);
+        var config = new TournamentSeriesConfig
+        {
+            GameTypes = new List<GameType> { GameType.RPSLS, GameType.ColonelBlotto },
+            BaseConfig = TestHelpers.CreateDefaultConfig(),
+            SeriesName = "Test Series"
+        };
+
+        var gameRunner = new MockGameRunner();
+        var scoringSystem = new Core.Scoring.ScoringSystem();
+        var engine = new GroupStageTournamentEngine(gameRunner, scoringSystem);
+        var tournamentManager = new TournamentManager(engine, gameRunner);
+        var eventPublisher = new Mock<ITournamentEventPublisher>();
+        var seriesManager = new TournamentSeriesManager(tournamentManager, scoringSystem, eventPublisher.Object);
+
+        // Act
+        await seriesManager.RunSeriesAsync(bots, config);
+
+        // Assert
+        eventPublisher.Verify(
+            x => x.PublishSeriesStartedAsync(It.Is<SeriesStartedDto>(dto =>
+                dto.SeriesName == "Test Series" &&
+                dto.TotalSteps == 2 &&
+                dto.Steps.Count == 2 &&
+                dto.Steps[0].Status == SeriesStepStatus.Running &&
+                dto.Steps[1].Status == SeriesStepStatus.Pending)),
+            Times.Once);
+
+        eventPublisher.Verify(
+            x => x.PublishSeriesStepCompletedAsync(It.Is<SeriesStepCompletedDto>(dto => dto.StepIndex == 1)),
+            Times.Once);
+
+        eventPublisher.Verify(
+            x => x.PublishSeriesStepCompletedAsync(It.Is<SeriesStepCompletedDto>(dto => dto.StepIndex == 2)),
+            Times.Once);
+
+        eventPublisher.Verify(
+            x => x.PublishSeriesCompletedAsync(It.Is<SeriesCompletedDto>(dto =>
+                dto.SeriesName == "Test Series" &&
+                !string.IsNullOrWhiteSpace(dto.Champion))),
+            Times.Once);
+
+        eventPublisher.Verify(
+            x => x.PublishSeriesProgressUpdatedAsync(It.IsAny<SeriesProgressUpdatedDto>()),
+            Times.AtLeastOnce);
     }
 
     [TestMethod]

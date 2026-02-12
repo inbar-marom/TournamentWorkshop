@@ -114,6 +114,26 @@ public class ConsoleEventPublisher : ITournamentEventPublisher, IAsyncDisposable
         await PublishEventAsync("CurrentState", state);
     }
 
+    public async Task PublishSeriesStartedAsync(SeriesStartedDto seriesEvent)
+    {
+        await PublishEventAsync("SeriesStarted", seriesEvent);
+    }
+
+    public async Task PublishSeriesProgressUpdatedAsync(SeriesProgressUpdatedDto progressEvent)
+    {
+        await PublishEventAsync("SeriesProgressUpdated", progressEvent);
+    }
+
+    public async Task PublishSeriesStepCompletedAsync(SeriesStepCompletedDto completedEvent)
+    {
+        await PublishEventAsync("SeriesStepCompleted", completedEvent);
+    }
+
+    public async Task PublishSeriesCompletedAsync(SeriesCompletedDto completedEvent)
+    {
+        await PublishEventAsync("SeriesCompleted", completedEvent);
+    }
+
     private async Task PublishEventAsync<T>(string eventName, T eventData)
     {
         if (_hubConnection == null || !_isConnected)
