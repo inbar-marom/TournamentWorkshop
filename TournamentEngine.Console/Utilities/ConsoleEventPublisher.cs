@@ -71,14 +71,27 @@ public class ConsoleEventPublisher : ITournamentEventPublisher, IAsyncDisposable
         try
         {
             _logger?.LogInformation("Attempting to connect to dashboard hub...");
-            await _hubConnection.StartAsync();
+            
+            // Add timeout to prevent hanging
+            using (var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(30)))
+            {
+                await _hubConnection.StartAsync(cts.Token);
+            }
+            
             _isConnected = true;
             _logger?.LogInformation("✅ Connected to dashboard hub successfully");
             return true;
         }
+        catch (OperationCanceledException ex)
+        {
+            _logger?.LogError(ex, "❌ Connection to dashboard timed out after 30 seconds");
+            _isConnected = false;
+            return false;
+        }
         catch (Exception ex)
         {
             _logger?.LogError(ex, "❌ Could not connect to dashboard - events will not be published");
+            _logger?.LogError("Exception type: {ExceptionType}, Message: {Message}", ex.GetType().Name, ex.Message);
             _isConnected = false;
             return false;
         }

@@ -12,7 +12,11 @@ using TournamentEngine.Tests.Helpers;
 Console.WriteLine("🎮 Tournament Simulator - Live Real-Time Streaming!\n");
 
 // Setup logging
-var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
+var loggerFactory = LoggerFactory.Create(builder => 
+{
+    builder.AddConsole();
+    builder.SetMinimumLevel(LogLevel.Information);
+});
 var logger = loggerFactory.CreateLogger("Simulator");
 
 // Create real tournament components
