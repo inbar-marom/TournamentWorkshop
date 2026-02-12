@@ -64,6 +64,9 @@ public class SeriesDashboardViewService
             })
             .ToList();
 
+        // Add overall leaderboard data from current state
+        view.OverallLeaderboard = state.OverallLeaderboard;
+
         return view;
     }
 }
@@ -81,6 +84,7 @@ public class SeriesDashboardViewDto
     public List<SeriesStepTrackItemDto> StepTrack { get; set; } = new();
     public List<SeriesStepSummaryDto> Winners { get; set; } = new();
     public List<SeriesStepSummaryDto> UpNext { get; set; } = new();
+    public List<TeamStandingDto>? OverallLeaderboard { get; set; }
 }
 
 public class SeriesStepTrackItemDto

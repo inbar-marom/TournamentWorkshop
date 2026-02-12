@@ -492,6 +492,13 @@
             <div class="step-track" id="seriesStepTrack"></div>
         </section>
 
+        <section class="card">
+            <div class="panel-title">Top 3 Series Leaders</div>
+            <div class="panel-body" id="top3Leaders">
+                <div class="status-message">Waiting for series data...</div>
+            </div>
+        </section>
+
         <section class="panel-grid">
             <article class="card">
                 <div class="panel-title">Now Running</div>
@@ -503,6 +510,12 @@
                 <div class="panel-title">Winners Row</div>
                 <div class="panel-body" id="winnersRow">
                     <div class="status-message">No winners yet</div>
+                </div>
+            </article>
+            <article class="card">
+                <div class="panel-title">Series Winner</div>
+                <div class="panel-body" id="seriesWinner">
+                    <div class="status-message">No series winner yet</div>
                 </div>
             </article>
             <article class="card">
@@ -587,7 +600,12 @@
                 : '';
             logMessage(`Standings updated${tournamentInfo}`, 'info');
             console.log('Standings received:', standings);
-            updateLeaderboard(standings.OverallStandings || standings.overallStandings);
+            const leaders = standings.OverallStandings || standings.overallStandings;
+            updateLeaderboard(leaders);
+            if (leaders && leaders.length > 0) {
+                const view = { OverallLeaderboard: leaders };
+                updateTop3Leaders(view);
+            }
         });
 
         connection.on("TournamentStarted", (tournamentEvent) => {
@@ -775,6 +793,8 @@
 
             updateNowRunning(view);
             updateWinnersRow(view);
+            updateSeriesWinner(view);
+            updateTop3Leaders(view);
             updateUpNext(view);
         }
 
@@ -831,6 +851,52 @@
                     <span>${formatGameType(step.GameType || step.gameType)}</span>
                 </div>
             `).join('');
+        }
+
+        function updateSeriesWinner(view) {
+            const seriesWinnerEl = document.getElementById('seriesWinner');
+            const seriesStatus = formatSeriesStatus(pickValue(view, 'SeriesStatus', 'seriesStatus'));
+            const winners = pickValue(view, 'Winners', 'winners') || [];
+
+            if (seriesStatus !== 'Completed' || winners.length === 0) {
+                seriesWinnerEl.innerHTML = '<div class="status-message">No series winner yet</div>';
+                return;
+            }
+
+            const lastWinner = winners[winners.length - 1];
+            const winnerName = lastWinner.WinnerName || lastWinner.winnerName || 'TBD';
+
+            seriesWinnerEl.innerHTML = `
+                <div class="winner-item">
+                    <span class="winner-meta">
+                        <span class="winner-badge">🏆</span>
+                        <span class="winner-name">${winnerName}</span>
+                    </span>
+                </div>
+            `;
+        }
+
+        function updateTop3Leaders(view) {
+            const top3El = document.getElementById('top3Leaders');
+            const leaderboard = pickValue(view, 'OverallLeaderboard', 'overallLeaderboard') || [];
+
+            if (leaderboard.length === 0) {
+                top3El.innerHTML = '<div class="status-message">Waiting for series data...</div>';
+                return;
+            }
+
+            const top3 = leaderboard.slice(0, 3);
+            top3El.innerHTML = top3.map((team, index) => {
+                const medal = ['🥇', '🥈', '🥉'][index];
+                const teamName = team.teamName || team.TeamName || 'Unknown';
+                const totalPoints = team.totalPoints || team.TotalPoints || 0;
+                return `
+                    <div class="leaderboard-item">
+                        <span>${medal} ${teamName}</span>
+                        <span>${totalPoints} pts</span>
+                    </div>
+                `;
+            }).join('');
         }
 
         function collapseDetailsDrawer() {

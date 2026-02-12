@@ -32,26 +32,30 @@ public class VariedBot : IBot
     public string TeamName { get; }
     public GameType GameType => GameType.RPSLS;
 
-    public Task<string> MakeMove(GameState gameState, CancellationToken cancellationToken)
+    public async Task<string> MakeMove(GameState gameState, CancellationToken cancellationToken)
     {
+        await Task.Delay(10, cancellationToken);
         var index = (gameState.CurrentRound + _seed) % Moves.Length;
-        return Task.FromResult(Moves[index]);
+        return Moves[index];
     }
 
-    public Task<int[]> AllocateTroops(GameState gameState, CancellationToken cancellationToken)
+    public async Task<int[]> AllocateTroops(GameState gameState, CancellationToken cancellationToken)
     {
+        await Task.Delay(10, cancellationToken);
         var pattern = BlottoPatterns[(_seed - 1) % BlottoPatterns.Length];
-        return Task.FromResult(pattern.ToArray());
+        return pattern.ToArray();
     }
 
-    public Task<string> MakePenaltyDecision(GameState gameState, CancellationToken cancellationToken)
+    public async Task<string> MakePenaltyDecision(GameState gameState, CancellationToken cancellationToken)
     {
+        await Task.Delay(10, cancellationToken);
         var decision = ((gameState.CurrentRound + _seed) % 2 == 0) ? "Left" : "Right";
-        return Task.FromResult(decision);
+        return decision;
     }
 
-    public Task<string> MakeSecurityMove(GameState gameState, CancellationToken cancellationToken)
+    public async Task<string> MakeSecurityMove(GameState gameState, CancellationToken cancellationToken)
     {
-        return Task.FromResult("Scan");
+        await Task.Delay(10, cancellationToken);
+        return "Scan";
     }
 }

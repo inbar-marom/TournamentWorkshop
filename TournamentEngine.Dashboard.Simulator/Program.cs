@@ -11,6 +11,10 @@ using TournamentEngine.Tests.Helpers;
 
 Console.WriteLine("🎮 Tournament Simulator - Live Real-Time Streaming!\n");
 
+// Setup logging
+var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
+var logger = loggerFactory.CreateLogger("Simulator");
+
 // Create real tournament components
 var config = new TournamentConfig
 {
@@ -23,13 +27,14 @@ var scoringSystem = new ScoringSystem();
 var engine = new GroupStageTournamentEngine(gameRunner, scoringSystem);
 
 // Create demo bots
-var botCount = 6;
+var botCount = 10;
 Console.WriteLine($"🤖 Creating {botCount} demo bots...");
 var bots = IntegrationTestHelpers.CreateVariedBots(botCount);
 Console.WriteLine($"✅ Created: {string.Join(", ", bots.Select(b => b.TeamName))}\n");
 
 // Use the same ConsoleEventPublisher as the main console app
-var eventPublisher = new ConsoleEventPublisher("http://localhost:5000/tournamentHub");
+var publisherLogger = loggerFactory.CreateLogger<ConsoleEventPublisher>();
+var eventPublisher = new ConsoleEventPublisher("http://localhost:5000/tournamentHub", publisherLogger);
 
 // IMPORTANT: Wait for connection to be established before starting tournament
 Console.WriteLine("⏳ Connecting to Dashboard...");
@@ -44,7 +49,7 @@ else
 }
 
 var tournamentManager = new TournamentManager(engine, gameRunner, eventPublisher);
-var seriesManager = new TournamentSeriesManager(tournamentManager, scoringSystem);
+var seriesManager = new TournamentSeriesManager(tournamentManager, scoringSystem, eventPublisher);
 
 var seriesConfig = new TournamentSeriesConfig
 {
