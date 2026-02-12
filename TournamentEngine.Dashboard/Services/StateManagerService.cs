@@ -220,4 +220,142 @@ public class StateManagerService
             _stateLock.Release();
         }
     }
+
+    /// <summary>
+    /// Handle SeriesStarted event
+    /// </summary>
+    public virtual async Task UpdateSeriesStartedAsync(SeriesStartedDto seriesEvent)
+    {
+        await _stateLock.WaitAsync();
+        try
+        {
+            _currentState ??= new TournamentStateDto
+            {
+                Status = TournamentStatus.NotStarted,
+                Message = "Waiting for tournament to start...",
+                LastUpdated = DateTime.UtcNow
+            };
+
+            var currentStepIndex = seriesEvent.Steps.FirstOrDefault(s => s.Status == SeriesStepStatus.Running)?.StepIndex ?? 1;
+
+            _currentState.SeriesState = new SeriesStateDto
+            {
+                SeriesId = seriesEvent.SeriesId,
+                SeriesName = seriesEvent.SeriesName,
+                TotalSteps = seriesEvent.TotalSteps,
+                CurrentStepIndex = currentStepIndex,
+                Status = SeriesStatus.InProgress,
+                Steps = seriesEvent.Steps,
+                LastUpdated = DateTime.UtcNow
+            };
+
+            _currentState.LastUpdated = DateTime.UtcNow;
+        }
+        finally
+        {
+            _stateLock.Release();
+        }
+    }
+
+    /// <summary>
+    /// Handle SeriesProgressUpdated event
+    /// </summary>
+    public virtual async Task UpdateSeriesProgressAsync(SeriesProgressUpdatedDto progressEvent)
+    {
+        await _stateLock.WaitAsync();
+        try
+        {
+            _currentState ??= new TournamentStateDto
+            {
+                Status = TournamentStatus.NotStarted,
+                Message = "Waiting for tournament to start...",
+                LastUpdated = DateTime.UtcNow
+            };
+
+            progressEvent.SeriesState.LastUpdated = DateTime.UtcNow;
+            _currentState.SeriesState = progressEvent.SeriesState;
+            _currentState.LastUpdated = DateTime.UtcNow;
+        }
+        finally
+        {
+            _stateLock.Release();
+        }
+    }
+
+    /// <summary>
+    /// Handle SeriesStepCompleted event
+    /// </summary>
+    public virtual async Task UpdateSeriesStepCompletedAsync(SeriesStepCompletedDto completedEvent)
+    {
+        await _stateLock.WaitAsync();
+        try
+        {
+            _currentState ??= new TournamentStateDto
+            {
+                Status = TournamentStatus.NotStarted,
+                Message = "Waiting for tournament to start...",
+                LastUpdated = DateTime.UtcNow
+            };
+
+            _currentState.SeriesState ??= new SeriesStateDto
+            {
+                SeriesId = completedEvent.SeriesId,
+                Status = SeriesStatus.InProgress,
+                LastUpdated = DateTime.UtcNow
+            };
+
+            var step = _currentState.SeriesState.Steps.SingleOrDefault(s => s.StepIndex == completedEvent.StepIndex);
+            if (step == null)
+            {
+                step = new SeriesStepDto { StepIndex = completedEvent.StepIndex };
+                _currentState.SeriesState.Steps.Add(step);
+            }
+
+            step.GameType = completedEvent.GameType;
+            step.Status = SeriesStepStatus.Completed;
+            step.WinnerName = completedEvent.WinnerName;
+            step.TournamentId = completedEvent.TournamentId;
+            step.TournamentName = completedEvent.TournamentName;
+
+            _currentState.SeriesState.LastUpdated = DateTime.UtcNow;
+            _currentState.LastUpdated = DateTime.UtcNow;
+        }
+        finally
+        {
+            _stateLock.Release();
+        }
+    }
+
+    /// <summary>
+    /// Handle SeriesCompleted event
+    /// </summary>
+    public virtual async Task UpdateSeriesCompletedAsync(SeriesCompletedDto completedEvent)
+    {
+        await _stateLock.WaitAsync();
+        try
+        {
+            _currentState ??= new TournamentStateDto
+            {
+                Status = TournamentStatus.NotStarted,
+                Message = "Waiting for tournament to start...",
+                LastUpdated = DateTime.UtcNow
+            };
+
+            _currentState.SeriesState ??= new SeriesStateDto
+            {
+                SeriesId = completedEvent.SeriesId,
+                SeriesName = completedEvent.SeriesName
+            };
+
+            _currentState.SeriesState.SeriesId = completedEvent.SeriesId;
+            _currentState.SeriesState.SeriesName = completedEvent.SeriesName;
+            _currentState.SeriesState.Status = SeriesStatus.Completed;
+            _currentState.SeriesState.LastUpdated = DateTime.UtcNow;
+            _currentState.LastUpdated = DateTime.UtcNow;
+        }
+        finally
+        {
+            _stateLock.Release();
+        }
+    }
 }
