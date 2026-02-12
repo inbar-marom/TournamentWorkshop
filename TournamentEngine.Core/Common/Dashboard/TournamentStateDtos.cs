@@ -13,6 +13,7 @@ public class TournamentStateDto
     public TournamentStatus Status { get; set; }
     public string Message { get; set; } = string.Empty;
     public SeriesProgressDto? SeriesProgress { get; set; }
+    public SeriesStateDto? SeriesState { get; set; }
     public CurrentTournamentDto? CurrentTournament { get; set; }
     public List<TeamStandingDto> OverallLeaderboard { get; set; } = new();
     public List<GroupDto> GroupStandings { get; set; } = new();
@@ -42,6 +43,53 @@ public class SeriesProgressDto
     public int CompletedCount { get; set; }
     public int TotalCount { get; set; }
     public int CurrentTournamentIndex { get; set; }
+}
+
+/// <summary>
+/// Series summary aligned for dashboard display.
+/// </summary>
+public class SeriesStateDto
+{
+    public string SeriesId { get; set; } = string.Empty;
+    public string SeriesName { get; set; } = string.Empty;
+    public int TotalSteps { get; set; }
+    public int CurrentStepIndex { get; set; }
+    public SeriesStatus Status { get; set; }
+    public List<SeriesStepDto> Steps { get; set; } = new();
+    public DateTime LastUpdated { get; set; }
+}
+
+/// <summary>
+/// Series lifecycle status.
+/// </summary>
+public enum SeriesStatus
+{
+    NotStarted,
+    InProgress,
+    Completed
+}
+
+/// <summary>
+/// Per-step series summary.
+/// </summary>
+public class SeriesStepDto
+{
+    public int StepIndex { get; set; }
+    public GameType GameType { get; set; }
+    public SeriesStepStatus Status { get; set; }
+    public string? WinnerName { get; set; }
+    public string? TournamentId { get; set; }
+    public string? TournamentName { get; set; }
+}
+
+/// <summary>
+/// Status of a series step.
+/// </summary>
+public enum SeriesStepStatus
+{
+    Pending,
+    Running,
+    Completed
 }
 
 /// <summary>
@@ -226,5 +274,51 @@ public class TournamentCompletedDto
     public string Champion { get; set; } = string.Empty;
     public int TotalMatches { get; set; }
     public TimeSpan Duration { get; set; }
+    public DateTime CompletedAt { get; set; }
+}
+
+/// <summary>
+/// Series started event.
+/// </summary>
+public class SeriesStartedDto
+{
+    public string SeriesId { get; set; } = string.Empty;
+    public string SeriesName { get; set; } = string.Empty;
+    public int TotalSteps { get; set; }
+    public List<SeriesStepDto> Steps { get; set; } = new();
+    public DateTime StartedAt { get; set; }
+}
+
+/// <summary>
+/// Series progress updated event.
+/// </summary>
+public class SeriesProgressUpdatedDto
+{
+    public SeriesStateDto SeriesState { get; set; } = new();
+    public DateTime UpdatedAt { get; set; }
+}
+
+/// <summary>
+/// Series step completed event.
+/// </summary>
+public class SeriesStepCompletedDto
+{
+    public string SeriesId { get; set; } = string.Empty;
+    public int StepIndex { get; set; }
+    public GameType GameType { get; set; }
+    public string? WinnerName { get; set; }
+    public string? TournamentId { get; set; }
+    public string? TournamentName { get; set; }
+    public DateTime CompletedAt { get; set; }
+}
+
+/// <summary>
+/// Series completed event.
+/// </summary>
+public class SeriesCompletedDto
+{
+    public string SeriesId { get; set; } = string.Empty;
+    public string SeriesName { get; set; } = string.Empty;
+    public string Champion { get; set; } = string.Empty;
     public DateTime CompletedAt { get; set; }
 }
