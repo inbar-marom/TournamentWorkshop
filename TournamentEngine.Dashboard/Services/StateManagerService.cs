@@ -249,6 +249,7 @@ public class StateManagerService
                 LastUpdated = DateTime.UtcNow
             };
 
+            _logger.LogInformation("Series started: {SeriesName} with {TotalSteps} steps", seriesEvent.SeriesName, seriesEvent.TotalSteps);
             _currentState.LastUpdated = DateTime.UtcNow;
         }
         finally
@@ -272,8 +273,15 @@ public class StateManagerService
                 LastUpdated = DateTime.UtcNow
             };
 
-            progressEvent.SeriesState.LastUpdated = DateTime.UtcNow;
-            _currentState.SeriesState = progressEvent.SeriesState;
+            if (progressEvent?.SeriesState != null)
+            {
+                progressEvent.SeriesState.LastUpdated = DateTime.UtcNow;
+                _currentState.SeriesState = progressEvent.SeriesState;
+                _logger.LogInformation("Series state updated: {SeriesName} - Step {CurrentStep}/{TotalSteps}",
+                    progressEvent.SeriesState.SeriesName,
+                    progressEvent.SeriesState.CurrentStepIndex,
+                    progressEvent.SeriesState.TotalSteps);
+            }
             _currentState.LastUpdated = DateTime.UtcNow;
         }
         finally
@@ -297,12 +305,17 @@ public class StateManagerService
                 LastUpdated = DateTime.UtcNow
             };
 
-            _currentState.SeriesState ??= new SeriesStateDto
+            if (_currentState.SeriesState == null)
             {
-                SeriesId = completedEvent.SeriesId,
-                Status = SeriesStatus.InProgress,
-                LastUpdated = DateTime.UtcNow
-            };
+                _logger.LogWarning("SeriesStepCompleted received but SeriesState is null. Creating skeleton state for step {StepIndex}", completedEvent.StepIndex);
+                _currentState.SeriesState = new SeriesStateDto
+                {
+                    SeriesId = completedEvent.SeriesId,
+                    Status = SeriesStatus.InProgress,
+                    LastUpdated = DateTime.UtcNow,
+                    Steps = new List<SeriesStepDto>()
+                };
+            }
 
             var step = _currentState.SeriesState.Steps.SingleOrDefault(s => s.StepIndex == completedEvent.StepIndex);
             if (step == null)
@@ -316,6 +329,8 @@ public class StateManagerService
             step.WinnerName = completedEvent.WinnerName;
             step.TournamentId = completedEvent.TournamentId;
             step.TournamentName = completedEvent.TournamentName;
+
+            _logger.LogInformation("Series step completed: {StepIndex} - {WinnerName}", completedEvent.StepIndex, completedEvent.WinnerName);
 
             _currentState.SeriesState.LastUpdated = DateTime.UtcNow;
             _currentState.LastUpdated = DateTime.UtcNow;

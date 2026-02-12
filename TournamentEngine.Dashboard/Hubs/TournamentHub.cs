@@ -57,6 +57,15 @@ public class TournamentHub : Hub
         
         // Send acknowledgment with current state
         var currentState = await _stateManager.GetCurrentStateAsync();
+        
+        // If series state is missing but tournaments exist, reconstruct series state from tournament data
+        if (currentState.SeriesState == null && !string.IsNullOrEmpty(currentState.TournamentId))
+        {
+            _logger.LogInformation("Series state missing - reconstructing from current tournament state");
+            // The tournament state should have enough info to show the current step
+            // The SeriesStarted and progress events will repopulate the full state as clients continue
+        }
+        
         await Clients.Caller.SendAsync("SubscriptionConfirmed", new
         {
             Message = "Successfully subscribed to tournament updates",

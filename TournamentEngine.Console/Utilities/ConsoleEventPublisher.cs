@@ -137,15 +137,17 @@ public class ConsoleEventPublisher : ITournamentEventPublisher, IAsyncDisposable
     private async Task PublishEventAsync<T>(string eventName, T eventData)
     {
         if (_hubConnection == null || !_isConnected)
-        {_logger?.LogDebug("Skipping event {EventName} - not connected to dashboard", eventName);
+        {
+            _logger?.LogWarning("Skipping event {EventName} - HubConnection: {HubNull}, IsConnected: {IsConnected}", 
+                eventName, _hubConnection == null, _isConnected);
             return; // Silently skip if not connected
         }
 
         try
         {
-            _logger?.LogDebug("Publishing event {EventName} to dashboard", eventName);
+            _logger?.LogInformation("Publishing event {EventName} to dashboard", eventName);
             await _hubConnection.SendAsync(eventName, eventData);
-            _logger?.LogDebug("Successfully published {EventName}", eventName);
+            _logger?.LogInformation("Successfully published {EventName}", eventName);
         }
         catch (Exception ex)
         {
