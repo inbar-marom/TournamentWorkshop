@@ -49,6 +49,7 @@ builder.Services.AddSingleton<ExportService>();
 builder.Services.AddSingleton<ShareService>();
 builder.Services.AddSingleton<NotificationPreferencesService>();
 builder.Services.AddSingleton<ResponsiveLayoutService>();
+builder.Services.AddSingleton<SeriesDashboardViewService>();
 
 // Configure to listen on all network interfaces for remote access
 builder.WebHost.UseUrls("http://0.0.0.0:5000", "https://0.0.0.0:5001");
