@@ -125,7 +125,7 @@ public class TournamentHubTests
     public async Task GetRecentMatches_SendsMatchesToCaller()
     {
         // Arrange
-        var matches = new List<MatchCompletedDto>
+        var matches = new List<RecentMatchDto>
         {
             new() { MatchId = "match-1", Bot1Name = "Bot1", Bot2Name = "Bot2" },
             new() { MatchId = "match-2", Bot1Name = "Bot3", Bot2Name = "Bot4" }

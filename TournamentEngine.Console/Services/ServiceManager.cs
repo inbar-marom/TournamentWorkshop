@@ -94,7 +94,7 @@ public class ServiceManager
             try
             {
                 var connection = new HubConnectionBuilder()
-                    .WithUrl(dashboardUrl.Replace("/tournamentHub", string.Empty))
+                    .WithUrl(dashboardUrl)
                     .WithAutomaticReconnect()
                     .Build();
 
@@ -137,7 +137,7 @@ public class ServiceManager
             cts.CancelAfter(HealthCheckTimeoutMs);
 
             var connection = new HubConnectionBuilder()
-                .WithUrl(dashboardUrl.Replace("/tournamentHub", string.Empty))
+                .WithUrl(dashboardUrl)
                 .WithAutomaticReconnect()
                 .Build();
 

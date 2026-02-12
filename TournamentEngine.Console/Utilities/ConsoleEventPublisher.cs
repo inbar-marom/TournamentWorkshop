@@ -16,6 +16,7 @@ public class ConsoleEventPublisher : ITournamentEventPublisher, IAsyncDisposable
 {
     private readonly HubConnection? _hubConnection;
     private readonly ILogger<ConsoleEventPublisher>? _logger;
+    private Task<bool>? _connectionTask;
     private bool _isConnected = false;
 
     /// <summary>
@@ -24,6 +25,7 @@ public class ConsoleEventPublisher : ITournamentEventPublisher, IAsyncDisposable
     public ConsoleEventPublisher(string dashboardUrl, ILogger<ConsoleEventPublisher>? logger = null)
     {
         _logger = logger;
+        _logger?.LogInformation("ConsoleEventPublisher initializing with URL: {DashboardUrl}", dashboardUrl);
         
         if (!string.IsNullOrEmpty(dashboardUrl))
         {
@@ -34,31 +36,51 @@ public class ConsoleEventPublisher : ITournamentEventPublisher, IAsyncDisposable
                     .WithAutomaticReconnect()
                     .Build();
 
-                // Start connection asynchronously (fire and forget)
-                _ = StartConnectionAsync();
+                _logger?.LogInformation("HubConnection created, starting connection...");
+                // Start connection asynchronously and store the task
+                _connectionTask = StartConnectionAsync();
             }
             catch (Exception ex)
             {
-                _logger?.LogWarning(ex, "Failed to initialize hub connection to {DashboardUrl}", dashboardUrl);
+                _logger?.LogError(ex, "Failed to initialize hub connection to {DashboardUrl}", dashboardUrl);
                 _hubConnection = null;
             }
         }
+        else
+        {
+            _logger?.LogWarning("Dashboard URL is null or empty - event publishing disabled");
+        }
     }
 
-    private async Task StartConnectionAsync()
+    /// <summary>
+    /// Ensure connection is established (call this before publishing events)
+    /// </summary>
+    public async Task<bool> EnsureConnectedAsync()
     {
-        if (_hubConnection == null) return;
+        if (_connectionTask != null)
+        {
+            return await _connectionTask;
+        }
+        return false;
+    }
+
+    private async Task<bool> StartConnectionAsync()
+    {
+        if (_hubConnection == null) return false;
 
         try
         {
+            _logger?.LogInformation("Attempting to connect to dashboard hub...");
             await _hubConnection.StartAsync();
             _isConnected = true;
-            _logger?.LogInformation("Connected to dashboard hub");
+            _logger?.LogInformation("✅ Connected to dashboard hub successfully");
+            return true;
         }
         catch (Exception ex)
         {
-            _logger?.LogWarning(ex, "Could not connect to dashboard - events will not be published");
+            _logger?.LogError(ex, "❌ Could not connect to dashboard - events will not be published");
             _isConnected = false;
+            return false;
         }
     }
 
@@ -95,17 +117,19 @@ public class ConsoleEventPublisher : ITournamentEventPublisher, IAsyncDisposable
     private async Task PublishEventAsync<T>(string eventName, T eventData)
     {
         if (_hubConnection == null || !_isConnected)
-        {
+        {_logger?.LogDebug("Skipping event {EventName} - not connected to dashboard", eventName);
             return; // Silently skip if not connected
         }
 
         try
         {
+            _logger?.LogDebug("Publishing event {EventName} to dashboard", eventName);
             await _hubConnection.SendAsync(eventName, eventData);
+            _logger?.LogDebug("Successfully published {EventName}", eventName);
         }
         catch (Exception ex)
         {
-            _logger?.LogDebug(ex, "Failed to publish {EventName} - dashboard may not be available", eventName);
+            _logger?.LogWarning(ex, "Failed to publish {EventName} - dashboard may not be available", eventName);
             // Don't throw - gracefully continue even if dashboard is down
         }
     }

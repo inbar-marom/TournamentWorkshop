@@ -89,6 +89,22 @@ class Program
                     {
                         logger.LogInformation("Dashboard available at: {DashboardUrl}", tournamentConfig.TournamentEngine.DashboardUrl);
                     }
+                    
+                    // Ensure event publisher is connected before starting tournament
+                    var eventPublisher = serviceProvider.GetService<ITournamentEventPublisher>();
+                    if (eventPublisher is ConsoleEventPublisher consolePublisher)
+                    {
+                        logger.LogInformation("Waiting for event publisher to connect to dashboard...");
+                        var connected = await consolePublisher.EnsureConnectedAsync();
+                        if (connected)
+                        {
+                            logger.LogInformation("Event publisher connected - tournament events will be sent to dashboard");
+                        }
+                        else
+                        {
+                            logger.LogWarning("Event publisher failed to connect - tournament will run without real-time updates");
+                        }
+                    }
                 }
                 else
                 {

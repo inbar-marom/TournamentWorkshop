@@ -17,6 +17,7 @@ public class TournamentManager : ITournamentManager
     private readonly ITournamentEngine _engine;
     private readonly IGameRunner _gameRunner;
     private readonly ITournamentEventPublisher? _eventPublisher;
+    private static int _tournamentCounter = 0;
 
     public TournamentManager(ITournamentEngine engine, IGameRunner gameRunner, ITournamentEventPublisher? eventPublisher = null)
     {
@@ -39,11 +40,17 @@ public class TournamentManager : ITournamentManager
         // Initialize tournament
         _engine.InitializeTournament(bots, gameType, config);
 
+        // Generate tournament ID and name once for this tournament
+        var tournamentId = Interlocked.Increment(ref _tournamentCounter).ToString();
+        var tournamentName = $"{gameType} Tournament #{tournamentId} - {DateTime.UtcNow:MMM dd, yyyy HH:mm}";
+
         // Publish tournament started event
         if (_eventPublisher != null)
         {
             var startedEvent = new TournamentStartedDto
             {
+                TournamentId = tournamentId,
+                TournamentName = tournamentName,
                 GameType = gameType,
                 TotalBots = bots.Count,
                 StartedAt = DateTime.UtcNow,
@@ -71,6 +78,8 @@ public class TournamentManager : ITournamentManager
                 {
                     var roundEvent = new RoundStartedDto
                     {
+                        TournamentId = tournamentId,
+                        TournamentName = tournamentName,
                         RoundNumber = _engine.GetCurrentRound(),
                         TotalMatches = 0,
                         StartedAt = DateTime.UtcNow,
@@ -107,6 +116,8 @@ public class TournamentManager : ITournamentManager
                     {
                         var matchEvent = new MatchCompletedDto
                         {
+                            TournamentId = tournamentId,
+                            TournamentName = tournamentName,
                             Bot1Name = result.Bot1Name,
                             Bot2Name = result.Bot2Name,
                             Outcome = result.Outcome,
@@ -138,6 +149,8 @@ public class TournamentManager : ITournamentManager
                     {
                         var matchEvent = new MatchCompletedDto
                         {
+                            TournamentId = tournamentId,
+                            TournamentName = tournamentName,
                             Bot1Name = matchResult.Bot1Name,
                             Bot2Name = matchResult.Bot2Name,
                             Outcome = matchResult.Outcome,
@@ -156,9 +169,15 @@ public class TournamentManager : ITournamentManager
             // Publish standings updated event after each round of matches
             if (_eventPublisher != null)
             {
+                // Get current tournament info
+                var currentTournamentInfo = _engine.GetTournamentInfo();
+                var standings = CalculateStandingsFromMatches(currentTournamentInfo);
+                
                 var standingsEvent = new StandingsUpdatedDto
                 {
-                    OverallStandings = new List<TeamStandingDto>(),
+                    TournamentId = tournamentId,
+                    TournamentName = tournamentName,
+                    OverallStandings = standings,
                     UpdatedAt = DateTime.UtcNow
                 };
                 await _eventPublisher.PublishStandingsUpdatedAsync(standingsEvent);
@@ -176,12 +195,13 @@ public class TournamentManager : ITournamentManager
 
             var completedEvent = new TournamentCompletedDto
             {
+                TournamentId = tournamentId,
+                TournamentName = tournamentName,
                 Champion = finalTournamentInfo.Champion ?? "Unknown",
                 GameType = gameType,
                 TotalMatches = finalTournamentInfo.MatchResults?.Count ?? 0,
                 CompletedAt = DateTime.UtcNow,
                 TournamentNumber = 1,
-                TournamentId = finalTournamentInfo.TournamentId ?? Guid.NewGuid().ToString(),
                 Duration = duration
             };
             await _eventPublisher.PublishTournamentCompletedAsync(completedEvent);
@@ -206,5 +226,58 @@ public class TournamentManager : ITournamentManager
         {
             semaphore.Release();
         }
+    }
+
+    /// <summary>
+    /// Calculate current standings from match results
+    /// </summary>
+    private List<TeamStandingDto> CalculateStandingsFromMatches(TournamentInfo tournamentInfo)
+    {
+        // Aggregate scores from all matches
+        var botScores = new Dictionary<string, (int wins, int totalScore)>();
+
+        // Initialize with all bots
+        foreach (var bot in tournamentInfo.Bots)
+        {
+            botScores[bot.TeamName] = (0, 0);
+        }
+
+        // Calculate wins and total scores from match results
+        foreach (var match in tournamentInfo.MatchResults ?? new List<MatchResult>())
+        {
+            // Handle Bot1
+            if (!botScores.ContainsKey(match.Bot1Name))
+                botScores[match.Bot1Name] = (0, 0);
+            
+            var bot1Stats = botScores[match.Bot1Name];
+            bot1Stats.totalScore += match.Bot1Score;
+            if (match.Outcome == MatchOutcome.Player1Wins)
+                bot1Stats.wins++;
+            botScores[match.Bot1Name] = bot1Stats;
+
+            // Handle Bot2
+            if (!botScores.ContainsKey(match.Bot2Name))
+                botScores[match.Bot2Name] = (0, 0);
+            
+            var bot2Stats = botScores[match.Bot2Name];
+            bot2Stats.totalScore += match.Bot2Score;
+            if (match.Outcome == MatchOutcome.Player2Wins)
+                bot2Stats.wins++;
+            botScores[match.Bot2Name] = bot2Stats;
+        }
+
+        // Sort by wins first, then by total score
+        var sortedStandings = botScores
+            .OrderByDescending(kv => kv.Value.wins)
+            .ThenByDescending(kv => kv.Value.totalScore)
+            .Select((kv, index) => new TeamStandingDto
+            {
+                Rank = index + 1,
+                TeamName = kv.Key,
+                TotalPoints = kv.Value.totalScore
+            })
+            .ToList();
+
+        return sortedStandings;
     }
 }

@@ -96,6 +96,91 @@ public class TournamentHub : Hub
     }
 
     /// <summary>
+    /// Receive TournamentStarted event from ConsoleEventPublisher
+    /// </summary>
+    public async Task TournamentStarted(TournamentStartedDto tournamentEvent)
+    {
+        _logger.LogInformation("Tournament started: {TournamentId} - {BotCount} bots, Game: {GameType}", 
+            tournamentEvent.TournamentId, tournamentEvent.TotalBots, tournamentEvent.GameType);
+        
+        // Update state manager
+        await _stateManager.UpdateTournamentStartedAsync(tournamentEvent);
+        
+        // Broadcast to all viewers
+        await Clients.Group("TournamentViewers").SendAsync("TournamentStarted", tournamentEvent);
+    }
+
+    /// <summary>
+    /// Receive MatchCompleted event from ConsoleEventPublisher
+    /// </summary>
+    public async Task MatchCompleted(MatchCompletedDto matchEvent)
+    {
+        _logger.LogInformation("Match completed: {Bot1} vs {Bot2} - Winner: {Winner}", 
+            matchEvent.Bot1Name, matchEvent.Bot2Name, matchEvent.WinnerName ?? "Draw");
+        
+        // Update state manager
+        await _stateManager.AddMatchAsync(matchEvent);
+        
+        // Broadcast to all viewers
+        await Clients.Group("TournamentViewers").SendAsync("MatchCompleted", matchEvent);
+    }
+
+    /// <summary>
+    /// Receive StandingsUpdated event from ConsoleEventPublisher
+    /// </summary>
+    public async Task StandingsUpdated(StandingsUpdatedDto standingsEvent)
+    {
+        _logger.LogInformation("Standings updated: {BotCount} bots", standingsEvent.OverallStandings.Count);
+        
+        // Update state manager
+        await _stateManager.UpdateStandingsAsync(standingsEvent);
+        
+        // Broadcast to all viewers
+        await Clients.Group("TournamentViewers").SendAsync("StandingsUpdated", standingsEvent);
+    }
+
+    /// <summary>
+    /// Receive RoundStarted event from ConsoleEventPublisher
+    /// </summary>
+    public async Task RoundStarted(RoundStartedDto roundEvent)
+    {
+        _logger.LogInformation("Round started: {Stage} - Round {RoundNumber}", 
+            roundEvent.Stage, roundEvent.RoundNumber);
+        
+        // Broadcast to all viewers
+        await Clients.Group("TournamentViewers").SendAsync("RoundStarted", roundEvent);
+    }
+
+    /// <summary>
+    /// Receive TournamentCompleted event from ConsoleEventPublisher
+    /// </summary>
+    public async Task TournamentCompleted(TournamentCompletedDto completedEvent)
+    {
+        _logger.LogInformation("Tournament completed: Winner: {Champion} - {TotalMatches} matches played", 
+            completedEvent.Champion, completedEvent.TotalMatches);
+        
+        // Update state manager
+        await _stateManager.UpdateTournamentCompletedAsync(completedEvent);
+        
+        // Broadcast to all viewers
+        await Clients.Group("TournamentViewers").SendAsync("TournamentCompleted", completedEvent);
+    }
+
+    /// <summary>
+    /// Update current state (for real-time state sync)
+    /// </summary>
+    public async Task CurrentState(TournamentStateDto state)
+    {
+        _logger.LogInformation("Received state update: {Status} - {Message}", state.Status, state.Message);
+        
+        // Update the state manager
+        await _stateManager.UpdateStateAsync(state);
+        
+        // Broadcast to all connected viewers
+        await Clients.Group("TournamentViewers").SendAsync("CurrentState", state);
+    }
+
+    /// <summary>
     /// Publish a state update from tournament engine (simulator or real engine).
     /// This updates the state and broadcasts to all connected clients.
     /// </summary>

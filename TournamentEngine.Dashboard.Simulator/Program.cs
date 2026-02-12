@@ -30,6 +30,19 @@ Console.WriteLine($"✅ Created: {string.Join(", ", bots.Select(b => b.TeamName)
 
 // Use the same ConsoleEventPublisher as the main console app
 var eventPublisher = new ConsoleEventPublisher("http://localhost:5000/tournamentHub");
+
+// IMPORTANT: Wait for connection to be established before starting tournament
+Console.WriteLine("⏳ Connecting to Dashboard...");
+var connected = await eventPublisher.EnsureConnectedAsync();
+if (connected)
+{
+    Console.WriteLine("✅ Connected to Dashboard successfully!\n");
+}
+else
+{
+    Console.WriteLine("⚠️  Could not connect to Dashboard - events will not be published\n");
+}
+
 var tournamentManager = new TournamentManager(engine, gameRunner, eventPublisher);
 var seriesManager = new TournamentSeriesManager(tournamentManager, scoringSystem);
 
@@ -41,7 +54,6 @@ var seriesConfig = new TournamentSeriesConfig
 
 Console.WriteLine("🏆 Starting REAL Tournament SERIES");
 Console.WriteLine("📊 Events will stream to Dashboard in REAL-TIME as matches execute!\n");
-await Task.Delay(2000);
 
 // Run series - events stream automatically as matches complete!
 var seriesInfo = await seriesManager.RunSeriesAsync(bots, seriesConfig);

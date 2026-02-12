@@ -49,7 +49,7 @@ public class TournamentApiControllerTests
     public void GetRecentMatches_WithCount_ReturnsRequestedMatches()
     {
         // Arrange
-        var matches = new List<MatchCompletedDto>
+        var matches = new List<RecentMatchDto>
         {
             new() { MatchId = "match-1", Bot1Name = "Bot1", Bot2Name = "Bot2" },
             new() { MatchId = "match-2", Bot1Name = "Bot3", Bot2Name = "Bot4" }
@@ -64,7 +64,7 @@ public class TournamentApiControllerTests
         // Assert
         var okResult = result.Result as OkObjectResult; okResult.Should().NotBeNull();
         
-        var returnedMatches = okResult.Value as List<MatchCompletedDto>;
+        var returnedMatches = okResult.Value as List<RecentMatchDto>;
         returnedMatches.Should().HaveCount(2);
         returnedMatches.Should().BeEquivalentTo(matches);
     }
@@ -74,7 +74,7 @@ public class TournamentApiControllerTests
     {
         // Arrange
         var matches = Enumerable.Range(0, 10)
-            .Select(i => new MatchCompletedDto { MatchId = $"match-{i}" })
+            .Select(i => new RecentMatchDto { MatchId = $"match-{i}" })
             .ToList();
         _mockStateManager
             .Setup(x => x.GetRecentMatches(20))
@@ -86,7 +86,7 @@ public class TournamentApiControllerTests
         // Assert
         _mockStateManager.Verify(x => x.GetRecentMatches(20), Times.Once);
         var okResult = result.Result as OkObjectResult;
-        var returnedMatches = okResult?.Value as List<MatchCompletedDto>;
+        var returnedMatches = okResult?.Value as List<RecentMatchDto>;
         returnedMatches.Should().HaveCount(10);
     }
 

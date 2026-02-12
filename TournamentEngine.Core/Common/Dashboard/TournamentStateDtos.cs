@@ -8,6 +8,7 @@ using TournamentEngine.Core.Common;
 public class TournamentStateDto
 {
     public string? TournamentId { get; set; }
+    public string? TournamentName { get; set; }
     public string? Champion { get; set; }
     public TournamentStatus Status { get; set; }
     public string Message { get; set; } = string.Empty;
@@ -132,6 +133,8 @@ public class BotRankingDto
 public class RecentMatchDto
 {
     public string MatchId { get; set; } = string.Empty;
+    public string TournamentId { get; set; } = string.Empty;
+    public string TournamentName { get; set; } = string.Empty;
     public string Bot1Name { get; set; } = string.Empty;
     public string Bot2Name { get; set; } = string.Empty;
     public MatchOutcome Outcome { get; set; }
@@ -148,6 +151,8 @@ public class RecentMatchDto
 public class MatchCompletedDto
 {
     public string MatchId { get; set; } = string.Empty;
+    public string TournamentId { get; set; } = string.Empty;
+    public string TournamentName { get; set; } = string.Empty;
     public string Bot1Name { get; set; } = string.Empty;
     public string Bot2Name { get; set; } = string.Empty;
     public MatchOutcome Outcome { get; set; }
@@ -174,6 +179,8 @@ public class NextMatchDto
 /// </summary>
 public class RoundStartedDto
 {
+    public string TournamentId { get; set; } = string.Empty;
+    public string TournamentName { get; set; } = string.Empty;
     public int RoundNumber { get; set; }
     public string Stage { get; set; } = string.Empty;
     public int TotalMatches { get; set; }
@@ -186,6 +193,8 @@ public class RoundStartedDto
 /// </summary>
 public class StandingsUpdatedDto
 {
+    public string TournamentId { get; set; } = string.Empty;
+    public string TournamentName { get; set; } = string.Empty;
     public List<TeamStandingDto> OverallStandings { get; set; } = new();
     public List<GroupDto>? GroupStandings { get; set; }
     public DateTime UpdatedAt { get; set; }
@@ -197,6 +206,7 @@ public class StandingsUpdatedDto
 public class TournamentStartedDto
 {
     public string TournamentId { get; set; } = string.Empty;
+    public string TournamentName { get; set; } = string.Empty;
     public int TournamentNumber { get; set; }
     public GameType GameType { get; set; }
     public int TotalBots { get; set; }
@@ -210,6 +220,7 @@ public class TournamentStartedDto
 public class TournamentCompletedDto
 {
     public string TournamentId { get; set; } = string.Empty;
+    public string TournamentName { get; set; } = string.Empty;
     public int TournamentNumber { get; set; }
     public GameType GameType { get; set; }
     public string Champion { get; set; } = string.Empty;
