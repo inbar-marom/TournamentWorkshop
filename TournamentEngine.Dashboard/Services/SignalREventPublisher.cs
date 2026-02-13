@@ -28,14 +28,14 @@ public class SignalREventPublisher : ITournamentEventPublisher
         await _hubContext.Clients.All.SendAsync("StandingsUpdated", standingsEvent);
     }
 
-    public async Task PublishTournamentStartedAsync(TournamentStartedDto startEvent)
+    public async Task PublishEventStartedAsync(EventStartedEventDto startEvent)
     {
-        await _hubContext.Clients.All.SendAsync("TournamentStarted", startEvent);
+        await _hubContext.Clients.All.SendAsync("EventStarted", startEvent);
     }
 
-    public async Task PublishTournamentCompletedAsync(TournamentCompletedDto completedEvent)
+    public async Task PublishEventCompletedAsync(EventCompletedEventDto completedEvent)
     {
-        await _hubContext.Clients.All.SendAsync("TournamentCompleted", completedEvent);
+        await _hubContext.Clients.All.SendAsync("EventCompleted", completedEvent);
     }
 
     public async Task PublishRoundStartedAsync(RoundStartedDto roundEvent)
@@ -43,28 +43,28 @@ public class SignalREventPublisher : ITournamentEventPublisher
         await _hubContext.Clients.All.SendAsync("RoundStarted", roundEvent);
     }
 
-    public async Task UpdateCurrentStateAsync(TournamentStateDto state)
+    public async Task UpdateCurrentStateAsync(DashboardStateDto state)
     {
         await _hubContext.Clients.All.SendAsync("CurrentState", state);
     }
 
-    public async Task PublishSeriesStartedAsync(SeriesStartedDto seriesEvent)
+    public async Task PublishTournamentStartedAsync(TournamentStartedEventDto tournamentEvent)
     {
-        await _hubContext.Clients.All.SendAsync("SeriesStarted", seriesEvent);
+        await _hubContext.Clients.All.SendAsync("TournamentStarted", tournamentEvent);
     }
 
-    public async Task PublishSeriesProgressUpdatedAsync(SeriesProgressUpdatedDto progressEvent)
+    public async Task PublishTournamentProgressUpdatedAsync(TournamentProgressUpdatedEventDto progressEvent)
     {
-        await _hubContext.Clients.All.SendAsync("SeriesProgressUpdated", progressEvent);
+        await _hubContext.Clients.All.SendAsync("TournamentProgressUpdated", progressEvent);
     }
 
-    public async Task PublishSeriesStepCompletedAsync(SeriesStepCompletedDto completedEvent)
+    public async Task PublishEventStepCompletedAsync(EventStepCompletedDto completedEvent)
     {
-        await _hubContext.Clients.All.SendAsync("SeriesStepCompleted", completedEvent);
+        await _hubContext.Clients.All.SendAsync("EventStepCompleted", completedEvent);
     }
 
-    public async Task PublishSeriesCompletedAsync(SeriesCompletedDto completedEvent)
+    public async Task PublishTournamentCompletedAsync(TournamentCompletedEventDto completedEvent)
     {
-        await _hubContext.Clients.All.SendAsync("SeriesCompleted", completedEvent);
+        await _hubContext.Clients.All.SendAsync("TournamentCompleted", completedEvent);
     }
 }

@@ -34,28 +34,28 @@ public class VariedBot : IBot
 
     public async Task<string> MakeMove(GameState gameState, CancellationToken cancellationToken)
     {
-        await Task.Delay(10, cancellationToken);
+        await Task.Delay(100, cancellationToken);
         var index = (gameState.CurrentRound + _seed) % Moves.Length;
         return Moves[index];
     }
 
     public async Task<int[]> AllocateTroops(GameState gameState, CancellationToken cancellationToken)
     {
-        await Task.Delay(10, cancellationToken);
+        await Task.Delay(200, cancellationToken);
         var pattern = BlottoPatterns[(_seed - 1) % BlottoPatterns.Length];
         return pattern.ToArray();
     }
 
     public async Task<string> MakePenaltyDecision(GameState gameState, CancellationToken cancellationToken)
     {
-        await Task.Delay(10, cancellationToken);
+        await Task.Delay(100, cancellationToken);
         var decision = ((gameState.CurrentRound + _seed) % 2 == 0) ? "Left" : "Right";
         return decision;
     }
 
     public async Task<string> MakeSecurityMove(GameState gameState, CancellationToken cancellationToken)
     {
-        await Task.Delay(10, cancellationToken);
+        await Task.Delay(100, cancellationToken);
         return "Scan";
     }
 }

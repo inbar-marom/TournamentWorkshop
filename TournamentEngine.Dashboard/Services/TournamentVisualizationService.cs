@@ -23,7 +23,7 @@ public class TournamentVisualizationService
     public async Task<BracketVisualizationDto?> GetBracketVisualizationAsync()
     {
         var state = await _stateManager.GetCurrentStateAsync();
-        if (state?.CurrentTournament == null)
+        if (state?.CurrentEvent == null)
             return null;
 
         var bracket = new BracketVisualizationDto();
@@ -58,12 +58,12 @@ public class TournamentVisualizationService
         var state = await _stateManager.GetCurrentStateAsync();
         var tree = new TournamentTreeDto();
 
-        if (state?.CurrentTournament == null)
+        if (state?.CurrentEvent == null)
             return tree;
 
-        tree.CurrentStage = state.CurrentTournament.Stage.ToString();
-        tree.CurrentRound = state.CurrentTournament.CurrentRound;
-        tree.TotalRounds = state.CurrentTournament.TotalRounds;
+        tree.CurrentStage = state.CurrentEvent.Stage.ToString();
+        tree.CurrentRound = state.CurrentEvent.CurrentRound;
+        tree.TotalRounds = state.CurrentEvent.TotalRounds;
 
         // Add stages
         tree.Stages.Add("GroupStage");
@@ -128,13 +128,13 @@ public class TournamentVisualizationService
     {
         var state = await _stateManager.GetCurrentStateAsync();
         
-        // Get champion from current tournament in series (if available)
+        // Get champion from current event in tournament (if available)
         string? champion = null;
-        if (state?.SeriesProgress?.Tournaments != null)
+        if (state?.TournamentProgress?.Events != null)
         {
-            var currentTournament = state.SeriesProgress.Tournaments
-                .FirstOrDefault(t => t.Status == TournamentItemStatus.Completed);
-            champion = currentTournament?.Champion;
+            var currentEvent = state.TournamentProgress.Events
+                .FirstOrDefault(t => t.Status == EventItemStatus.Completed);
+            champion = currentEvent?.Champion;
         }
 
         if (string.IsNullOrEmpty(champion) || champion == "N/A")
@@ -173,10 +173,10 @@ public class TournamentVisualizationService
         var state = await _stateManager.GetCurrentStateAsync();
         var viz = new ProgressionVisualizationDto();
 
-        if (state?.CurrentTournament == null)
+        if (state?.CurrentEvent == null)
             return viz;
 
-        viz.CurrentStage = state.CurrentTournament.Stage.ToString();
+        viz.CurrentStage = state.CurrentEvent.Stage.ToString();
 
         if (state.OverallLeaderboard != null)
         {
@@ -203,17 +203,17 @@ public class TournamentVisualizationService
         var state = await _stateManager.GetCurrentStateAsync();
         var viz = new SeriesVisualizationDto();
 
-        if (state?.SeriesProgress == null)
+        if (state?.TournamentProgress == null)
             return viz;
 
-        viz.TournamentCount = state.SeriesProgress.TotalCount;
-        viz.CompletedCount = state.SeriesProgress.CompletedCount;
+        viz.TournamentCount = state.TournamentProgress.TotalCount;
+        viz.CompletedCount = state.TournamentProgress.CompletedCount;
 
-        foreach (var tournament in state.SeriesProgress.Tournaments)
+        foreach (var tournament in state.TournamentProgress.Events)
         {
             viz.Tournaments.Add(new TournamentSeriesItemDto
             {
-                TournamentNumber = tournament.TournamentNumber,
+                TournamentNumber = tournament.EventNumber,
                 ChampionName = tournament.Champion ?? "TBD",
                 Status = tournament.Status.ToString(),
                 StartTime = tournament.StartTime,

@@ -107,14 +107,14 @@ public class ConsoleEventPublisher : ITournamentEventPublisher, IAsyncDisposable
         await PublishEventAsync("StandingsUpdated", standingsEvent);
     }
 
-    public async Task PublishTournamentStartedAsync(TournamentStartedDto startEvent)
+    public async Task PublishEventStartedAsync(EventStartedEventDto startEvent)
     {
-        await PublishEventAsync("TournamentStarted", startEvent);
+        await PublishEventAsync("EventStarted", startEvent);
     }
 
-    public async Task PublishTournamentCompletedAsync(TournamentCompletedDto completedEvent)
+    public async Task PublishEventCompletedAsync(EventCompletedEventDto completedEvent)
     {
-        await PublishEventAsync("TournamentCompleted", completedEvent);
+        await PublishEventAsync("EventCompleted", completedEvent);
     }
 
     public async Task PublishRoundStartedAsync(RoundStartedDto roundEvent)
@@ -122,29 +122,29 @@ public class ConsoleEventPublisher : ITournamentEventPublisher, IAsyncDisposable
         await PublishEventAsync("RoundStarted", roundEvent);
     }
 
-    public async Task UpdateCurrentStateAsync(TournamentStateDto state)
+    public async Task UpdateCurrentStateAsync(DashboardStateDto state)
     {
         await PublishEventAsync("CurrentState", state);
     }
 
-    public async Task PublishSeriesStartedAsync(SeriesStartedDto seriesEvent)
+    public async Task PublishTournamentStartedAsync(TournamentStartedEventDto tournamentEvent)
     {
-        await PublishEventAsync("SeriesStarted", seriesEvent);
+        await PublishEventAsync("TournamentStarted", tournamentEvent);
     }
 
-    public async Task PublishSeriesProgressUpdatedAsync(SeriesProgressUpdatedDto progressEvent)
+    public async Task PublishTournamentProgressUpdatedAsync(TournamentProgressUpdatedEventDto progressEvent)
     {
-        await PublishEventAsync("SeriesProgressUpdated", progressEvent);
+        await PublishEventAsync("TournamentProgressUpdated", progressEvent);
     }
 
-    public async Task PublishSeriesStepCompletedAsync(SeriesStepCompletedDto completedEvent)
+    public async Task PublishEventStepCompletedAsync(EventStepCompletedDto completedEvent)
     {
-        await PublishEventAsync("SeriesStepCompleted", completedEvent);
+        await PublishEventAsync("EventStepCompleted", completedEvent);
     }
 
-    public async Task PublishSeriesCompletedAsync(SeriesCompletedDto completedEvent)
+    public async Task PublishTournamentCompletedAsync(TournamentCompletedEventDto completedEvent)
     {
-        await PublishEventAsync("SeriesCompleted", completedEvent);
+        await PublishEventAsync("TournamentCompleted", completedEvent);
     }
 
     private async Task PublishEventAsync<T>(string eventName, T eventData)

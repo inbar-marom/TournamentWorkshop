@@ -15,24 +15,24 @@ public class SeriesDashboardViewService
     public async Task<SeriesDashboardViewDto> BuildSeriesViewAsync()
     {
         var state = await _stateManager.GetCurrentStateAsync();
-        var seriesState = state.SeriesState;
-        var steps = seriesState?.Steps ?? new List<SeriesStepDto>();
+        var tournamentState = state.TournamentState;
+        var steps = tournamentState?.Steps ?? new List<EventStepDto>();
 
         var view = new SeriesDashboardViewDto
         {
-            SeriesTitle = seriesState?.SeriesName ?? "Tournament Series",
-            SeriesStatus = seriesState?.Status ?? SeriesStatus.NotStarted,
-            TotalSteps = seriesState?.TotalSteps ?? 0,
-            CurrentStepIndex = seriesState?.CurrentStepIndex ?? 0,
+            SeriesTitle = tournamentState?.TournamentName ?? "Tournament Series",
+            SeriesStatus = tournamentState?.Status ?? TournamentStatus.NotStarted,
+            TotalSteps = tournamentState?.TotalSteps ?? 0,
+            CurrentStepIndex = tournamentState?.CurrentStepIndex ?? 0,
             CurrentTournamentName = state.TournamentName,
             CurrentTournamentId = state.TournamentId,
             StatusMessage = state.Message
         };
 
         var orderedSteps = steps.OrderBy(s => s.StepIndex).ToList();
-        var runningStep = orderedSteps.FirstOrDefault(s => s.Status == SeriesStepStatus.Running);
+        var runningStep = orderedSteps.FirstOrDefault(s => s.Status == EventStepStatus.InProgress);
 
-        view.CurrentGameType = runningStep?.GameType ?? state.CurrentTournament?.GameType;
+        view.CurrentGameType = runningStep?.GameType ?? state.CurrentEvent?.GameType;
 
         view.StepTrack = orderedSteps
             .Select(step => new SeriesStepTrackItemDto
@@ -43,19 +43,19 @@ public class SeriesDashboardViewService
             .ToList();
 
         view.Winners = orderedSteps
-            .Where(step => step.Status == SeriesStepStatus.Completed)
+            .Where(step => step.Status == EventStepStatus.Completed)
             .Select(step => new SeriesStepSummaryDto
             {
                 StepIndex = step.StepIndex,
                 GameType = step.GameType,
                 Status = step.Status,
                 WinnerName = step.WinnerName,
-                TournamentName = step.TournamentName
+                TournamentName = step.EventName
             })
             .ToList();
 
         view.UpNext = orderedSteps
-            .Where(step => step.Status == SeriesStepStatus.Pending)
+            .Where(step => step.Status == EventStepStatus.NotStarted)
             .Select(step => new SeriesStepSummaryDto
             {
                 StepIndex = step.StepIndex,
@@ -74,7 +74,7 @@ public class SeriesDashboardViewService
 public class SeriesDashboardViewDto
 {
     public string SeriesTitle { get; set; } = string.Empty;
-    public SeriesStatus SeriesStatus { get; set; }
+    public TournamentStatus SeriesStatus { get; set; }
     public int CurrentStepIndex { get; set; }
     public int TotalSteps { get; set; }
     public GameType? CurrentGameType { get; set; }
@@ -90,14 +90,14 @@ public class SeriesDashboardViewDto
 public class SeriesStepTrackItemDto
 {
     public int StepIndex { get; set; }
-    public SeriesStepStatus Status { get; set; }
+    public EventStepStatus Status { get; set; }
 }
 
 public class SeriesStepSummaryDto
 {
     public int StepIndex { get; set; }
     public GameType GameType { get; set; }
-    public SeriesStepStatus Status { get; set; }
+    public EventStepStatus Status { get; set; }
     public string? WinnerName { get; set; }
     public string? TournamentName { get; set; }
 }

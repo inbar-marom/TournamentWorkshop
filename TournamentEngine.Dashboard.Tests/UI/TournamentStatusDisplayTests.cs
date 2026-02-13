@@ -15,7 +15,7 @@ public class TournamentStatusDisplayTests
     public void CurrentTournament_DisplaysCorrectInfo()
     {
         // Arrange
-        var tournament = new CurrentTournamentDto
+        var tournament = new CurrentEventDto
         {
             TournamentNumber = 2,
             GameType = GameType.ColonelBlotto,
@@ -41,7 +41,7 @@ public class TournamentStatusDisplayTests
     public void ProgressBar_CalculatesPercentage()
     {
         // Arrange
-        var tournament = new CurrentTournamentDto
+        var tournament = new CurrentEventDto
         {
             MatchesCompleted = 50,
             TotalMatches = 100,
@@ -60,7 +60,7 @@ public class TournamentStatusDisplayTests
     public void ProgressBar_At0Percent_WhenNoMatches()
     {
         // Arrange
-        var tournament = new CurrentTournamentDto
+        var tournament = new CurrentEventDto
         {
             MatchesCompleted = 0,
             TotalMatches = 100,
@@ -75,7 +75,7 @@ public class TournamentStatusDisplayTests
     public void ProgressBar_At100Percent_WhenComplete()
     {
         // Arrange
-        var tournament = new CurrentTournamentDto
+        var tournament = new CurrentEventDto
         {
             MatchesCompleted = 100,
             TotalMatches = 100,
@@ -90,40 +90,40 @@ public class TournamentStatusDisplayTests
     public void SeriesProgress_ShowsMultipleTournaments()
     {
         // Arrange
-        var series = new SeriesProgressDto
+        var series = new TournamentProgressDto
         {
-            SeriesId = "Series001",
+            TournamentId = "Series001",
             CompletedCount = 2,
             TotalCount = 4,
-            CurrentTournamentIndex = 2,
-            Tournaments = new List<TournamentInSeriesDto>
+            CurrentEventIndex = 2,
+            Events = new List<EventInTournamentDto>
             {
-                new TournamentInSeriesDto
+                new EventInTournamentDto
                 {
-                    TournamentNumber = 1,
+                    EventNumber = 1,
                     GameType = GameType.RPSLS,
-                    Status = TournamentItemStatus.Completed,
+                    Status = EventItemStatus.Completed,
                     Champion = "TeamA"
                 },
-                new TournamentInSeriesDto
+                new EventInTournamentDto
                 {
-                    TournamentNumber = 2,
+                    EventNumber = 2,
                     GameType = GameType.ColonelBlotto,
-                    Status = TournamentItemStatus.Completed,
+                    Status = EventItemStatus.Completed,
                     Champion = "TeamB"
                 },
-                new TournamentInSeriesDto
+                new EventInTournamentDto
                 {
-                    TournamentNumber = 3,
+                    EventNumber = 3,
                     GameType = GameType.RPSLS,
-                    Status = TournamentItemStatus.InProgress,
+                    Status = EventItemStatus.InProgress,
                     Champion = null
                 },
-                new TournamentInSeriesDto
+                new EventInTournamentDto
                 {
-                    TournamentNumber = 4,
+                    EventNumber = 4,
                     GameType = GameType.ColonelBlotto,
-                    Status = TournamentItemStatus.Pending,
+                    Status = EventItemStatus.Pending,
                     Champion = null
                 }
             }
@@ -132,20 +132,20 @@ public class TournamentStatusDisplayTests
         // Act & Assert
         series.CompletedCount.Should().Be(2, "Should have 2 completed tournaments");
         series.TotalCount.Should().Be(4, "Should have 4 total tournaments");
-        series.CurrentTournamentIndex.Should().Be(2, "Should be on tournament 3 (index 2)");
-        series.Tournaments.Should().HaveCount(4);
+        series.CurrentEventIndex.Should().Be(2, "Should be on tournament 3 (index 2)");
+        series.Events.Should().HaveCount(4);
         
-        series.Tournaments[0].Status.Should().Be(TournamentItemStatus.Completed);
-        series.Tournaments[1].Status.Should().Be(TournamentItemStatus.Completed);
-        series.Tournaments[2].Status.Should().Be(TournamentItemStatus.InProgress);
-        series.Tournaments[3].Status.Should().Be(TournamentItemStatus.Pending);
+        series.Events[0].Status.Should().Be(EventItemStatus.Completed);
+        series.Events[1].Status.Should().Be(EventItemStatus.Completed);
+        series.Events[2].Status.Should().Be(EventItemStatus.InProgress);
+        series.Events[3].Status.Should().Be(EventItemStatus.Pending);
     }
 
     [Fact]
     public void TournamentStage_TransitionsFromGroupStageToFinals()
     {
         // Arrange
-        var tournament = new CurrentTournamentDto
+        var tournament = new CurrentEventDto
         {
             Stage = TournamentStage.GroupStage,
             CurrentRound = 5,
@@ -167,15 +167,15 @@ public class TournamentStatusDisplayTests
     public void TournamentStatus_DisplaysChampion_WhenComplete()
     {
         // Arrange
-        var series = new SeriesProgressDto
+        var series = new TournamentProgressDto
         {
-            Tournaments = new List<TournamentInSeriesDto>
+            Events = new List<EventInTournamentDto>
             {
-                new TournamentInSeriesDto
+                new EventInTournamentDto
                 {
-                    TournamentNumber = 1,
+                    EventNumber = 1,
                     GameType = GameType.RPSLS,
-                    Status = TournamentItemStatus.Completed,
+                    Status = EventItemStatus.Completed,
                     Champion = "TeamA",
                     StartTime = DateTime.UtcNow.AddHours(-2),
                     EndTime = DateTime.UtcNow.AddHours(-1)
@@ -184,11 +184,11 @@ public class TournamentStatusDisplayTests
         };
 
         // Act
-        var champion = series.Tournaments[0].Champion;
+        var champion = series.Events[0].Champion;
 
         // Assert
         champion.Should().Be("TeamA", "Should display the champion");
-        series.Tournaments[0].Status.Should().Be(TournamentItemStatus.Completed);
+        series.Events[0].Status.Should().Be(EventItemStatus.Completed);
     }
 
     [Fact]

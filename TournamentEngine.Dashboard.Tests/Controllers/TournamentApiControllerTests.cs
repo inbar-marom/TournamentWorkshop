@@ -28,10 +28,13 @@ public class TournamentApiControllerTests
     public async Task GetCurrentState_ReturnsOkWithState()
     {
         // Arrange
-        var expectedState = new TournamentStateDto
+        var expectedState = new DashboardStateDto
         {
-            TournamentId = "tournament-123",
-            Status = TournamentStatus.InProgress,
+            TournamentState = new TournamentStateDto
+            {
+                TournamentId = "tournament-123",
+                Status = TournamentStatus.InProgress
+            },
             Message = "Round 1 in progress"
         };
         _mockStateManager
@@ -115,36 +118,33 @@ public class TournamentApiControllerTests
     public async Task GetSeriesView_ReturnsOkWithViewModel()
     {
         // Arrange
-        var seriesState = new SeriesStateDto
+        var seriesState = new TournamentStateDto
         {
-            SeriesId = "series-1",
-            SeriesName = "Spring Series",
+            TournamentId = "series-1",
+            TournamentName = "Spring Series",
             TotalSteps = 2,
             CurrentStepIndex = 1,
-            Status = SeriesStatus.InProgress,
-            Steps = new List<SeriesStepDto>
+            Status = TournamentStatus.InProgress,
+            Steps = new List<EventStepDto>
             {
                 new()
                 {
                     StepIndex = 1,
                     GameType = GameType.RPSLS,
-                    Status = SeriesStepStatus.Running
+                    Status = EventStepStatus.InProgress
                 },
                 new()
                 {
                     StepIndex = 2,
                     GameType = GameType.PenaltyKicks,
-                    Status = SeriesStepStatus.Pending
+                    Status = EventStepStatus.NotStarted
                 }
             }
         };
 
-        var state = new TournamentStateDto
+        var state = new DashboardStateDto
         {
-            TournamentId = "t-1",
-            TournamentName = "RPSLS Tournament",
-            Message = "Tournament running",
-            SeriesState = seriesState
+            TournamentState = seriesState
         };
 
         _mockStateManager.Setup(x => x.GetCurrentStateAsync()).ReturnsAsync(state);
@@ -159,7 +159,7 @@ public class TournamentApiControllerTests
         var view = okResult!.Value as SeriesDashboardViewDto;
         view.Should().NotBeNull();
         view!.SeriesTitle.Should().Be("Spring Series");
-        view.SeriesStatus.Should().Be(SeriesStatus.InProgress);
+        view.SeriesStatus.Should().Be(TournamentStatus.InProgress);
         view.TotalSteps.Should().Be(2);
         view.CurrentStepIndex.Should().Be(1);
         view.StepTrack.Should().HaveCount(2);

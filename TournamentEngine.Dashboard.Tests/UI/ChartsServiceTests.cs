@@ -31,13 +31,14 @@ public class ChartsServiceTests
     public async Task GetWinRatioChartData_WithValidMatches_ReturnsFormattedData()
     {
         // Arrange
-        var state = new TournamentStateDto
+        var state = new DashboardStateDto
         {
             OverallLeaderboard = new List<TeamStandingDto>
             {
                 new() { TeamName = "Team A", TotalWins = 5, TotalLosses = 2 },
                 new() { TeamName = "Team B", TotalWins = 4, TotalLosses = 3 }
-            }
+            },
+            TournamentState = new TournamentStateDto()
         };
 
         _mockStateManager.Setup(s => s.GetCurrentStateAsync()).ReturnsAsync(state);
@@ -57,12 +58,13 @@ public class ChartsServiceTests
     public async Task WinRatioChartData_ContainsCorrectPercentages()
     {
         // Arrange
-        var state = new TournamentStateDto
+        var state = new DashboardStateDto
         {
             OverallLeaderboard = new List<TeamStandingDto>
             {
                 new() { TeamName = "Team A", TotalWins = 6, TotalLosses = 4 }
-            }
+            },
+            TournamentState = new TournamentStateDto()
         };
 
         _mockStateManager.Setup(s => s.GetCurrentStateAsync()).ReturnsAsync(state);
@@ -110,12 +112,13 @@ public class ChartsServiceTests
             new() { MatchId = "3", Bot1Name = "Bot1", Bot2Name = "Bot3", GameType = GameType.RPSLS, CompletedAt = DateTime.UtcNow.AddMinutes(-2) }
         };
 
-        var state = new TournamentStateDto
+        var state = new DashboardStateDto
         {
-            CurrentTournament = new CurrentTournamentDto
+            CurrentEvent = new CurrentEventDto
             {
                 GameType = GameType.RPSLS
-            }
+            },
+            TournamentState = new TournamentStateDto()
         };
 
         _mockStateManager.Setup(s => s.GetCurrentStateAsync()).ReturnsAsync(state);
@@ -137,14 +140,15 @@ public class ChartsServiceTests
     public async Task GetPointsDistributionChart_ShowsTeamPointsDistribution()
     {
         // Arrange
-        var state = new TournamentStateDto
+        var state = new DashboardStateDto
         {
             OverallLeaderboard = new List<TeamStandingDto>
             {
                 new() { TeamName = "Team A", TotalPoints = 15 },
                 new() { TeamName = "Team B", TotalPoints = 12 },
                 new() { TeamName = "Team C", TotalPoints = 18 }
-            }
+            },
+            TournamentState = new TournamentStateDto()
         };
 
         _mockStateManager.Setup(s => s.GetCurrentStateAsync()).ReturnsAsync(state);
@@ -166,14 +170,15 @@ public class ChartsServiceTests
     public async Task ChartData_IsOrderedByValueDescending()
     {
         // Arrange
-        var state = new TournamentStateDto
+        var state = new DashboardStateDto
         {
             OverallLeaderboard = new List<TeamStandingDto>
             {
                 new() { TeamName = "Team C", TotalPoints = 5 },
                 new() { TeamName = "Team A", TotalPoints = 20 },
                 new() { TeamName = "Team B", TotalPoints = 15 }
-            }
+            },
+            TournamentState = new TournamentStateDto()
         };
 
         _mockStateManager.Setup(s => s.GetCurrentStateAsync()).ReturnsAsync(state);
@@ -240,9 +245,10 @@ public class ChartsServiceTests
     public async Task ChartData_WithNoData_ReturnsEmptyChartData()
     {
         // Arrange
-        var state = new TournamentStateDto
+        var state = new DashboardStateDto
         {
-            OverallLeaderboard = new List<TeamStandingDto>()
+            OverallLeaderboard = new List<TeamStandingDto>(),
+            TournamentState = new TournamentStateDto()
         };
 
         _mockStateManager.Setup(s => s.GetCurrentStateAsync()).ReturnsAsync(state);

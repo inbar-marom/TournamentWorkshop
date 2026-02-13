@@ -45,7 +45,7 @@ public class TournamentManagerEventPublishingTests
 
         // Assert
         _mockPublisher.Verify(
-            x => x.PublishTournamentStartedAsync(It.Is<TournamentStartedDto>(dto =>
+            x => x.PublishEventStartedAsync(It.Is<EventStartedEventDto>(dto =>
                 dto.GameType == gameType &&
                 dto.TotalBots == bots.Count)),
             Times.Once,
@@ -90,7 +90,7 @@ public class TournamentManagerEventPublishingTests
 
         // Assert
         _mockPublisher.Verify(
-            x => x.PublishTournamentCompletedAsync(It.Is<TournamentCompletedDto>(dto =>
+            x => x.PublishEventCompletedAsync(It.Is<EventCompletedEventDto>(dto =>
                 dto.GameType == gameType &&
                 !string.IsNullOrEmpty(dto.Champion))),
             Times.Once,
@@ -131,7 +131,7 @@ public class TournamentManagerEventPublishingTests
         _mockEngine.MatchBatches.Enqueue(new List<(IBot, IBot)> { (dummyBots[0], dummyBots[1]) });
 
         _mockPublisher
-            .Setup(x => x.PublishTournamentStartedAsync(It.IsAny<TournamentStartedDto>()))
+            .Setup(x => x.PublishEventStartedAsync(It.IsAny<EventStartedEventDto>()))
             .Callback(() => eventOrder.Add("TournamentStarted"))
             .Returns(Task.CompletedTask);
 
@@ -141,7 +141,7 @@ public class TournamentManagerEventPublishingTests
             .Returns(Task.CompletedTask);
 
         _mockPublisher
-            .Setup(x => x.PublishTournamentCompletedAsync(It.IsAny<TournamentCompletedDto>()))
+            .Setup(x => x.PublishEventCompletedAsync(It.IsAny<EventCompletedEventDto>()))
             .Callback(() => eventOrder.Add("TournamentCompleted"))
             .Returns(Task.CompletedTask);
 

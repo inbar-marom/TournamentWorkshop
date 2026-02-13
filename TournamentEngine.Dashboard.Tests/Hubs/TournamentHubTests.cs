@@ -46,9 +46,12 @@ public class TournamentHubTests
     public async Task OnConnectedAsync_SubscribesClientAndSendsCurrentState()
     {
         // Arrange
-        var expectedState = new TournamentStateDto
+        var expectedState = new DashboardStateDto
         {
-            Status = TournamentStatus.InProgress,
+            TournamentState = new TournamentStateDto
+            {
+                Status = TournamentStatus.InProgress
+            },
             Message = "Test state"
         };
         _mockStateManager
@@ -76,9 +79,12 @@ public class TournamentHubTests
     public async Task SubscribeToUpdates_SendsConfirmation()
     {
         // Arrange
-        var expectedState = new TournamentStateDto
+        var expectedState = new DashboardStateDto
         {
-            Status = TournamentStatus.NotStarted
+            TournamentState = new TournamentStateDto
+            {
+                Status = TournamentStatus.NotStarted
+            }
         };
         _mockStateManager
             .Setup(x => x.GetCurrentStateAsync())
@@ -100,10 +106,13 @@ public class TournamentHubTests
     public async Task GetCurrentState_SendsStateToCallerViaSignalR()
     {
         // Arrange
-        var expectedState = new TournamentStateDto
+        var expectedState = new DashboardStateDto
         {
-            TournamentId = "test-tournament",
-            Status = TournamentStatus.InProgress
+            TournamentState = new TournamentStateDto
+            {
+                TournamentId = "test-tournament",
+                Status = TournamentStatus.InProgress
+            }
         };
         _mockStateManager
             .Setup(x => x.GetCurrentStateAsync())
@@ -165,15 +174,15 @@ public class TournamentHubTests
     public async Task SeriesStarted_UpdatesStateAndBroadcasts()
     {
         // Arrange
-        var seriesEvent = new SeriesStartedDto
+        var seriesEvent = new TournamentStartedEventDto
         {
-            SeriesId = "series-1",
-            SeriesName = "Local Series",
+            TournamentId = "series-1",
+            TournamentName = "Local Series",
             TotalSteps = 2,
-            Steps = new List<SeriesStepDto>
+            Steps = new List<EventStepDto>
             {
-                new() { StepIndex = 1, GameType = GameType.RPSLS, Status = SeriesStepStatus.Running },
-                new() { StepIndex = 2, GameType = GameType.ColonelBlotto, Status = SeriesStepStatus.Pending }
+                new() { StepIndex = 1, GameType = GameType.RPSLS, Status = EventStepStatus.InProgress },
+                new() { StepIndex = 2, GameType = GameType.ColonelBlotto, Status = EventStepStatus.NotStarted }
             },
             StartedAt = DateTime.UtcNow
         };
@@ -182,10 +191,10 @@ public class TournamentHubTests
         await _hub.SeriesStarted(seriesEvent);
 
         // Assert
-        _mockStateManager.Verify(x => x.UpdateSeriesStartedAsync(seriesEvent), Times.Once);
+        _mockStateManager.Verify(x => x.UpdateTournamentStartedAsync(seriesEvent), Times.Once);
         _mockClientProxy.Verify(
             x => x.SendCoreAsync(
-                "SeriesStarted",
+                "TournamentStarted",
                 It.Is<object[]>(args => args.Length == 1 && args[0] == seriesEvent),
                 default),
             Times.Once);
@@ -195,19 +204,19 @@ public class TournamentHubTests
     public async Task SeriesProgressUpdated_UpdatesStateAndBroadcasts()
     {
         // Arrange
-        var progressEvent = new SeriesProgressUpdatedDto
+        var progressEvent = new TournamentProgressUpdatedEventDto
         {
-            SeriesState = new SeriesStateDto
+            TournamentState = new TournamentStateDto
             {
-                SeriesId = "series-1",
-                SeriesName = "Local Series",
+                TournamentId = "series-1",
+                TournamentName = "Local Series",
                 TotalSteps = 2,
                 CurrentStepIndex = 1,
-                Status = SeriesStatus.InProgress,
-                Steps = new List<SeriesStepDto>
+                Status = TournamentStatus.InProgress,
+                Steps = new List<EventStepDto>
                 {
-                    new() { StepIndex = 1, GameType = GameType.RPSLS, Status = SeriesStepStatus.Running },
-                    new() { StepIndex = 2, GameType = GameType.ColonelBlotto, Status = SeriesStepStatus.Pending }
+                    new() { StepIndex = 1, GameType = GameType.RPSLS, Status = EventStepStatus.InProgress },
+                    new() { StepIndex = 2, GameType = GameType.ColonelBlotto, Status = EventStepStatus.NotStarted }
                 }
             },
             UpdatedAt = DateTime.UtcNow
@@ -217,7 +226,7 @@ public class TournamentHubTests
         await _hub.SeriesProgressUpdated(progressEvent);
 
         // Assert
-        _mockStateManager.Verify(x => x.UpdateSeriesProgressAsync(progressEvent), Times.Once);
+        _mockStateManager.Verify(x => x.UpdateTournamentProgressAsync(progressEvent), Times.Once);
         _mockClientProxy.Verify(
             x => x.SendCoreAsync(
                 "SeriesProgressUpdated",
@@ -230,9 +239,8 @@ public class TournamentHubTests
     public async Task SeriesStepCompleted_UpdatesStateAndBroadcasts()
     {
         // Arrange
-        var completedEvent = new SeriesStepCompletedDto
+        var completedEvent = new EventStepCompletedDto
         {
-            SeriesId = "series-1",
             StepIndex = 1,
             GameType = GameType.RPSLS,
             WinnerName = "Bot1",
@@ -242,38 +250,38 @@ public class TournamentHubTests
         };
 
         // Act
-        await _hub.SeriesStepCompleted(completedEvent);
+        await _hub.EventStepCompleted(completedEvent);
 
         // Assert
-        _mockStateManager.Verify(x => x.UpdateSeriesStepCompletedAsync(completedEvent), Times.Once);
+        _mockStateManager.Verify(x => x.UpdateEventStepCompletedAsync(completedEvent), Times.Once);
         _mockClientProxy.Verify(
             x => x.SendCoreAsync(
-                "SeriesStepCompleted",
+                "EventStepCompleted",
                 It.Is<object[]>(args => args.Length == 1 && args[0] == completedEvent),
                 default),
             Times.Once);
     }
 
     [Fact]
-    public async Task SeriesCompleted_UpdatesStateAndBroadcasts()
+    public async Task TournamentCompleted_UpdatesStateAndBroadcasts()
     {
         // Arrange
-        var completedEvent = new SeriesCompletedDto
+        var completedEvent = new TournamentCompletedEventDto
         {
-            SeriesId = "series-1",
-            SeriesName = "Local Series",
+            TournamentId = "series-1",
+            TournamentName = "Local Series",
             Champion = "Bot1",
             CompletedAt = DateTime.UtcNow
         };
 
         // Act
-        await _hub.SeriesCompleted(completedEvent);
+        await _hub.TournamentCompleted(completedEvent);
 
         // Assert
-        _mockStateManager.Verify(x => x.UpdateSeriesCompletedAsync(completedEvent), Times.Once);
+        _mockStateManager.Verify(x => x.UpdateTournamentCompletedAsync(completedEvent), Times.Once);
         _mockClientProxy.Verify(
             x => x.SendCoreAsync(
-                "SeriesCompleted",
+                "TournamentCompleted",
                 It.Is<object[]>(args => args.Length == 1 && args[0] == completedEvent),
                 default),
             Times.Once);

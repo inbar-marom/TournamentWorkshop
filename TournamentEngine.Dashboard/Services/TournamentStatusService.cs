@@ -16,12 +16,12 @@ public class TournamentStatusService
     }
 
     /// <summary>
-    /// Get current tournament status information.
+    /// Get current event status information.
     /// </summary>
-    public async Task<CurrentTournamentDto?> GetCurrentTournamentAsync()
+    public async Task<CurrentEventDto?> GetCurrentTournamentAsync()
     {
         var state = await _stateManager.GetCurrentStateAsync();
-        return state.CurrentTournament;
+        return state.CurrentEvent;
     }
 
     /// <summary>
@@ -38,21 +38,21 @@ public class TournamentStatusService
     }
 
     /// <summary>
-    /// Get series progress information.
+    /// Get tournament progress information.
     /// </summary>
-    public async Task<SeriesProgressDto?> GetSeriesProgressAsync()
+    public async Task<TournamentProgressDto?> GetSeriesProgressAsync()
     {
         var state = await _stateManager.GetCurrentStateAsync();
-        return state.SeriesProgress;
+        return state.TournamentProgress;
     }
 
     /// <summary>
-    /// Get all tournaments in series.
+    /// Get all events in tournament.
     /// </summary>
-    public async Task<List<TournamentInSeriesDto>> GetTournamentsInSeriesAsync()
+    public async Task<List<EventInTournamentDto>> GetTournamentsInSeriesAsync()
     {
         var series = await GetSeriesProgressAsync();
-        return series?.Tournaments ?? new List<TournamentInSeriesDto>();
+        return series?.Events ?? new List<EventInTournamentDto>();
     }
 
     /// <summary>
@@ -87,12 +87,12 @@ public class TournamentStatusService
     }
 
     /// <summary>
-    /// Get tournament by number in series.
+    /// Get event by number in tournament.
     /// </summary>
-    public async Task<TournamentInSeriesDto?> GetTournamentByNumberAsync(int tournamentNumber)
+    public async Task<EventInTournamentDto?> GetTournamentByNumberAsync(int tournamentNumber)
     {
         var tournaments = await GetTournamentsInSeriesAsync();
-        return tournaments.FirstOrDefault(t => t.TournamentNumber == tournamentNumber);
+        return tournaments.FirstOrDefault(t => t.EventNumber == tournamentNumber);
     }
 
     /// <summary>
@@ -104,7 +104,7 @@ public class TournamentStatusService
         if (series == null)
             return 1;
 
-        return series.CurrentTournamentIndex + 1; // Convert 0-based index to 1-based tournament number
+        return series.CurrentEventIndex + 1; // Convert 0-based index to 1-based event number
     }
 
     /// <summary>

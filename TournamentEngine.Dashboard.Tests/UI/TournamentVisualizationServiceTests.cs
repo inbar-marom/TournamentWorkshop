@@ -31,9 +31,9 @@ public class TournamentVisualizationServiceTests
     public async Task GetBracketVisualization_WithValidTournament_ReturnsBracketData()
     {
         // Arrange
-        var state = new TournamentStateDto
+        var state = new DashboardStateDto
         {
-            CurrentTournament = new CurrentTournamentDto
+            CurrentEvent = new CurrentEventDto
             {
                 Stage = TournamentStage.Finals
             },
@@ -41,7 +41,8 @@ public class TournamentVisualizationServiceTests
             {
                 new() { Bot1Name = "Team A", Bot2Name = "Team B", WinnerName = "Team A" },
                 new() { Bot1Name = "Team A", Bot2Name = "Team C", WinnerName = "Team A" }
-            }
+            },
+            TournamentState = new TournamentStateDto()
         };
 
         _mockStateManager.Setup(s => s.GetCurrentStateAsync()).ReturnsAsync(state);
@@ -59,9 +60,9 @@ public class TournamentVisualizationServiceTests
     public async Task GetBracketData_DisplaysTeamsAndWinners()
     {
         // Arrange
-        var state = new TournamentStateDto
+        var state = new DashboardStateDto
         {
-            CurrentTournament = new CurrentTournamentDto
+            CurrentEvent = new CurrentEventDto
             {
                 Stage = TournamentStage.Finals
             },
@@ -74,7 +75,8 @@ public class TournamentVisualizationServiceTests
                     WinnerName = "Team A",
                     Outcome = MatchOutcome.Player1Wins
                 }
-            }
+            },
+            TournamentState = new TournamentStateDto()
         };
 
         _mockStateManager.Setup(s => s.GetCurrentStateAsync()).ReturnsAsync(state);
@@ -95,9 +97,9 @@ public class TournamentVisualizationServiceTests
     public async Task GetTournamentTreeStructure_ShowsGroupsToFinals()
     {
         // Arrange
-        var state = new TournamentStateDto
+        var state = new DashboardStateDto
         {
-            CurrentTournament = new CurrentTournamentDto
+            CurrentEvent = new CurrentEventDto
             {
                 Stage = TournamentStage.GroupStage
             },
@@ -112,7 +114,8 @@ public class TournamentVisualizationServiceTests
                         new() { TeamName = "Team B", Wins = 1, Losses = 1 }
                     }
                 }
-            }
+            },
+            TournamentState = new TournamentStateDto()
         };
 
         _mockStateManager.Setup(s => s.GetCurrentStateAsync()).ReturnsAsync(state);
@@ -131,14 +134,15 @@ public class TournamentVisualizationServiceTests
     public async Task TreeStructure_ContainsStageTransitionInfo()
     {
         // Arrange
-        var state = new TournamentStateDto
+        var state = new DashboardStateDto
         {
-            CurrentTournament = new CurrentTournamentDto
+            CurrentEvent = new CurrentEventDto
             {
                 Stage = TournamentStage.GroupStage,
                 CurrentRound = 3,
                 TotalRounds = 5
-            }
+            },
+            TournamentState = new TournamentStateDto()
         };
 
         _mockStateManager.Setup(s => s.GetCurrentStateAsync()).ReturnsAsync(state);
@@ -157,14 +161,15 @@ public class TournamentVisualizationServiceTests
     public async Task GetRoundRobinGrid_ShowsAllTeamMatchups()
     {
         // Arrange
-        var state = new TournamentStateDto
+        var state = new DashboardStateDto
         {
             OverallLeaderboard = new List<TeamStandingDto>
             {
                 new() { TeamName = "Team A" },
                 new() { TeamName = "Team B" },
                 new() { TeamName = "Team C" }
-            }
+            },
+            TournamentState = new TournamentStateDto()
         };
 
         _mockStateManager.Setup(s => s.GetCurrentStateAsync()).ReturnsAsync(state);
@@ -190,14 +195,15 @@ public class TournamentVisualizationServiceTests
             new() { Bot1Name = "Team B", Bot2Name = "Team C", Outcome = MatchOutcome.Draw }
         };
 
-        var state = new TournamentStateDto
+        var state = new DashboardStateDto
         {
             OverallLeaderboard = new List<TeamStandingDto>
             {
                 new() { TeamName = "Team A" },
                 new() { TeamName = "Team B" },
                 new() { TeamName = "Team C" }
-            }
+            },
+            TournamentState = new TournamentStateDto()
         };
 
         _mockStateManager.Setup(s => s.GetCurrentStateAsync()).ReturnsAsync(state);
@@ -216,13 +222,14 @@ public class TournamentVisualizationServiceTests
     public async Task GetChampionPath_ShowsWinnerJourneyThroughTournament()
     {
         // Arrange
-        var state = new TournamentStateDto
+        var state = new DashboardStateDto
         {
-            SeriesProgress = new SeriesProgressDto
+            TournamentState = new TournamentStateDto(),
+            TournamentProgress = new TournamentProgressDto
             {
-                Tournaments = new List<TournamentInSeriesDto>
+                Events = new List<EventInTournamentDto>
                 {
-                    new() { TournamentNumber = 1, Champion = "Team A", Status = TournamentItemStatus.Completed }
+                    new() { EventNumber = 1, Champion = "Team A", Status = EventItemStatus.Completed }
                 }
             }
         };
@@ -253,13 +260,14 @@ public class TournamentVisualizationServiceTests
             new() { Bot1Name = "Team A", Bot2Name = "Team D", WinnerName = "Team A", CompletedAt = DateTime.UtcNow.AddHours(-1) }
         };
 
-        var state = new TournamentStateDto
+        var state = new DashboardStateDto
         {
-            SeriesProgress = new SeriesProgressDto
+            TournamentState = new TournamentStateDto(),
+            TournamentProgress = new TournamentProgressDto
             {
-                Tournaments = new List<TournamentInSeriesDto>
+                Events = new List<EventInTournamentDto>
                 {
-                    new() { TournamentNumber = 1, Champion = "Team A", Status = TournamentItemStatus.Completed }
+                    new() { EventNumber = 1, Champion = "Team A", Status = EventItemStatus.Completed }
                 }
             }
         };
@@ -281,17 +289,18 @@ public class TournamentVisualizationServiceTests
     public async Task GetProgressionVisualization_ShowsTeamProgressionThroughStages()
     {
         // Arrange
-        var state = new TournamentStateDto
+        var state = new DashboardStateDto
         {
             OverallLeaderboard = new List<TeamStandingDto>
             {
                 new() { TeamName = "Team A", Rank = 1 },
                 new() { TeamName = "Team B", Rank = 2 }
             },
-            CurrentTournament = new CurrentTournamentDto
+            CurrentEvent = new CurrentEventDto
             {
                 Stage = TournamentStage.Finals
-            }
+            },
+            TournamentState = new TournamentStateDto()
         };
 
         _mockStateManager.Setup(s => s.GetCurrentStateAsync()).ReturnsAsync(state);
@@ -310,9 +319,9 @@ public class TournamentVisualizationServiceTests
     public async Task ProgressionVisualization_IndicatesTeamStatusInCurrentStage()
     {
         // Arrange
-        var state = new TournamentStateDto
+        var state = new DashboardStateDto
         {
-            CurrentTournament = new CurrentTournamentDto
+            CurrentEvent = new CurrentEventDto
             {
                 Stage = TournamentStage.GroupStage
             },
@@ -321,7 +330,8 @@ public class TournamentVisualizationServiceTests
                 new() { TeamName = "Team A", Rank = 1, TotalWins = 5, TotalPoints = 15 },
                 new() { TeamName = "Team B", Rank = 2, TotalWins = 3, TotalPoints = 12 },
                 new() { TeamName = "Team C", Rank = 3, TotalWins = 1, TotalPoints = 8 }
-            }
+            },
+            TournamentState = new TournamentStateDto()
         };
 
         _mockStateManager.Setup(s => s.GetCurrentStateAsync()).ReturnsAsync(state);
@@ -340,9 +350,10 @@ public class TournamentVisualizationServiceTests
     public async Task GetVisualizationData_WithNoTournament_ReturnsEmptyOrNull()
     {
         // Arrange
-        var state = new TournamentStateDto
+        var state = new DashboardStateDto
         {
-            CurrentTournament = null
+            CurrentEvent = null,
+            TournamentState = new TournamentStateDto()
         };
 
         _mockStateManager.Setup(s => s.GetCurrentStateAsync()).ReturnsAsync(state);
@@ -359,19 +370,20 @@ public class TournamentVisualizationServiceTests
     public async Task GetSeriesVisualization_ShowsMultipleTournaments()
     {
         // Arrange
-        var state = new TournamentStateDto
+        var state = new DashboardStateDto
         {
-            SeriesProgress = new SeriesProgressDto
+            TournamentProgress = new TournamentProgressDto
             {
                 TotalCount = 4,
                 CompletedCount = 2,
-                Tournaments = new List<TournamentInSeriesDto>
+                Events = new List<EventInTournamentDto>
                 {
-                    new() { TournamentNumber = 1, Champion = "Team A", Status = TournamentItemStatus.Completed },
-                    new() { TournamentNumber = 2, Champion = "Team B", Status = TournamentItemStatus.Completed },
-                    new() { TournamentNumber = 3, Status = TournamentItemStatus.InProgress }
+                    new() { EventNumber = 1, Champion = "Team A", Status = EventItemStatus.Completed },
+                    new() { EventNumber = 2, Champion = "Team B", Status = EventItemStatus.Completed },
+                    new() { EventNumber = 3, Status = EventItemStatus.InProgress }
                 }
-            }
+            },
+            TournamentState = new TournamentStateDto()
         };
 
         _mockStateManager.Setup(s => s.GetCurrentStateAsync()).ReturnsAsync(state);
@@ -391,16 +403,17 @@ public class TournamentVisualizationServiceTests
     public async Task SeriesVisualization_IndicatesChampionOfEachTournament()
     {
         // Arrange
-        var state = new TournamentStateDto
+        var state = new DashboardStateDto
         {
-            SeriesProgress = new SeriesProgressDto
+            TournamentProgress = new TournamentProgressDto
             {
-                Tournaments = new List<TournamentInSeriesDto>
+                Events = new List<EventInTournamentDto>
                 {
-                    new() { TournamentNumber = 1, Champion = "Team A" },
-                    new() { TournamentNumber = 2, Champion = "Team B" }
+                    new() { EventNumber = 1, Champion = "Team A" },
+                    new() { EventNumber = 2, Champion = "Team B" }
                 }
-            }
+            },
+            TournamentState = new TournamentStateDto()
         };
 
         _mockStateManager.Setup(s => s.GetCurrentStateAsync()).ReturnsAsync(state);

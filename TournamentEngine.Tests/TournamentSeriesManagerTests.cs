@@ -81,30 +81,30 @@ public class TournamentSeriesManagerTests
 
         // Assert
         eventPublisher.Verify(
-            x => x.PublishSeriesStartedAsync(It.Is<SeriesStartedDto>(dto =>
-                dto.SeriesName == "Test Series" &&
+            x => x.PublishTournamentStartedAsync(It.Is<TournamentStartedEventDto>(dto =>
+                dto.TournamentName == "Test Series" &&
                 dto.TotalSteps == 2 &&
                 dto.Steps.Count == 2 &&
-                dto.Steps[0].Status == SeriesStepStatus.Running &&
-                dto.Steps[1].Status == SeriesStepStatus.Pending)),
+                dto.Steps[0].Status == EventStepStatus.InProgress &&
+                dto.Steps[1].Status == EventStepStatus.NotStarted)),
             Times.Once);
 
         eventPublisher.Verify(
-            x => x.PublishSeriesStepCompletedAsync(It.Is<SeriesStepCompletedDto>(dto => dto.StepIndex == 1)),
+            x => x.PublishEventStepCompletedAsync(It.Is<EventStepCompletedDto>(dto => dto.StepIndex == 1)),
             Times.Once);
 
         eventPublisher.Verify(
-            x => x.PublishSeriesStepCompletedAsync(It.Is<SeriesStepCompletedDto>(dto => dto.StepIndex == 2)),
+            x => x.PublishEventStepCompletedAsync(It.Is<EventStepCompletedDto>(dto => dto.StepIndex == 2)),
             Times.Once);
 
         eventPublisher.Verify(
-            x => x.PublishSeriesCompletedAsync(It.Is<SeriesCompletedDto>(dto =>
-                dto.SeriesName == "Test Series" &&
+            x => x.PublishTournamentCompletedAsync(It.Is<TournamentCompletedEventDto>(dto =>
+                dto.TournamentName == "Test Series" &&
                 !string.IsNullOrWhiteSpace(dto.Champion))),
             Times.Once);
 
         eventPublisher.Verify(
-            x => x.PublishSeriesProgressUpdatedAsync(It.IsAny<SeriesProgressUpdatedDto>()),
+            x => x.PublishTournamentProgressUpdatedAsync(It.IsAny<TournamentProgressUpdatedEventDto>()),
             Times.AtLeastOnce);
     }
 

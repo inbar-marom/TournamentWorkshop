@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tournament Dashboard - Live</title>
+    <title>Productivity with AI Tournament Dashboard</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-1: #f7f3e9;
+            --bg-1: #f6f3ec;
             --bg-2: #e7efe8;
             --ink: #1f2a2e;
             --muted: #5b6b73;
@@ -46,7 +46,7 @@
         }
 
         .topbar {
-            background: rgba(255, 255, 255, 0.85);
+            background: rgba(255, 255, 255, 0.9);
             border: 1px solid var(--border);
             backdrop-filter: blur(10px);
             padding: 20px 28px;
@@ -55,6 +55,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            gap: 16px;
         }
 
         .topbar h1 {
@@ -64,32 +65,58 @@
             letter-spacing: 0.02em;
         }
 
-        .connection-status {
+        .topbar-meta {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 18px;
+            flex-wrap: wrap;
         }
 
-        .status-indicator {
-            width: 12px;
-            height: 12px;
+        .status-pill {
+            padding: 8px 14px;
+            border-radius: 999px;
+            background: var(--accent-soft);
+            color: var(--accent-strong);
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            font-size: 0.75em;
+        }
+
+        .status-pill.completed {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .status-pill.not-started {
+            background: #e2e8f0;
+            color: #334155;
+        }
+
+        .connection {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.95em;
+            color: var(--muted);
+        }
+
+        .connection-dot {
+            width: 10px;
+            height: 10px;
             border-radius: 50%;
             background: #d1d5db;
-            animation: pulse 2s infinite;
+            box-shadow: 0 0 0 6px rgba(209, 213, 219, 0.25);
         }
 
-        .status-indicator.connected {
+        .connection-dot.connected {
             background: #16a34a;
+            box-shadow: 0 0 0 6px rgba(22, 163, 74, 0.2);
         }
 
-        .status-indicator.disconnected {
+        .connection-dot.disconnected {
             background: #dc2626;
-            animation: none;
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
+            box-shadow: 0 0 0 6px rgba(220, 38, 38, 0.2);
         }
 
         .card {
@@ -109,26 +136,96 @@
             padding-bottom: 10px;
         }
 
-        .status-message {
-            font-size: 1.05em;
-            color: var(--muted);
-            text-align: center;
-            padding: 24px;
+        .status-card-grid {
+            display: grid;
+            gap: 20px;
         }
 
-        .leaderboard-item {
+        .progress-header {
             display: flex;
             justify-content: space-between;
-            padding: 12px;
-            margin: 5px 0;
+            align-items: center;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 14px;
+            background: #e2e8f0;
+            border-radius: 999px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            width: 0;
+            background: linear-gradient(90deg, var(--accent), var(--warm));
+            transition: width 0.4s ease;
+        }
+
+        .step-track {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 12px;
+            justify-content: space-between;
+            width: 100%;
+        }
+
+        .step-chip {
+            padding: 6px 12px;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            font-size: 0.85em;
             background: #f7f7f4;
-            border-radius: 10px;
+            color: var(--muted);
+        }
+
+        .step-chip.completed {
+            background: rgba(245, 158, 11, 0.15);
+            color: #b45309;
+            border-color: rgba(245, 158, 11, 0.3);
+        }
+
+        .step-chip.running {
+            background: rgba(15, 118, 110, 0.12);
+            color: var(--accent-strong);
+            border-color: rgba(15, 118, 110, 0.35);
+        }
+
+        .status-panels {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 18px;
+        }
+
+        .panel-title {
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--muted);
+            margin-bottom: 10px;
+        }
+
+        .panel-body {
+            display: grid;
+            gap: 10px;
+        }
+
+        .leaderboard-item,
+        .list-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 12px;
+            border-radius: 12px;
+            background: #f7f7f4;
             border-left: 4px solid var(--accent);
         }
 
         .leaderboard-item:nth-child(1) {
             border-left-color: #f59e0b;
-            font-weight: bold;
         }
 
         .leaderboard-item:nth-child(2) {
@@ -139,28 +236,78 @@
             border-left-color: #c08457;
         }
 
-        .match-item {
-            padding: 10px;
-            margin: 5px 0;
-            background: #f7f7f4;
-            border-radius: 10px;
+        .leaderboard-item.champion {
+            font-size: 1.3em;
+            padding: 16px 18px;
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(15, 118, 110, 0.1));
+            border: 2px solid #f59e0b;
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2);
+        }
+
+        .champion-label {
+            display: inline-block;
+            font-size: 0.65em;
+            color: var(--warm);
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            margin-left: 8px;
+        }
+
+        .details-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 18px;
+        }
+
+        .status-message {
+            color: var(--muted);
             font-size: 0.95em;
+            padding: 8px 0;
+        }
+
+        .matches-carousel {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .matches-page {
+            display: grid;
+            grid-auto-rows: minmax(auto, 1fr);
+            gap: 8px;
+            flex: 1;
+            overflow-y: auto;
+            animation: slideIn 0.3s ease-in-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .match-item {
+            padding: 10px 12px;
+            border-radius: 12px;
+            background: #f7f7f4;
+            border: 1px solid var(--border);
+            font-size: 0.95em;
+            transition: background-color 0.2s ease;
+        }
+
+        .match-item:hover {
+            background: #efefeb;
         }
 
         .match-result {
-            font-weight: bold;
+            font-weight: 600;
             color: var(--accent-strong);
-        }
-
-        .tournament-badge {
-            display: inline-block;
-            background: var(--accent-soft);
-            color: var(--accent-strong);
-            padding: 2px 8px;
-            border-radius: 12px;
-            font-size: 0.75em;
-            margin-left: 8px;
-            font-weight: normal;
         }
 
         .timestamp {
@@ -168,14 +315,97 @@
             font-size: 0.85em;
         }
 
+        .matches-pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid var(--border);
+        }
+
+        .pagination-btn {
+            padding: 6px 12px;
+            border: 1px solid var(--border);
+            background: #f7f7f4;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.85em;
+            color: var(--muted);
+            transition: all 0.2s ease;
+        }
+
+        .pagination-btn:hover {
+            background: var(--accent-soft);
+            color: var(--accent-strong);
+            border-color: var(--accent);
+        }
+
+        .pagination-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .pagination-info {
+            font-size: 0.85em;
+            color: var(--muted);
+            white-space: nowrap;
+        }
+
+        .carousel-timer {
+            font-size: 0.75em;
+            color: var(--warm);
+            font-weight: 600;
+        }
+
+        .group-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .log-panel {
+            border-radius: 18px;
+            background: rgba(255, 255, 255, 0.8);
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            padding: 0;
+        }
+
+        .log-panel summary {
+            cursor: pointer;
+            list-style: none;
+            padding: 18px 22px;
+            font-family: "Space Grotesk", "IBM Plex Sans", sans-serif;
+            font-size: 1.05em;
+            font-weight: 600;
+            color: var(--accent-strong);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .log-panel summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .log-body {
+            padding: 0 22px 22px;
+            display: grid;
+            gap: 16px;
+        }
+
         #messages {
-            height: 300px;
+            height: 260px;
             overflow-y: auto;
             border: 1px solid var(--border);
             padding: 10px;
             background: #f7f7f4;
             border-radius: 10px;
-            font-family: 'Courier New', monospace;
+            font-family: "Courier New", monospace;
             font-size: 0.9em;
         }
 
@@ -203,259 +433,15 @@
             padding: 10px 20px;
             border-radius: 999px;
             cursor: pointer;
-            font-size: 1em;
-            margin: 5px;
+            font-size: 0.95em;
         }
 
         button:hover {
             background: #0d5c56;
         }
 
-        button:disabled {
-            background: #ccc;
-            cursor: not-allowed;
-        }
-
-        .series-bar {
-            display: grid;
-            gap: 16px;
-        }
-
-        .series-bar-top {
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            gap: 16px;
-            justify-content: space-between;
-        }
-
-        .series-title {
-            font-family: "Space Grotesk", "IBM Plex Sans", sans-serif;
-            font-size: 1.4em;
-            font-weight: 700;
-            color: var(--ink);
-        }
-
-        .series-meta {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            flex-wrap: wrap;
-        }
-
-        .status-badge {
-            padding: 6px 14px;
-            border-radius: 999px;
-            background: var(--accent-soft);
-            color: var(--accent-strong);
-            font-weight: 600;
-            font-size: 0.85em;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-        }
-
-        .status-badge.completed {
-            background: #fee2e2;
-            color: #991b1b;
-        }
-
-        .status-badge.not-started {
-            background: #e2e8f0;
-            color: #334155;
-        }
-
-        .step-readout {
-            font-weight: 600;
-            color: var(--muted);
-        }
-
-        .step-track {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-        }
-
-        .step-dot {
-            width: 12px;
-            height: 12px;
-            border-radius: 999px;
-            background: #cbd5d1;
-        }
-
-        .step-dot.running {
-            background: var(--accent);
-            box-shadow: 0 0 0 6px rgba(15, 118, 110, 0.15);
-        }
-
-        .step-dot.completed {
-            background: #f59e0b;
-        }
-
-        .panel-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 20px;
-        }
-
-        .panel-title {
-            font-size: 0.95em;
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-            color: var(--muted);
-            margin-bottom: 12px;
-        }
-
-        .panel-body {
-            display: grid;
-            gap: 12px;
-        }
-
-        .inline-chip {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 6px 12px;
-            border-radius: 999px;
-            background: #f3f4f6;
-            color: var(--ink);
-            font-size: 0.85em;
-            font-weight: 600;
-        }
-
-        .winner-item,
-        .next-item {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 10px 12px;
-            border-radius: 12px;
-            background: #f7f7f4;
-            border: 1px solid var(--border);
-            font-size: 0.95em;
-        }
-
-        .winner-meta {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .winner-badge {
-            width: 22px;
-            height: 22px;
-            border-radius: 999px;
-            background: rgba(245, 158, 11, 0.18);
-            color: #b45309;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
-            font-size: 0.72em;
-            letter-spacing: 0.04em;
-        }
-
-        .winner-name {
-            font-weight: 600;
-        }
-
-        .winners-highlight {
-            animation: winnersPulse 0.8s ease;
-        }
-
-        @keyframes winnersPulse {
-            0% {
-                background: transparent;
-            }
-            30% {
-                background: rgba(245, 158, 11, 0.16);
-            }
-            100% {
-                background: transparent;
-            }
-        }
-
-        .next-item.highlight {
-            border-color: rgba(15, 118, 110, 0.4);
-            background: rgba(15, 118, 110, 0.08);
-        }
-
-        .details-drawer {
-            border-radius: 18px;
-            background: rgba(255, 255, 255, 0.75);
-            border: 1px solid var(--border);
-            box-shadow: var(--shadow);
-            padding: 0;
-        }
-
-        .details-drawer summary {
-            cursor: pointer;
-            list-style: none;
-            padding: 18px 22px;
-            font-family: "Space Grotesk", "IBM Plex Sans", sans-serif;
-            font-size: 1.05em;
-            font-weight: 600;
-            color: var(--accent-strong);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 16px;
-        }
-
-        .details-toggle {
-            display: inline-flex;
-            align-items: center;
-            gap: 10px;
-            font-size: 0.75em;
-            letter-spacing: 0.08em;
-            text-transform: uppercase;
-            color: var(--muted);
-        }
-
-        .details-toggle-state {
-            background: var(--accent-soft);
-            color: var(--accent-strong);
-            padding: 4px 10px;
-            border-radius: 999px;
-        }
-
-        .details-toggle-icon {
-            width: 8px;
-            height: 8px;
-            border-right: 2px solid var(--accent-strong);
-            border-bottom: 2px solid var(--accent-strong);
-            transform: rotate(45deg);
-            transition: transform 0.2s ease;
-        }
-
-        .details-drawer[open] .details-toggle-icon {
-            transform: rotate(-135deg);
-        }
-
-        .details-drawer.auto-collapsed summary {
-            animation: drawerPulse 0.6s ease;
-        }
-
-        @keyframes drawerPulse {
-            0% {
-                background: transparent;
-            }
-            40% {
-                background: rgba(15, 118, 110, 0.12);
-            }
-            100% {
-                background: transparent;
-            }
-        }
-
-        .details-drawer summary::-webkit-details-marker {
-            display: none;
-        }
-
-        .details-grid {
-            padding: 0 22px 22px;
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-            gap: 20px;
+        button.danger {
+            background: #dc2626;
         }
 
         @media (max-width: 800px) {
@@ -466,7 +452,6 @@
             .topbar {
                 flex-direction: column;
                 align-items: flex-start;
-                gap: 12px;
             }
         }
     </style>
@@ -474,76 +459,79 @@
 <body>
     <div class="page">
         <header class="topbar">
-            <h1>Tournament Dashboard</h1>
-            <div class="connection-status">
-                <div class="status-indicator" id="statusIndicator"></div>
-                <span id="statusText">Connecting...</span>
+            <h1>Productivity with AI Tournament Dashboard</h1>
+            <div class="topbar-meta">
+                <span class="status-pill not-started" id="tournamentStatus">Not Started</span>
+                <span class="connection"><span class="connection-dot" id="statusIndicator"></span><span id="statusText">Connecting...</span></span>
             </div>
         </header>
 
-        <section class="card series-bar">
-            <div class="series-bar-top">
-                <div class="series-title" id="seriesTitle">Tournament Series</div>
-                <div class="series-meta">
-                    <span class="status-badge" id="seriesStatusBadge">Not Started</span>
-                    <span class="step-readout" id="seriesStepReadout">Step 0 of 0</span>
+        <section class="card">
+            <h2>Tournament Status</h2>
+            <div class="status-card-grid">
+                <div>
+                    <div class="progress-header">
+                        <span id="progressLabel">Event Progress</span>
+                        <span id="progressPercent">0% Complete</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <div class="step-track" id="eventSteps"></div>
+                </div>
+
+                <div class="status-panels">
+                    <div>
+                        <div class="panel-title">Event Champions</div>
+                        <div class="panel-body" id="eventChampions">
+                            <div class="status-message">No winners yet</div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="panel-title">Overall Leaders <span id="leadersNote" style="font-size: 0.75em; color: var(--muted); font-weight: 400; margin-left: 8px;">(Not Final)</span></div>
+                        <div class="panel-body">
+                            <div id="overallLeaders"></div>
+                        </div>
+                    </div>
                 </div>
             </div>
-            <div class="step-track" id="seriesStepTrack"></div>
         </section>
 
-        <section class="panel-grid">
-            <article class="card">
-                <div class="panel-title">Now Running</div>
-                <div class="panel-body" id="nowRunning">
-                    <div class="status-message">Waiting for series data...</div>
-                </div>
-            </article>
-            <article class="card">
-                <div class="panel-title">Series Champions</div>
-                <div class="panel-body" id="winnersRow">
-                    <div class="status-message">No winners yet</div>
-                </div>
-            </article>
-            <article class="card">
-                <div class="panel-title">Up Next</div>
-                <div class="panel-body" id="upNext">
-                    <div class="status-message">Awaiting schedule</div>
-                </div>
-            </article>
-        </section>
-
-        <details class="details-drawer" id="detailsDrawer">
-            <summary>
-                <span>Details</span>
-                <span class="details-toggle">
-                    <span class="details-toggle-state" id="detailsToggleState">Show</span>
-                    <span class="details-toggle-icon" aria-hidden="true"></span>
-                </span>
-            </summary>
+        <section class="card">
+            <h2>Events Details</h2>
             <div class="details-grid">
-                <div class="card">
-                    <h2>Overall Leaders</h2>
-                    <div id="leaderboard">
-                        <p class="status-message">No data available</p>
-                    </div>
-                </div>
-
-                <div class="card">
-                    <h2>Recent Matches</h2>
+                <div>
+                    <div class="panel-title">Recent Matches</div>
                     <div id="recentMatches">
-                        <p class="status-message">No matches yet</p>
+                        <div class="status-message">No matches yet</div>
                     </div>
                 </div>
-
-                <div class="card">
-                    <h2>Connection Log</h2>
-                    <div id="messages"></div>
-                    <div style="margin-top: 10px;">
-                        <button onclick="requestCurrentState()">Get Current State</button>
-                        <button onclick="clearLog()">Clear Log</button>
-                        <button onclick="clearAllData()" style="background: #dc2626;">Clear All Data</button>
+                <div>
+                    <div class="panel-title">Now Running Event</div>
+                    <div id="nowRunningEvent">
+                        <div class="status-message">Waiting for tournament data...</div>
                     </div>
+                </div>
+                <div>
+                    <div class="panel-title">Group Standings</div>
+                    <div id="groupStandings">
+                        <div class="status-message">No group data yet</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <details class="log-panel" id="logPanel">
+            <summary>
+                <span>System Details</span>
+                <span id="logToggle">Show</span>
+            </summary>
+            <div class="log-body">
+                <div id="messages"></div>
+                <div>
+                    <button onclick="requestCurrentState()">Get Current State</button>
+                    <button onclick="clearLog()">Clear Log</button>
+                    <button class="danger" onclick="clearAllData()">Clear All Data</button>
                 </div>
             </div>
         </details>
@@ -556,126 +544,66 @@
             .withAutomaticReconnect([0, 0, 1000, 3000, 5000, 10000])
             .build();
 
-        // Track retry count for debugging
         let connectionRetries = 0;
+        let lastState = null;
+        let groupCycleIndex = 0;
+        let groupCycleTimer = null;
+        let recentMatches = []; // Separate array for live match streaming
         
+        // Pagination state for Recent Matches
+        let currentMatchPage = 0;
+        let matchesPerPage = 5;
+        let matchCarouselTimer = null;
+        let lastMatchCarouselTime = 0;
+
         connection.on("reconnected", (connectionId) => {
             connectionRetries = 0;
             logMessage(`Reconnected to hub (ID: ${connectionId})`, 'success');
             updateConnectionStatus(true);
-            refreshSeriesView();
+            requestCurrentState();
         });
 
-        connection.on("reconnecting", (error) => {
+        connection.on("reconnecting", () => {
             connectionRetries++;
             logMessage(`Attempting reconnection (attempt ${connectionRetries})...`, 'info');
             updateConnectionStatus(false);
         });
 
-        connection.onreconnected(() => {
-            connectionRetries = 0;
-            logMessage(`Successfully reconnected`, 'success');
-            updateConnectionStatus(true);
-        });
-
-        // Connection event handlers
         connection.on("CurrentState", (state) => {
             logMessage('Received current state', 'success');
-            console.log('State:', state);
-            updateLeaderboard(state.overallLeaderboard);
-            updateRecentMatches(state.recentMatches);
-            if (state) {
-                updateSeriesView(state);
-            }
+            lastState = state;
+            updateFromState(state);
         });
 
         connection.on("MatchCompleted", (match) => {
-            console.log('MatchCompleted event received:', match);
-            const displayMatch = {
-                bot1Name: match.Bot1Name || match.bot1Name,
-                bot2Name: match.Bot2Name || match.bot2Name,
-                winnerName: match.WinnerName || match.winnerName,
-                bot1Score: match.Bot1Score || match.bot1Score,
-                bot2Score: match.Bot2Score || match.bot2Score,
-                completedAt: match.CompletedAt || match.completedAt,
-                tournamentId: match.TournamentId || match.tournamentId,
-                tournamentName: match.TournamentName || match.tournamentName
-            };
-            const tournamentInfo = displayMatch.tournamentName ? ` [${displayMatch.tournamentName}]` : '';
-            logMessage(`Match: ${displayMatch.bot1Name} vs ${displayMatch.bot2Name} - Winner: ${displayMatch.winnerName || 'Draw'}${tournamentInfo}`, 'info');
-            addMatchToFeed(displayMatch);
+            logMessage(`Match: ${match.Bot1Name || match.bot1Name} vs ${match.Bot2Name || match.bot2Name} - Winner: ${match.WinnerName || match.winnerName || 'Draw'}`, 'info');
+            addMatchToFeed(match);
         });
 
         connection.on("StandingsUpdated", (standings) => {
-            const tournamentInfo = standings.TournamentName || standings.tournamentName 
-                ? ` [${standings.TournamentName || standings.tournamentName}]` 
-                : '';
-            logMessage(`Standings updated${tournamentInfo}`, 'info');
-            console.log('Standings received:', standings);
             const leaders = standings.OverallStandings || standings.overallStandings;
-            updateLeaderboard(leaders);
-            // Update UI directly without API call
-            if (leaders && leaders.length > 0) {
-                const view = { 
-                    OverallLeaderboard: leaders,
-                    SeriesStatus: standings.SeriesStatus || standings.seriesStatus
-                };
-                updateTop3Leaders(view);
+            if (leaders) {
+                const isTournamentComplete = lastState && formatStatus(lastState.Status || lastState.status) === 'Completed';
+                updateOverallLeaders(leaders, isTournamentComplete);
+            }
+            if (standings.GroupStandings || standings.groupStandings) {
+                updateGroupStandings(standings.GroupStandings || standings.groupStandings);
             }
         });
 
-        connection.on("TournamentStarted", (tournamentEvent) => {
-            logMessage(`Tournament started: ${tournamentEvent.TournamentName || tournamentEvent.tournamentName}`, 'info');
-            // Minimal refresh to update tournament info
-            refreshSeriesView();
-        });
-
-        connection.on("TournamentCompleted", (completedEvent) => {
-            const tournamentName = completedEvent.TournamentName || completedEvent.tournamentName || '';
-            logMessage(`Tournament completed: ${tournamentName} - Champion: ${completedEvent.Champion || completedEvent.champion}`, 'success');
-            // Wait a moment then refresh to show all updated data
-            setTimeout(() => refreshSeriesView(), 500);
-        });
-
-        connection.on("RoundStarted", (roundEvent) => {
-            const tournamentInfo = roundEvent.TournamentName || roundEvent.tournamentName 
-                ? ` [${roundEvent.TournamentName || roundEvent.tournamentName}]` 
-                : '';
-            logMessage(`Round ${roundEvent.RoundNumber || roundEvent.roundNumber} started${tournamentInfo}`, 'info');
-        });
+        connection.on("EventStarted", () => requestCurrentState());
+        connection.on("TournamentStarted", () => requestCurrentState());
+        connection.on("TournamentProgressUpdated", () => requestCurrentState());
+        connection.on("TournamentCompleted", () => requestCurrentState());
+        connection.on("EventCompleted", () => requestCurrentState());
+        connection.on("EventStepCompleted", () => requestCurrentState());
+        connection.on("SeriesProgressUpdated", () => requestCurrentState());
+        connection.on("SeriesStarted", () => requestCurrentState());
+        connection.on("SeriesCompleted", () => requestCurrentState());
 
         connection.on("SubscriptionConfirmed", (data) => {
             logMessage(data.message, 'success');
-            refreshSeriesView();
-        });
-
-        connection.on("SeriesStarted", (seriesEvent) => {
-            const seriesName = seriesEvent.SeriesName || seriesEvent.seriesName || 'Tournament Series';
-            logMessage(`Series started: ${seriesName}`, 'info');
-            collapseDetailsDrawer();
-            refreshSeriesView();
-        });
-
-        connection.on("SeriesProgressUpdated", (progressEvent) => {
-            logMessage('Series progress updated', 'info');
-            // Immediate update to show step progress
-            refreshSeriesView();
-        });
-
-        connection.on("SeriesStepCompleted", (stepEvent) => {
-            logMessage(`Series step ${stepEvent.StepIndex || stepEvent.stepIndex} completed`, 'success');
-            refreshSeriesView();
-            triggerWinnersRowHighlight();
-        });
-
-        connection.on("SeriesCompleted", (seriesEvent) => {
-            const seriesName = seriesEvent.SeriesName || seriesEvent.seriesName || 'Tournament Series';
-            logMessage(`Series completed: ${seriesName}`, 'success');
-            refreshSeriesView();
-        });
-
-        connection.on("Pong", (timestamp) => {
-            logMessage(`Pong received at ${new Date(timestamp).toLocaleTimeString()}`, 'info');
+            requestCurrentState();
         });
 
         connection.onclose(() => {
@@ -683,18 +611,6 @@
             logMessage('Connection closed', 'error');
         });
 
-        connection.onreconnecting(() => {
-            updateConnectionStatus(false);
-            logMessage('Reconnecting...', 'info');
-        });
-
-        connection.onreconnected(() => {
-            updateConnectionStatus(true);
-            logMessage('Reconnected successfully', 'success');
-            requestCurrentState();
-        });
-
-        // Start connection
         async function start() {
             try {
                 await connection.start();
@@ -705,14 +621,12 @@
             } catch (err) {
                 updateConnectionStatus(false);
                 logMessage(`Connection error: ${err}`, 'error');
-                // Exponential backoff: start at 1s, max 10s
                 const delay = Math.min(1000 * Math.pow(1.5, connectionRetries), 10000);
                 connectionRetries++;
                 setTimeout(start, delay);
             }
         }
 
-        // Helper functions
         function updateConnectionStatus(connected) {
             const indicator = document.getElementById('statusIndicator');
             const text = document.getElementById('statusText');
@@ -727,29 +641,12 @@
             }
         }
 
-        function pickValue(obj, ...keys) {
-            for (const key of keys) {
-                if (obj && obj[key] !== undefined && obj[key] !== null) {
-                    return obj[key];
-                }
-            }
-            return undefined;
-        }
-
-        function formatSeriesStatus(status) {
+        function formatStatus(status) {
             if (typeof status === 'number') {
-                const statusNames = ['NotStarted', 'InProgress', 'Completed'];
+                const statusNames = ['NotStarted', 'InProgress', 'Paused', 'Completed'];
                 return statusNames[status] || 'NotStarted';
             }
             return status || 'NotStarted';
-        }
-
-        function formatStepStatus(status) {
-            if (typeof status === 'number') {
-                const statusNames = ['Pending', 'Running', 'Completed'];
-                return statusNames[status] || 'Pending';
-            }
-            return status || 'Pending';
         }
 
         function formatGameType(gameType) {
@@ -765,320 +662,308 @@
             return map[value] || value.replace(/([a-z])([A-Z])/g, '$1 $2');
         }
 
-        // Debounce refreshSeriesView to avoid hammering the API
-        let refreshTimeout;
-        let lastRefreshTime = 0;
-        const MIN_REFRESH_INTERVAL = 500; // ms
+        function updateFromState(state) {
+            const tournamentState = state.TournamentState || state.tournamentState;
+            const steps = tournamentState?.Steps || tournamentState?.steps || [];
+            const status = formatStatus(state.Status || state.status || tournamentState?.Status || tournamentState?.status);
+            const totalSteps = tournamentState?.TotalSteps || tournamentState?.totalSteps || steps.length || 0;
+            const completedSteps = steps.filter(step => formatStepStatus(step.Status || step.status) === 'Completed').length;
+            const progressPercent = totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0;
+            const isTournamentComplete = status === 'Completed';
 
-        async function refreshSeriesView() {
-            // Clear any pending refresh
-            if (refreshTimeout) {
-                clearTimeout(refreshTimeout);
+            // Sync recent matches from state
+            const stateMatches = state.RecentMatches || state.recentMatches || [];
+            if (stateMatches.length > 0) {
+                recentMatches = stateMatches;
             }
 
-            // Debounce: don't refresh more than MIN_REFRESH_INTERVAL apart
-            const now = Date.now();
-            const timeSinceLastRefresh = now - lastRefreshTime;
-            
-            if (timeSinceLastRefresh < MIN_REFRESH_INTERVAL) {
-                // Schedule a refresh after the minimum interval
-                refreshTimeout = setTimeout(() => {
-                    doRefreshSeriesView();
-                }, MIN_REFRESH_INTERVAL - timeSinceLastRefresh);
+            updateStatusPill(status);
+            updateProgress(progressPercent);
+            updateStepTrack(steps);
+            updateEventChampions(steps);
+            updateOverallLeaders(state.OverallLeaderboard || state.overallLeaderboard || [], isTournamentComplete);
+            updateNowRunning(state, steps, isTournamentComplete);
+            updateGroupStandings(state.GroupStandings || state.groupStandings || []);
+            updateRecentMatches(recentMatches);
+        }
+
+        function updateStatusPill(status) {
+            const pill = document.getElementById('tournamentStatus');
+            pill.textContent = status.replace(/([a-z])([A-Z])/g, '$1 $2');
+            pill.classList.remove('completed', 'not-started');
+            if (status === 'Completed') {
+                pill.classList.add('completed');
+            } else if (status === 'NotStarted') {
+                pill.classList.add('not-started');
+            }
+        }
+
+        function updateProgress(percent) {
+            document.getElementById('progressPercent').textContent = `${percent}% Complete`;
+            document.getElementById('progressFill').style.width = `${percent}%`;
+        }
+
+        function formatStepStatus(status) {
+            if (typeof status === 'number') {
+                const statusNames = ['NotStarted', 'InProgress', 'Completed'];
+                return statusNames[status] || 'NotStarted';
+            }
+            return status || 'NotStarted';
+        }
+
+        function updateStepTrack(steps) {
+            const container = document.getElementById('eventSteps');
+            if (!steps.length) {
+                container.innerHTML = '<div class="status-message">No events configured</div>';
                 return;
             }
 
-            await doRefreshSeriesView();
-        }
-
-        async function doRefreshSeriesView() {
-            try {
-                lastRefreshTime = Date.now();
-                const response = await fetch('/api/tournament/series-view');
-                if (!response.ok) {
-                    throw new Error(`Series view fetch failed: ${response.status}`);
-                }
-                const view = await response.json();
-                updateSeriesView(view);
-            } catch (err) {
-                logMessage(`Series view error: ${err}`, 'error');
-            }
-        }
-
-        function updateSeriesView(view) {
-            const seriesTitle = pickValue(view, 'SeriesTitle', 'seriesTitle') || 'Tournament Series';
-            const seriesStatus = formatSeriesStatus(pickValue(view, 'SeriesStatus', 'seriesStatus'));
-            const totalSteps = pickValue(view, 'TotalSteps', 'totalSteps') || 0;
-            const currentStepIndex = pickValue(view, 'CurrentStepIndex', 'currentStepIndex') || 0;
-            const currentGameType = pickValue(view, 'CurrentGameType', 'currentGameType');
-
-            const titleEl = document.getElementById('seriesTitle');
-            const statusEl = document.getElementById('seriesStatusBadge');
-            const readoutEl = document.getElementById('seriesStepReadout');
-            const trackEl = document.getElementById('seriesStepTrack');
-
-            titleEl.textContent = seriesTitle;
-            statusEl.textContent = seriesStatus.replace(/([a-z])([A-Z])/g, '$1 $2');
-            statusEl.classList.remove('completed', 'not-started');
-            if (seriesStatus === 'Completed') {
-                statusEl.classList.add('completed');
-            } else if (seriesStatus === 'NotStarted') {
-                statusEl.classList.add('not-started');
-            }
-
-            const gameLabel = formatGameType(currentGameType);
-            readoutEl.textContent = totalSteps > 0
-                ? `Step ${currentStepIndex} of ${totalSteps}${gameLabel ? ` - ${gameLabel}` : ''}`
-                : 'Step 0 of 0';
-
-            const stepTrack = pickValue(view, 'StepTrack', 'stepTrack') || [];
-            trackEl.innerHTML = stepTrack.map(step => {
+            container.innerHTML = steps.map(step => {
                 const status = formatStepStatus(step.Status || step.status);
-                const className = status === 'Running'
+                const className = status === 'InProgress'
                     ? 'running'
                     : status === 'Completed'
                         ? 'completed'
                         : '';
-                return `<span class="step-dot ${className}"></span>`;
+                const label = formatGameType(step.GameType || step.gameType) || `Event ${step.StepIndex || step.stepIndex}`;
+                return `<span class="step-chip ${className}">${label}</span>`;
             }).join('');
-
-            updateNowRunning(view);
-            updateWinnersRow(view);
-            updateSeriesWinner(view);
-            updateTop3Leaders(view);
-            updateUpNext(view);
         }
 
-        function updateNowRunning(view) {
-            const nowRunningEl = document.getElementById('nowRunning');
-            const gameType = formatGameType(pickValue(view, 'CurrentGameType', 'currentGameType'));
-            const tournamentName = pickValue(view, 'CurrentTournamentName', 'currentTournamentName') || 'Awaiting tournament';
-            const tournamentId = pickValue(view, 'CurrentTournamentId', 'currentTournamentId');
-            const message = pickValue(view, 'StatusMessage', 'statusMessage') || 'Waiting for updates';
-
-            nowRunningEl.innerHTML = `
-                <div class="inline-chip">${gameType || 'Series idle'}</div>
-                <div><strong>${tournamentName}</strong></div>
-                ${tournamentId ? `<div class="timestamp">ID: ${tournamentId}</div>` : ''}
-                <div class="timestamp">${message}</div>
-            `;
-        }
-
-        function updateWinnersRow(view) {
-            const winnersEl = document.getElementById('winnersRow');
-            const winners = pickValue(view, 'Winners', 'winners') || [];
-
-            if (winners.length === 0) {
-                winnersEl.innerHTML = '<div class="status-message">No winners yet</div>';
+        function updateEventChampions(steps) {
+            const container = document.getElementById('eventChampions');
+            if (!steps || steps.length === 0) {
+                container.innerHTML = '<div class="status-message">No events configured</div>';
                 return;
             }
 
-            winnersEl.innerHTML = winners.map(step => {
-                const winnerName = step.WinnerName || step.winnerName || 'TBD';
+            // Show all events with their status and winners
+            container.innerHTML = steps.map(step => {
+                const status = formatStepStatus(step.Status || step.status);
+                const winner = step.WinnerName || step.winnerName || 'TBD';
+                const label = formatGameType(step.GameType || step.gameType) || `Event ${step.StepIndex || step.stepIndex}`;
+                const statusBadge = status === 'Completed' 
+                    ? `<span style="color: #16a34a; font-weight: 600;">✓ ${winner}</span>`
+                    : status === 'InProgress'
+                        ? `<span style="color: var(--accent); font-weight: 600;">⧖ Running</span>`
+                        : `<span style="color: var(--muted); font-weight: 500;">⊙ Pending</span>`;
+                
                 return `
-                    <div class="winner-item">
-                        <span>Step ${step.StepIndex || step.stepIndex} · ${formatGameType(step.GameType || step.gameType)}</span>
-                        <span class="winner-meta">
-                            <span class="winner-badge">W</span>
-                            <span class="winner-name">${winnerName}</span>
-                        </span>
+                    <div class="list-item">
+                        <span>${label}</span>
+                        ${statusBadge}
                     </div>
                 `;
             }).join('');
         }
 
-        function updateUpNext(view) {
-            const upNextEl = document.getElementById('upNext');
-            const upcoming = pickValue(view, 'UpNext', 'upNext') || [];
-
-            if (upcoming.length === 0) {
-                upNextEl.innerHTML = '<div class="status-message">No upcoming steps</div>';
-                return;
-            }
-
-            upNextEl.innerHTML = upcoming.map((step, index) => `
-                <div class="next-item ${index === 0 ? 'highlight' : ''}">
-                    <span>Step ${step.StepIndex || step.stepIndex}</span>
-                    <span>${formatGameType(step.GameType || step.gameType)}</span>
-                </div>
-            `).join('');
-        }
-
-        function updateSeriesWinner(view) {
-            const winnersRowEl = document.getElementById('winnersRow');
-            const winners = pickValue(view, 'Winners', 'winners') || [];
-
-            if (winners.length === 0) {
-                winnersRowEl.innerHTML = '<div class="status-message">No winners yet</div>';
-                return;
-            }
-
-            winnersRowEl.innerHTML = winners.map(step => {
-                const winnerName = step.WinnerName || step.winnerName || 'TBD';
-                return `
-                    <div class="winner-item">
-                        <span>Step ${step.StepIndex || step.stepIndex} · ${formatGameType(step.GameType || step.gameType)}</span>
-                        <span class="winner-meta">
-                            <span class="winner-badge">🏆</span>
-                            <span class="winner-name">${winnerName}</span>
-                        </span>
-                    </div>
-                `;
-            }).join('');
-        }
-
-        function updateTop3Leaders(view) {
-            const leaderboard = pickValue(view, 'OverallLeaderboard', 'overallLeaderboard') || [];
-            // Show only 2nd and 3rd place (skip 1st place champion)
-            const top2of3 = leaderboard.slice(1, 3);
-            if (top2of3.length > 0) {
-                console.log('Top 2 of 3:', top2of3);
-            }
-        }
-
-        function collapseDetailsDrawer() {
-            const drawer = document.getElementById('detailsDrawer');
-            if (!drawer) {
-                return;
-            }
-
-            const wasOpen = drawer.open;
-            if (wasOpen) {
-                drawer.open = false;
-            }
-
-            saveDetailsDrawerState(false);
-            updateDetailsToggleState(false);
-            triggerDetailsAutoCollapseCue();
-        }
-
-        function triggerDetailsAutoCollapseCue() {
-            const drawer = document.getElementById('detailsDrawer');
-            if (!drawer) {
-                return;
-            }
-
-            drawer.classList.add('auto-collapsed');
-            window.setTimeout(() => {
-                drawer.classList.remove('auto-collapsed');
-            }, 650);
-        }
-
-        function triggerWinnersRowHighlight() {
-            const winnersEl = document.getElementById('winnersRow');
-            if (!winnersEl) {
-                return;
-            }
-
-            winnersEl.classList.add('winners-highlight');
-            window.setTimeout(() => {
-                winnersEl.classList.remove('winners-highlight');
-            }, 850);
-        }
-
-        function saveDetailsDrawerState(isOpen) {
-            if (!window.localStorage) {
-                return;
-            }
-
-            localStorage.setItem('detailsDrawerOpen', isOpen ? 'true' : 'false');
-        }
-
-        function loadDetailsDrawerState() {
-            if (!window.localStorage) {
-                return null;
-            }
-
-            return localStorage.getItem('detailsDrawerOpen');
-        }
-
-        function updateDetailsToggleState(isOpen) {
-            const label = document.getElementById('detailsToggleState');
-            if (label) {
-                label.textContent = isOpen ? 'Hide' : 'Show';
-            }
-        }
-
-        function initializeDetailsDrawer() {
-            const drawer = document.getElementById('detailsDrawer');
-            if (!drawer) {
-                return;
-            }
-
-            const storedState = loadDetailsDrawerState();
-            if (storedState === null) {
-                drawer.open = false;
-            } else {
-                drawer.open = storedState === 'true';
-            }
-
-            updateDetailsToggleState(drawer.open);
-
-            drawer.addEventListener('toggle', () => {
-                saveDetailsDrawerState(drawer.open);
-                updateDetailsToggleState(drawer.open);
-            });
-        }
-
-        function updateLeaderboard(leaders) {
-            const leaderboardDiv = document.getElementById('leaderboard');
+        function updateOverallLeaders(leaders, isTournamentComplete = false) {
+            const container = document.getElementById('overallLeaders');
+            const note = document.getElementById('leadersNote');
+            
             if (!leaders || leaders.length === 0) {
-                leaderboardDiv.innerHTML = '<p class="status-message">No standings available</p>';
+                container.innerHTML = '<div class="status-message">No standings available</div>';
+                return;
+            }
+
+            // Update disclaimer visibility
+            if (note) {
+                note.style.display = isTournamentComplete ? 'none' : 'inline';
+            }
+
+            container.innerHTML = leaders.slice(0, 5).map((team, index) => {
+                const isChampion = index === 0 && isTournamentComplete;
+                const championClass = isChampion ? ' champion' : '';
+                const championIcon = isChampion ? '🏆 ' : '';
+                const championLabel = isChampion ? '<span class="champion-label">Tournament Champion</span>' : '';
+                
+                return `
+                    <div class="leaderboard-item${championClass}">
+                        <span>${championIcon}${index + 1}. ${team.TeamName || team.teamName}${championLabel}</span>
+                        <span>${team.TotalPoints || team.totalPoints} pts</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function updateNowRunning(state, steps, isTournamentComplete = false) {
+            const container = document.getElementById('nowRunningEvent');
+            
+            // If tournament is complete, show completion message instead of event details
+            if (isTournamentComplete) {
+                container.innerHTML = `<div class="status-message">All events completed</div>`;
                 return;
             }
             
-            leaderboardDiv.innerHTML = leaders.slice(0, 10).map((team, index) => `
-                <div class="leaderboard-item">
-                    <span>${index + 1}. ${team.teamName}</span>
-                    <span>${team.totalPoints} pts</span>
+            const currentStep = steps.find(step => formatStepStatus(step.Status || step.status) === 'InProgress');
+            const currentEvent = state.CurrentEvent || state.currentEvent;
+            const gameType = currentStep?.GameType || currentStep?.gameType || currentEvent?.GameType || currentEvent?.gameType;
+            const eventName = currentEvent?.EventName || currentEvent?.eventName || formatGameType(gameType);
+            const stage = currentEvent?.Stage || currentEvent?.stage;
+            const progress = currentEvent?.ProgressPercentage || currentEvent?.progressPercentage;
+            const matchesCompleted = currentEvent?.MatchesCompleted || currentEvent?.matchesCompleted;
+            const totalMatches = currentEvent?.TotalMatches || currentEvent?.totalMatches;
+            const statusMessage = state.Message || state.message || 'Awaiting updates';
+
+            if (!currentStep && !currentEvent) {
+                container.innerHTML = `<div class="status-message">${statusMessage}</div>`;
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="list-item">
+                    <span>Event Name</span>
+                    <span>${eventName || 'In progress'}</span>
+                </div>
+                <div class="list-item">
+                    <span>Stage</span>
+                    <span>${stage || 'Group Stage'}</span>
+                </div>
+                <div class="list-item">
+                    <span>Matches</span>
+                    <span>${matchesCompleted ?? 0} / ${totalMatches ?? 0}</span>
+                </div>
+                <div class="status-message">${progress ? `${Math.round(progress)}% complete` : statusMessage}</div>
+            `;
+        }
+
+        function updateGroupStandings(groups) {
+            if (!groups || groups.length === 0) {
+                document.getElementById('groupStandings').innerHTML = '<div class="status-message">No group data yet</div>';
+                return;
+            }
+
+            if (groupCycleTimer) {
+                clearInterval(groupCycleTimer);
+            }
+
+            groupCycleIndex = Math.min(groupCycleIndex, groups.length - 1);
+            renderGroup(groups[groupCycleIndex]);
+
+            groupCycleTimer = setInterval(() => {
+                groupCycleIndex = (groupCycleIndex + 1) % groups.length;
+                renderGroup(groups[groupCycleIndex]);
+            }, 5000);
+        }
+
+        function renderGroup(group) {
+            const container = document.getElementById('groupStandings');
+            const rankings = group.Rankings || group.rankings || [];
+            const rows = rankings.slice(0, 5).map(team => `
+                <div class="list-item">
+                    <span>${team.Rank || team.rank}. ${team.TeamName || team.teamName}</span>
+                    <span>${team.Points || team.points} pts</span>
                 </div>
             `).join('');
+
+            container.innerHTML = `
+                <div class="group-header">
+                    <span>${group.GroupName || group.groupName}</span>
+                    <span class="timestamp">Auto-cycles</span>
+                </div>
+                ${rows || '<div class="status-message">No standings yet</div>'}
+            `;
         }
 
         function updateRecentMatches(matches) {
-            const matchesDiv = document.getElementById('recentMatches');
+            const container = document.getElementById('recentMatches');
             if (!matches || matches.length === 0) {
-                matchesDiv.innerHTML = '<p class="status-message">No matches yet</p>';
+                container.innerHTML = '<div class="status-message">No matches yet</div>';
                 return;
             }
+
+            const totalPages = Math.ceil(matches.length / matchesPerPage);
+            const maxPage = Math.max(0, totalPages - 1);
             
-            matchesDiv.innerHTML = matches.slice(-10).reverse().map(match => {
-                const tournamentName = match.TournamentName || match.tournamentName || '';
-                const tournamentBadge = tournamentName ? `<span class="tournament-badge">${tournamentName}</span>` : '';
+            // Reset page if out of bounds
+            if (currentMatchPage > maxPage) {
+                currentMatchPage = maxPage;
+            }
+
+            const startIdx = currentMatchPage * matchesPerPage;
+            const endIdx = startIdx + matchesPerPage;
+            const pageMatches = matches.slice(startIdx, endIdx).reverse();
+
+            const pageHTML = pageMatches.map(match => {
+                const bot1 = match.Bot1Name || match.bot1Name;
+                const bot2 = match.Bot2Name || match.bot2Name;
+                const winner = match.WinnerName || match.winnerName || 'Draw';
+                const score1 = match.Bot1Score || match.bot1Score || 0;
+                const score2 = match.Bot2Score || match.bot2Score || 0;
+                const when = new Date(match.CompletedAt || match.completedAt).toLocaleTimeString();
+                const gameLabel = formatGameType(match.GameType || match.gameType);
                 return `
                     <div class="match-item">
-                        <div class="match-result">${match.Bot1Name || match.bot1Name} vs ${match.Bot2Name || match.bot2Name}${tournamentBadge}</div>
-                        <div>Result: ${match.WinnerName || match.winnerName || 'Draw'} (${match.Bot1Score || match.bot1Score}-${match.Bot2Score || match.bot2Score})</div>
-                        <div class="timestamp">${new Date(match.CompletedAt || match.completedAt).toLocaleTimeString()}</div>
+                        <div class="match-result">${bot1} vs ${bot2}</div>
+                        <div>Result: ${winner} (${score1}-${score2})</div>
+                        <div class="timestamp">${gameLabel} - ${when}</div>
                     </div>
                 `;
             }).join('');
+
+            const timerDisplay = matchCarouselTimer ? ` <span class="carousel-timer">(Auto-advance in ${Math.ceil((lastMatchCarouselTime + 10000 - Date.now()) / 1000)}s)</span>` : '';
+
+            container.innerHTML = `
+                <div class="matches-carousel">
+                    <div class="matches-page">
+                        ${pageHTML || '<div class="status-message">No matches on this page</div>'}
+                    </div>
+                    <div class="matches-pagination">
+                        <button class="pagination-btn" onclick="previousMatchesPage()" ${currentMatchPage === 0 ? 'disabled' : ''}>← Previous</button>
+                        <span class="pagination-info">
+                            Page ${currentMatchPage + 1} of ${totalPages}${timerDisplay}
+                        </span>
+                        <button class="pagination-btn" onclick="nextMatchesPage()" ${currentMatchPage >= maxPage ? 'disabled' : ''}>Next →</button>
+                    </div>
+                </div>
+            `;
+
+            // Reset or continue carousel timer
+            clearTimeout(matchCarouselTimer);
+            lastMatchCarouselTime = Date.now();
+            
+            if (currentMatchPage < maxPage) {
+                matchCarouselTimer = setTimeout(() => {
+                    currentMatchPage++;
+                    updateRecentMatches(matches);
+                }, 10000); // Auto-advance every 10 seconds
+            }
         }
 
         function addMatchToFeed(match) {
-            const matchesDiv = document.getElementById('recentMatches');
-            const bot1Name = match.Bot1Name || match.bot1Name;
-            const bot2Name = match.Bot2Name || match.bot2Name;
-            const winnerName = match.WinnerName || match.winnerName;
-            const bot1Score = match.Bot1Score || match.bot1Score;
-            const bot2Score = match.Bot2Score || match.bot2Score;
-            const completedAt = match.CompletedAt || match.completedAt;
-            const tournamentName = match.TournamentName || match.tournamentName || '';
-            const tournamentBadge = tournamentName ? `<span class="tournament-badge">${tournamentName}</span>` : '';
+            // Add to local matches array for live streaming
+            recentMatches.unshift(match); // Add to beginning for most recent first
             
-            const matchHtml = `
-                <div class="match-item" style="animation: slideIn 0.3s;">
-                    <div class="match-result">${bot1Name} vs ${bot2Name}${tournamentBadge}</div>
-                    <div>Result: ${winnerName || 'Draw'} (${bot1Score}-${bot2Score})</div>
-                    <div class="timestamp">${new Date(completedAt).toLocaleTimeString()}</div>
-                </div>
-            `;
-            matchesDiv.insertAdjacentHTML('afterbegin', matchHtml);
+            // Keep only last 100 matches to avoid memory bloat
+            if (recentMatches.length > 100) {
+                recentMatches = recentMatches.slice(0, 100);
+            }
             
-            // Keep only last 10 matches
-            const items = matchesDiv.querySelectorAll('.match-item');
-            if (items.length > 10) {
-                items[items.length - 1].remove();
+            updateRecentMatches(recentMatches);
+            
+            // Also update lastState if it exists
+            if (lastState) {
+                const list = lastState.RecentMatches || lastState.recentMatches || [];
+                list.unshift(match);
+                if (list.length > 100) {
+                    lastState.RecentMatches = list.slice(0, 100);
+                    lastState.recentMatches = list.slice(0, 100);
+                }
+            }
+        }
+
+        function nextMatchesPage() {
+            const maxPage = Math.max(0, Math.ceil(recentMatches.length / matchesPerPage) - 1);
+            if (currentMatchPage < maxPage) {
+                currentMatchPage++;
+                updateRecentMatches(recentMatches);
+            }
+        }
+
+        function previousMatchesPage() {
+            if (currentMatchPage > 0) {
+                currentMatchPage--;
+                updateRecentMatches(recentMatches);
             }
         }
 
@@ -1113,32 +998,29 @@
                 if (!response.ok) {
                     throw new Error(`Clear failed: ${response.status}`);
                 }
-                logMessage('✅ All data cleared successfully!', 'success');
-                
-                // Clear local UI
-                document.getElementById('nowRunning').innerHTML = '<div class="status-message">Waiting for series data...</div>';
-                document.getElementById('winnersRow').innerHTML = '<div class="status-message">No winners yet</div>';
-                document.getElementById('upNext').innerHTML = '<div class="status-message">Awaiting schedule</div>';
-                document.getElementById('leaderboard').innerHTML = '<p class="status-message">No data available</p>';
-                document.getElementById('recentMatches').innerHTML = '<p class="status-message">No matches yet</p>';
-                document.getElementById('messages').innerHTML = '';
-                
-                // Reset series bar
-                document.getElementById('seriesTitle').textContent = 'Tournament Series';
-                document.getElementById('seriesStatusBadge').textContent = 'Not Started';
-                document.getElementById('seriesStatusBadge').className = 'status-badge not-started';
-                document.getElementById('seriesStepReadout').textContent = 'Step 0 of 0';
-                document.getElementById('seriesStepTrack').innerHTML = '';
-                
-                // Refresh state
-                setTimeout(() => refreshSeriesView(), 500);
+                logMessage('All data cleared successfully', 'success');
+                lastState = null;
+                recentMatches = [];
+                currentMatchPage = 0;
+                clearTimeout(matchCarouselTimer);
+                matchCarouselTimer = null;
+                updateFromState({ OverallLeaderboard: [], GroupStandings: [], RecentMatches: [] });
             } catch (err) {
                 logMessage(`Error clearing data: ${err}`, 'error');
             }
         }
 
-        // Start the connection
-        initializeDetailsDrawer();
+        function setupLogPanel() {
+            const panel = document.getElementById('logPanel');
+            const toggle = document.getElementById('logToggle');
+            const updateToggle = () => {
+                toggle.textContent = panel.open ? 'Hide' : 'Show';
+            };
+            updateToggle();
+            panel.addEventListener('toggle', updateToggle);
+        }
+
+        setupLogPanel();
         start();
     </script>
 </body>

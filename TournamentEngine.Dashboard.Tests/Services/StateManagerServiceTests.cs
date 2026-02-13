@@ -36,10 +36,14 @@ public class StateManagerServiceTests
     public async Task UpdateStateAsync_SetsNewState()
     {
         // Arrange
-        var newState = new TournamentStateDto
+        var newTournamentState = new TournamentStateDto
         {
             TournamentId = "tournament-123",
-            Status = TournamentStatus.InProgress,
+            Status = TournamentStatus.InProgress
+        };
+        var newDashboardState = new DashboardStateDto
+        {
+            TournamentState = newTournamentState,
             Message = "Round 1 in progress",
             OverallLeaderboard = new List<TeamStandingDto>
             {
@@ -48,11 +52,11 @@ public class StateManagerServiceTests
         };
 
         // Act
-        await _service.UpdateStateAsync(newState);
+        await _service.UpdateStateAsync(newDashboardState);
         var retrievedState = await _service.GetCurrentStateAsync();
 
         // Assert
-        retrievedState.Should().BeEquivalentTo(newState);
+        retrievedState.TournamentState.Should().BeEquivalentTo(newTournamentState);
     }
 
     [Fact]
@@ -136,11 +140,15 @@ public class StateManagerServiceTests
     public async Task ClearStateAsync_ResetsToInitialState()
     {
         // Arrange - Set up some state
-        await _service.UpdateStateAsync(new TournamentStateDto
+        var updateState = new DashboardStateDto
         {
-            Status = TournamentStatus.InProgress,
+            TournamentState = new TournamentStateDto
+            {
+                Status = TournamentStatus.InProgress
+            },
             Message = "Tournament active"
-        });
+        };
+        await _service.UpdateStateAsync(updateState);
         _service.AddRecentMatch(new MatchCompletedDto
         {
             MatchId = "match-1",
@@ -172,10 +180,13 @@ public class StateManagerServiceTests
             var index = i;
             tasks.Add(Task.Run(async () =>
             {
-                await _service.UpdateStateAsync(new TournamentStateDto
+                await _service.UpdateStateAsync(new DashboardStateDto
                 {
-                    TournamentId = $"tournament-{index}",
-                    Status = TournamentStatus.InProgress
+                    TournamentState = new TournamentStateDto
+                    {
+                        TournamentId = $"tournament-{index}",
+                        Status = TournamentStatus.InProgress
+                    }
                 });
             }));
 
@@ -209,100 +220,99 @@ public class StateManagerServiceTests
     }
 
     [Fact]
-    public async Task UpdateSeriesStartedAsync_SetsSeriesState()
+    public async Task UpdateTournamentStartedAsync_SetsSeriesState()
     {
         // Arrange
-        var seriesEvent = new SeriesStartedDto
+        var seriesEvent = new TournamentStartedEventDto
         {
-            SeriesId = "series-1",
-            SeriesName = "Local Series",
+            TournamentId = "series-1",
+            TournamentName = "Local Series",
             TotalSteps = 3,
-            Steps = new List<SeriesStepDto>
+            Steps = new List<EventStepDto>
             {
-                new() { StepIndex = 1, GameType = GameType.RPSLS, Status = SeriesStepStatus.Running },
-                new() { StepIndex = 2, GameType = GameType.ColonelBlotto, Status = SeriesStepStatus.Pending },
-                new() { StepIndex = 3, GameType = GameType.PenaltyKicks, Status = SeriesStepStatus.Pending }
+                new() { StepIndex = 1, GameType = GameType.RPSLS, Status = EventStepStatus.InProgress },
+                new() { StepIndex = 2, GameType = GameType.ColonelBlotto, Status = EventStepStatus.NotStarted },
+                new() { StepIndex = 3, GameType = GameType.PenaltyKicks, Status = EventStepStatus.NotStarted }
             },
             StartedAt = DateTime.UtcNow
         };
 
         // Act
-        await _service.UpdateSeriesStartedAsync(seriesEvent);
+        await _service.UpdateTournamentStartedAsync(seriesEvent);
         var state = await _service.GetCurrentStateAsync();
 
         // Assert
-        state.SeriesState.Should().NotBeNull();
-        state.SeriesState!.SeriesId.Should().Be("series-1");
-        state.SeriesState.SeriesName.Should().Be("Local Series");
-        state.SeriesState.TotalSteps.Should().Be(3);
-        state.SeriesState.Status.Should().Be(SeriesStatus.InProgress);
-        state.SeriesState.Steps.Should().HaveCount(3);
+        state.TournamentState.Should().NotBeNull();
+        state.TournamentState!.TournamentId.Should().Be("series-1");
+        state.TournamentState.TournamentName.Should().Be("Local Series");
+        state.TournamentState.TotalSteps.Should().Be(3);
+        state.TournamentState.Status.Should().Be(TournamentStatus.InProgress);
+        state.TournamentState.Steps.Should().HaveCount(3);
     }
 
     [Fact]
-    public async Task UpdateSeriesProgressAsync_UpdatesCurrentStep()
+    public async Task UpdateTournamentProgressAsync_UpdatesCurrentStep()
     {
         // Arrange
-        await _service.UpdateSeriesStartedAsync(new SeriesStartedDto
+        await _service.UpdateTournamentStartedAsync(new TournamentStartedEventDto
         {
-            SeriesId = "series-2",
-            SeriesName = "Progress Series",
+            TournamentId = "series-2",
+            TournamentName = "Progress Series",
             TotalSteps = 2,
-            Steps = new List<SeriesStepDto>
+            Steps = new List<EventStepDto>
             {
-                new() { StepIndex = 1, GameType = GameType.RPSLS, Status = SeriesStepStatus.Running },
-                new() { StepIndex = 2, GameType = GameType.ColonelBlotto, Status = SeriesStepStatus.Pending }
+                new() { StepIndex = 1, GameType = GameType.RPSLS, Status = EventStepStatus.InProgress },
+                new() { StepIndex = 2, GameType = GameType.ColonelBlotto, Status = EventStepStatus.NotStarted }
             },
             StartedAt = DateTime.UtcNow
         });
 
-        var progressEvent = new SeriesProgressUpdatedDto
+        var progressEvent = new TournamentProgressUpdatedEventDto
         {
-            SeriesState = new SeriesStateDto
+            TournamentState = new TournamentStateDto
             {
-                SeriesId = "series-2",
-                SeriesName = "Progress Series",
+                TournamentId = "series-2",
+                TournamentName = "Progress Series",
                 TotalSteps = 2,
                 CurrentStepIndex = 2,
-                Status = SeriesStatus.InProgress,
-                Steps = new List<SeriesStepDto>
+                Status = TournamentStatus.InProgress,
+                Steps = new List<EventStepDto>
                 {
-                    new() { StepIndex = 1, GameType = GameType.RPSLS, Status = SeriesStepStatus.Completed, WinnerName = "TeamA" },
-                    new() { StepIndex = 2, GameType = GameType.ColonelBlotto, Status = SeriesStepStatus.Running }
+                    new() { StepIndex = 1, GameType = GameType.RPSLS, Status = EventStepStatus.Completed, WinnerName = "TeamA" },
+                    new() { StepIndex = 2, GameType = GameType.ColonelBlotto, Status = EventStepStatus.InProgress }
                 }
             },
             UpdatedAt = DateTime.UtcNow
         };
 
         // Act
-        await _service.UpdateSeriesProgressAsync(progressEvent);
+        await _service.UpdateTournamentProgressAsync(progressEvent);
         var state = await _service.GetCurrentStateAsync();
 
         // Assert
-        state.SeriesState.Should().NotBeNull();
-        state.SeriesState!.CurrentStepIndex.Should().Be(2);
-        state.SeriesState.Steps.First(s => s.StepIndex == 1).Status.Should().Be(SeriesStepStatus.Completed);
+        state.TournamentState.Should().NotBeNull();
+        state.TournamentState!.CurrentStepIndex.Should().Be(2);
+        state.TournamentState.Steps.First(s => s.StepIndex == 1).Status.Should().Be(EventStepStatus.Completed);
     }
 
     [Fact]
-    public async Task UpdateSeriesStepCompletedAsync_MarksWinner()
+    public async Task UpdateEventStepCompletedAsync_MarksWinner()
     {
         // Arrange
-        await _service.UpdateSeriesStartedAsync(new SeriesStartedDto
+        await _service.UpdateTournamentStartedAsync(new TournamentStartedEventDto
         {
-            SeriesId = "series-3",
-            SeriesName = "Winner Series",
+            TournamentId = "series-3",
+            TournamentName = "Winner Series",
             TotalSteps = 1,
-            Steps = new List<SeriesStepDto>
+            Steps = new List<EventStepDto>
             {
-                new() { StepIndex = 1, GameType = GameType.RPSLS, Status = SeriesStepStatus.Running }
+                new() { StepIndex = 1, GameType = GameType.RPSLS, Status = EventStepStatus.InProgress }
             },
             StartedAt = DateTime.UtcNow
         });
 
-        var completedEvent = new SeriesStepCompletedDto
+        var completedEvent = new EventStepCompletedDto
         {
-            SeriesId = "series-3",
             StepIndex = 1,
             GameType = GameType.RPSLS,
             WinnerName = "TeamWin",
@@ -312,47 +322,47 @@ public class StateManagerServiceTests
         };
 
         // Act
-        await _service.UpdateSeriesStepCompletedAsync(completedEvent);
+        await _service.UpdateEventStepCompletedAsync(completedEvent);
         var state = await _service.GetCurrentStateAsync();
 
         // Assert
-        state.SeriesState.Should().NotBeNull();
-        var step = state.SeriesState!.Steps.Single(s => s.StepIndex == 1);
-        step.Status.Should().Be(SeriesStepStatus.Completed);
+        state.TournamentState.Should().NotBeNull();
+        var step = state.TournamentState!.Steps.Single(s => s.StepIndex == 1);
+        step.Status.Should().Be(EventStepStatus.Completed);
         step.WinnerName.Should().Be("TeamWin");
         step.TournamentId.Should().Be("t-1");
     }
 
     [Fact]
-    public async Task UpdateSeriesCompletedAsync_SetsSeriesCompleted()
+    public async Task UpdateTournamentCompletedAsync_SetsSeriesCompleted()
     {
         // Arrange
-        await _service.UpdateSeriesStartedAsync(new SeriesStartedDto
+        await _service.UpdateTournamentStartedAsync(new TournamentStartedEventDto
         {
-            SeriesId = "series-4",
-            SeriesName = "Complete Series",
+            TournamentId = "series-4",
+            TournamentName = "Complete Series",
             TotalSteps = 1,
-            Steps = new List<SeriesStepDto>
+            Steps = new List<EventStepDto>
             {
-                new() { StepIndex = 1, GameType = GameType.RPSLS, Status = SeriesStepStatus.Completed, WinnerName = "TeamWin" }
+                new() { StepIndex = 1, GameType = GameType.RPSLS, Status = EventStepStatus.Completed, WinnerName = "TeamWin" }
             },
             StartedAt = DateTime.UtcNow
         });
 
-        var completedEvent = new SeriesCompletedDto
+        var completedEvent = new TournamentCompletedEventDto
         {
-            SeriesId = "series-4",
-            SeriesName = "Complete Series",
+            TournamentId = "series-4",
+            TournamentName = "Complete Series",
             Champion = "TeamWin",
             CompletedAt = DateTime.UtcNow
         };
 
         // Act
-        await _service.UpdateSeriesCompletedAsync(completedEvent);
+        await _service.UpdateTournamentCompletedAsync(completedEvent);
         var state = await _service.GetCurrentStateAsync();
 
         // Assert
-        state.SeriesState.Should().NotBeNull();
-        state.SeriesState!.Status.Should().Be(SeriesStatus.Completed);
+        state.TournamentState.Should().NotBeNull();
+        state.TournamentState!.Status.Should().Be(TournamentStatus.Completed);
     }
 }

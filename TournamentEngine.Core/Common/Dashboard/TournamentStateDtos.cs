@@ -4,17 +4,18 @@ using TournamentEngine.Core.Common;
 
 /// <summary>
 /// DTO representing complete tournament dashboard state snapshot.
+/// NOTE: In new terminology, this represents the entire tournament (whole multi-game event).
 /// </summary>
-public class TournamentStateDto
+public class DashboardStateDto
 {
     public string? TournamentId { get; set; }
     public string? TournamentName { get; set; }
     public string? Champion { get; set; }
     public TournamentStatus Status { get; set; }
     public string Message { get; set; } = string.Empty;
-    public SeriesProgressDto? SeriesProgress { get; set; }
-    public SeriesStateDto? SeriesState { get; set; }
-    public CurrentTournamentDto? CurrentTournament { get; set; }
+    public TournamentProgressDto? TournamentProgress { get; set; }
+    public TournamentStateDto? TournamentState { get; set; }
+    public CurrentEventDto? CurrentEvent { get; set; }
     public List<TeamStandingDto> OverallLeaderboard { get; set; } = new();
     public List<GroupDto> GroupStandings { get; set; } = new();
     public List<RecentMatchDto> RecentMatches { get; set; } = new();
@@ -23,7 +24,7 @@ public class TournamentStateDto
 }
 
 /// <summary>
-/// Tournament status enum.
+/// Tournament status enum (whole tournament status).
 /// </summary>
 public enum TournamentStatus
 {
@@ -34,35 +35,35 @@ public enum TournamentStatus
 }
 
 /// <summary>
-/// Series progress information.
+/// Tournament progress information (formerly series progress).
 /// </summary>
-public class SeriesProgressDto
+public class TournamentProgressDto
 {
-    public string SeriesId { get; set; } = string.Empty;
-    public List<TournamentInSeriesDto> Tournaments { get; set; } = new();
+    public string TournamentId { get; set; } = string.Empty;
+    public List<EventInTournamentDto> Events { get; set; } = new();
     public int CompletedCount { get; set; }
     public int TotalCount { get; set; }
-    public int CurrentTournamentIndex { get; set; }
+    public int CurrentEventIndex { get; set; }
 }
 
 /// <summary>
-/// Series summary aligned for dashboard display.
+/// Tournament summary aligned for dashboard display (formerly series state).
 /// </summary>
-public class SeriesStateDto
+public class TournamentStateDto
 {
-    public string SeriesId { get; set; } = string.Empty;
-    public string SeriesName { get; set; } = string.Empty;
+    public string TournamentId { get; set; } = string.Empty;
+    public string TournamentName { get; set; } = string.Empty;
     public int TotalSteps { get; set; }
     public int CurrentStepIndex { get; set; }
-    public SeriesStatus Status { get; set; }
-    public List<SeriesStepDto> Steps { get; set; } = new();
+    public TournamentStatus Status { get; set; }
+    public List<EventStepDto> Steps { get; set; } = new();
     public DateTime LastUpdated { get; set; }
 }
 
 /// <summary>
-/// Series lifecycle status.
+/// Event step status (formerly series step status).
 /// </summary>
-public enum SeriesStatus
+public enum EventStepStatus
 {
     NotStarted,
     InProgress,
@@ -70,45 +71,36 @@ public enum SeriesStatus
 }
 
 /// <summary>
-/// Per-step series summary.
+/// Per-step event summary.
 /// </summary>
-public class SeriesStepDto
+public class EventStepDto
 {
     public int StepIndex { get; set; }
     public GameType GameType { get; set; }
-    public SeriesStepStatus Status { get; set; }
+    public EventStepStatus Status { get; set; }
     public string? WinnerName { get; set; }
+    public string? EventId { get; set; }
+    public string? EventName { get; set; }
     public string? TournamentId { get; set; }
-    public string? TournamentName { get; set; }
 }
 
 /// <summary>
-/// Status of a series step.
+/// Individual event within a tournament.
 /// </summary>
-public enum SeriesStepStatus
+public class EventInTournamentDto
 {
-    Pending,
-    Running,
-    Completed
-}
-
-/// <summary>
-/// Individual tournament within a series.
-/// </summary>
-public class TournamentInSeriesDto
-{
-    public int TournamentNumber { get; set; }
+    public int EventNumber { get; set; }
     public GameType GameType { get; set; }
-    public TournamentItemStatus Status { get; set; }
+    public EventItemStatus Status { get; set; }
     public string? Champion { get; set; }
     public DateTime? StartTime { get; set; }
     public DateTime? EndTime { get; set; }
 }
 
 /// <summary>
-/// Status of individual tournament in series.
+/// Status of individual event in tournament.
 /// </summary>
-public enum TournamentItemStatus
+public enum EventItemStatus
 {
     Pending,
     InProgress,
@@ -116,9 +108,9 @@ public enum TournamentItemStatus
 }
 
 /// <summary>
-/// Current tournament details.
+/// Current event details (formerly current tournament).
 /// </summary>
-public class CurrentTournamentDto
+public class CurrentEventDto
 {
     public int TournamentNumber { get; set; }
     public GameType GameType { get; set; }
@@ -249,13 +241,13 @@ public class StandingsUpdatedDto
 }
 
 /// <summary>
-/// Tournament started event.
+/// Event started event (formerly tournament started - individual game type).
 /// </summary>
-public class TournamentStartedDto
+public class EventStartedEventDto
 {
-    public string TournamentId { get; set; } = string.Empty;
-    public string TournamentName { get; set; } = string.Empty;
-    public int TournamentNumber { get; set; }
+    public string EventId { get; set; } = string.Empty;
+    public string EventName { get; set; } = string.Empty;
+    public int EventNumber { get; set; }
     public GameType GameType { get; set; }
     public int TotalBots { get; set; }
     public int TotalGroups { get; set; }
@@ -263,13 +255,13 @@ public class TournamentStartedDto
 }
 
 /// <summary>
-/// Tournament completed event.
+/// Event completed event (formerly tournament completed - individual game type).
 /// </summary>
-public class TournamentCompletedDto
+public class EventCompletedEventDto
 {
-    public string TournamentId { get; set; } = string.Empty;
-    public string TournamentName { get; set; } = string.Empty;
-    public int TournamentNumber { get; set; }
+    public string EventId { get; set; } = string.Empty;
+    public string EventName { get; set; } = string.Empty;
+    public int EventNumber { get; set; }
     public GameType GameType { get; set; }
     public string Champion { get; set; } = string.Empty;
     public int TotalMatches { get; set; }
@@ -278,47 +270,48 @@ public class TournamentCompletedDto
 }
 
 /// <summary>
-/// Series started event.
+/// Tournament started event (formerly series started - whole tournament).
 /// </summary>
-public class SeriesStartedDto
+public class TournamentStartedEventDto
 {
-    public string SeriesId { get; set; } = string.Empty;
-    public string SeriesName { get; set; } = string.Empty;
+    public string TournamentId { get; set; } = string.Empty;
+    public string TournamentName { get; set; } = string.Empty;
     public int TotalSteps { get; set; }
-    public List<SeriesStepDto> Steps { get; set; } = new();
+    public List<EventStepDto> Steps { get; set; } = new();
     public DateTime StartedAt { get; set; }
 }
 
 /// <summary>
-/// Series progress updated event.
+/// Tournament progress updated event.
 /// </summary>
-public class SeriesProgressUpdatedDto
+public class TournamentProgressUpdatedEventDto
 {
-    public SeriesStateDto SeriesState { get; set; } = new();
+    public TournamentStateDto TournamentState { get; set; } = new();
     public DateTime UpdatedAt { get; set; }
 }
 
 /// <summary>
-/// Series step completed event.
+/// Event step completed event.
 /// </summary>
-public class SeriesStepCompletedDto
+public class EventStepCompletedDto
 {
-    public string SeriesId { get; set; } = string.Empty;
+    public string TournamentId { get; set; } = string.Empty;
+    public string? TournamentName { get; set; }
     public int StepIndex { get; set; }
     public GameType GameType { get; set; }
     public string? WinnerName { get; set; }
-    public string? TournamentId { get; set; }
-    public string? TournamentName { get; set; }
+    public string? EventId { get; set; }
+    public string? EventName { get; set; }
     public DateTime CompletedAt { get; set; }
 }
 
 /// <summary>
-/// Series completed event.
+/// Tournament completed event.
 /// </summary>
-public class SeriesCompletedDto
+public class TournamentCompletedEventDto
 {
-    public string SeriesId { get; set; } = string.Empty;
-    public string SeriesName { get; set; } = string.Empty;
+    public string TournamentId { get; set; } = string.Empty;
+    public string TournamentName { get; set; } = string.Empty;
     public string Champion { get; set; } = string.Empty;
     public DateTime CompletedAt { get; set; }
 }

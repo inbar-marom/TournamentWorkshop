@@ -31,6 +31,9 @@ public class SignalRTournamentEventPublisher : ITournamentEventPublisher
         _logger.LogInformation("Publishing match completed: {Bot1} vs {Bot2} - Winner: {Winner}",
             matchEvent.Bot1Name, matchEvent.Bot2Name, matchEvent.WinnerName ?? "Draw");
 
+        // Add to state manager for persistence
+        await _stateManager.AddMatchAsync(matchEvent);
+
         // Convert to RecentMatchDto for hub
         var recentMatch = new RecentMatchDto
         {
@@ -62,22 +65,22 @@ public class SignalRTournamentEventPublisher : ITournamentEventPublisher
             });
     }
 
-    public async Task PublishTournamentStartedAsync(TournamentStartedDto startEvent)
+    public async Task PublishEventStartedAsync(EventStartedEventDto startEvent)
     {
-        _logger.LogInformation("Publishing tournament started: {GameType} with {TotalBots} bots",
+        _logger.LogInformation("Publishing event started: {GameType} with {TotalBots} bots",
             startEvent.GameType, startEvent.TotalBots);
 
         await _hubContext.Clients.Group("TournamentViewers")
-            .SendAsync("TournamentStarted", startEvent);
+            .SendAsync("EventStarted", startEvent);
     }
 
-    public async Task PublishTournamentCompletedAsync(TournamentCompletedDto completedEvent)
+    public async Task PublishEventCompletedAsync(EventCompletedEventDto completedEvent)
     {
-        _logger.LogInformation("Publishing tournament completed: Champion = {Champion}",
+        _logger.LogInformation("Publishing event completed: Champion = {Champion}",
             completedEvent.Champion);
 
         await _hubContext.Clients.Group("TournamentViewers")
-            .SendAsync("TournamentCompleted", completedEvent);
+            .SendAsync("EventCompleted", completedEvent);
     }
 
     public async Task PublishRoundStartedAsync(RoundStartedDto roundEvent)
@@ -89,9 +92,9 @@ public class SignalRTournamentEventPublisher : ITournamentEventPublisher
             .SendAsync("RoundStarted", roundEvent);
     }
 
-    public async Task UpdateCurrentStateAsync(TournamentStateDto state)
+    public async Task UpdateCurrentStateAsync(DashboardStateDto state)
     {
-        _logger.LogInformation("Updating current state: {Status} - {Message}",
+        _logger.LogInformation("Updating current dashboard state: {Status} - {Message}",
             state.Status, state.Message);
 
         // Update the state manager
@@ -102,45 +105,45 @@ public class SignalRTournamentEventPublisher : ITournamentEventPublisher
             .SendAsync("CurrentState", state);
     }
 
-    public async Task PublishSeriesStartedAsync(SeriesStartedDto seriesEvent)
+    public async Task PublishTournamentStartedAsync(TournamentStartedEventDto tournamentEvent)
     {
-        _logger.LogInformation("Publishing series started: {SeriesName} with {TotalSteps} steps",
-            seriesEvent.SeriesName, seriesEvent.TotalSteps);
+        _logger.LogInformation("Publishing tournament started: {TournamentName} with {TotalSteps} steps",
+            tournamentEvent.TournamentName, tournamentEvent.TotalSteps);
 
-        await _stateManager.UpdateSeriesStartedAsync(seriesEvent);
+        await _stateManager.UpdateTournamentStartedAsync(tournamentEvent);
 
         await _hubContext.Clients.Group("TournamentViewers")
-            .SendAsync("SeriesStarted", seriesEvent);
+            .SendAsync("TournamentStarted", tournamentEvent);
     }
 
-    public async Task PublishSeriesProgressUpdatedAsync(SeriesProgressUpdatedDto progressEvent)
+    public async Task PublishTournamentProgressUpdatedAsync(TournamentProgressUpdatedEventDto progressEvent)
     {
-        _logger.LogInformation("Publishing series progress update: Step {StepIndex}/{TotalSteps}",
-            progressEvent.SeriesState.CurrentStepIndex, progressEvent.SeriesState.TotalSteps);
+        _logger.LogInformation("Publishing tournament progress update: Step {StepIndex}/{TotalSteps}",
+            progressEvent.TournamentState.CurrentStepIndex, progressEvent.TournamentState.TotalSteps);
 
-        await _stateManager.UpdateSeriesProgressAsync(progressEvent);
+        await _stateManager.UpdateTournamentProgressAsync(progressEvent);
 
         await _hubContext.Clients.Group("TournamentViewers")
-            .SendAsync("SeriesProgressUpdated", progressEvent);
+            .SendAsync("TournamentProgressUpdated", progressEvent);
     }
 
-    public async Task PublishSeriesStepCompletedAsync(SeriesStepCompletedDto completedEvent)
+    public async Task PublishEventStepCompletedAsync(EventStepCompletedDto completedEvent)
     {
-        _logger.LogInformation("Publishing series step completed: Step {StepIndex} - Winner {Winner}",
+        _logger.LogInformation("Publishing event step completed: Step {StepIndex} - Winner {Winner}",
             completedEvent.StepIndex, completedEvent.WinnerName ?? "Unknown");
 
-        await _stateManager.UpdateSeriesStepCompletedAsync(completedEvent);
+        await _stateManager.UpdateEventStepCompletedAsync(completedEvent);
 
         await _hubContext.Clients.Group("TournamentViewers")
-            .SendAsync("SeriesStepCompleted", completedEvent);
+            .SendAsync("EventStepCompleted", completedEvent);
     }
 
-    public async Task PublishSeriesCompletedAsync(SeriesCompletedDto completedEvent)
+    public async Task PublishTournamentCompletedAsync(TournamentCompletedEventDto completedEvent)
     {
-        _logger.LogInformation("Publishing series completed: {SeriesName} - Champion {Champion}",
-            completedEvent.SeriesName, completedEvent.Champion);
+        _logger.LogInformation("Publishing tournament completed: {TournamentName} - Champion {Champion}",
+            completedEvent.TournamentName, completedEvent.Champion);
 
-        await _stateManager.UpdateSeriesCompletedAsync(completedEvent);
+        await _stateManager.UpdateTournamentCompletedAsync(completedEvent);
 
         await _hubContext.Clients.Group("TournamentViewers")
             .SendAsync("SeriesCompleted", completedEvent);

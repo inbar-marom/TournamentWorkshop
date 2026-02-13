@@ -65,7 +65,7 @@ public class GroupStandingsGridService
     public async Task<bool> IsGroupStageActiveAsync()
     {
         var state = await _stateManager.GetCurrentStateAsync();
-        return state?.CurrentTournament?.Stage == TournamentStage.GroupStage &&
+        return state?.CurrentEvent?.Stage == TournamentStage.GroupStage &&
                state.GroupStandings?.Count > 0;
     }
 
