@@ -21,15 +21,6 @@ public class TournamentHub : Hub
     }
 
     /// <summary>
-    /// Constructor for testing purposes.
-    /// </summary>
-    public TournamentHub(ILogger<TournamentHub> logger)
-    {
-        _stateManager = null;
-        _logger = logger;
-    }
-
-    /// <summary>
     /// Called when a client connects to the hub.
     /// </summary>
     public override async Task OnConnectedAsync()

@@ -4,6 +4,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
 using TournamentEngine.Api.Models;
 using TournamentEngine.Dashboard.Hubs;
+using TournamentEngine.Dashboard.Services;
 
 namespace TournamentEngine.Tests;
 
@@ -22,7 +23,11 @@ public class BotDashboardSignalRTests
         _mockClientProxy = new Mock<IClientProxy>();
         _mockLogger = new Mock<ILogger<TournamentHub>>();
 
-        _hub = new TournamentHub(_mockLogger.Object)
+        // Create mock StateManagerService
+        var mockStateLogger = new Mock<ILogger<StateManagerService>>();
+        var mockStateManager = new Mock<StateManagerService>(mockStateLogger.Object);
+
+        _hub = new TournamentHub(mockStateManager.Object, _mockLogger.Object)
         {
             Clients = _mockClients.Object
         };
