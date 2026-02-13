@@ -1,6 +1,10 @@
 using System.Text.Json.Serialization;
 using TournamentEngine.Dashboard.Hubs;
 using TournamentEngine.Dashboard.Services;
+using TournamentEngine.Dashboard.Endpoints;
+using TournamentEngine.Api.Services;
+using TournamentEngine.Core.Common;
+using TournamentEngine.Core.BotLoader;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -28,6 +32,18 @@ builder.Services.AddCors(options =>
               .AllowCredentials();  // Required for SignalR
     });
 });
+
+// Register bot dashboard services
+var botsDir = builder.Configuration["BotDashboard:BotsDirectory"] ?? "bots/";
+builder.Services.AddSingleton(sp => 
+    new BotStorageService(botsDir, sp.GetRequiredService<ILogger<BotStorageService>>()));
+builder.Services.AddSingleton<IBotLoader>(sp =>
+    new BotLoader());
+builder.Services.AddScoped(sp =>
+    new BotDashboardService(
+        sp.GetRequiredService<BotStorageService>(),
+        sp.GetRequiredService<IBotLoader>(),
+        sp.GetRequiredService<ILogger<BotDashboardService>>()));
 
 // Register dashboard services
 builder.Services.AddSingleton<StateManagerService>();
@@ -67,9 +83,7 @@ app.UseRouting();
 
 app.MapControllers();
 app.MapHub<TournamentHub>("/tournamentHub");
-
-app.MapGet("/", () => "Tournament Dashboard Service is running. Connect to /tournamentHub for real-time updates.");
-
+app.MapBotDashboardEndpoints();
 Console.WriteLine("🎮 Tournament Dashboard Service started");
 Console.WriteLine("📡 SignalR Hub: http://localhost:5000/tournamentHub");
 Console.WriteLine("🌐 API: http://localhost:5000/api");
