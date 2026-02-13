@@ -1,6 +1,7 @@
 namespace TournamentEngine.Dashboard.Hubs;
 
 using Microsoft.AspNetCore.SignalR;
+using TournamentEngine.Api.Models;
 using TournamentEngine.Dashboard.Services;
 using TournamentEngine.Core.Common.Dashboard;
 
@@ -10,12 +11,21 @@ using TournamentEngine.Core.Common.Dashboard;
 /// </summary>
 public class TournamentHub : Hub
 {
-    private readonly StateManagerService _stateManager;
+    private readonly StateManagerService? _stateManager;
     private readonly ILogger<TournamentHub> _logger;
 
     public TournamentHub(StateManagerService stateManager, ILogger<TournamentHub> logger)
     {
         _stateManager = stateManager;
+        _logger = logger;
+    }
+
+    /// <summary>
+    /// Constructor for testing purposes.
+    /// </summary>
+    public TournamentHub(ILogger<TournamentHub> logger)
+    {
+        _stateManager = null;
         _logger = logger;
     }
 
@@ -29,9 +39,12 @@ public class TournamentHub : Hub
         // Add client to the viewers group
         await Groups.AddToGroupAsync(Context.ConnectionId, "TournamentViewers");
         
-        // Send current state immediately to new client
-        var currentState = await _stateManager.GetCurrentStateAsync();
-        await Clients.Caller.SendAsync("CurrentState", currentState);
+        // Send current state immediately to new client (if available)
+        if (_stateManager != null)
+        {
+            var currentState = await _stateManager.GetCurrentStateAsync();
+            await Clients.Caller.SendAsync("CurrentState", currentState);
+        }
         
         await base.OnConnectedAsync();
     }
@@ -55,23 +68,26 @@ public class TournamentHub : Hub
         
         await Groups.AddToGroupAsync(Context.ConnectionId, "TournamentViewers");
         
-        // Send acknowledgment with current state
-        var currentState = await _stateManager.GetCurrentStateAsync();
-        
-        // If tournament state is missing but tournament exists, reconstruct tournament state from tournament data
-        if (currentState.TournamentState == null && !string.IsNullOrEmpty(currentState.TournamentId))
+        if (_stateManager != null)
         {
-            _logger.LogInformation("Tournament state missing - reconstructing from current tournament state");
-            // The tournament state should have enough info to show the current step
-            // The TournamentStarted and progress events will repopulate the full state as clients continue
+            // Send acknowledgment with current state
+            var currentState = await _stateManager.GetCurrentStateAsync();
+            
+            // If tournament state is missing but tournament exists, reconstruct tournament state from tournament data
+            if (currentState.TournamentState == null && !string.IsNullOrEmpty(currentState.TournamentId))
+            {
+                _logger.LogInformation("Tournament state missing - reconstructing from current tournament state");
+                // The tournament state should have enough info to show the current step
+                // The TournamentStarted and progress events will repopulate the full state as clients continue
+            }
+            
+            await Clients.Caller.SendAsync("SubscriptionConfirmed", new
+            {
+                Message = "Successfully subscribed to tournament updates",
+                Timestamp = DateTime.UtcNow,
+                CurrentState = currentState
+            });
         }
-        
-        await Clients.Caller.SendAsync("SubscriptionConfirmed", new
-        {
-            Message = "Successfully subscribed to tournament updates",
-            Timestamp = DateTime.UtcNow,
-            CurrentState = currentState
-        });
     }
 
     /// <summary>
@@ -81,8 +97,11 @@ public class TournamentHub : Hub
     {
         _logger.LogInformation("Client {ConnectionId} requested current state", Context.ConnectionId);
         
-        var state = await _stateManager.GetCurrentStateAsync();
-        await Clients.Caller.SendAsync("CurrentState", state);
+        if (_stateManager != null)
+        {
+            var state = await _stateManager.GetCurrentStateAsync();
+            await Clients.Caller.SendAsync("CurrentState", state);
+        }
     }
 
     /// <summary>
@@ -92,8 +111,11 @@ public class TournamentHub : Hub
     {
         _logger.LogInformation("Client {ConnectionId} requested recent matches", Context.ConnectionId);
         
-        var matches = _stateManager.GetRecentMatches(count);
-        await Clients.Caller.SendAsync("RecentMatches", matches);
+        if (_stateManager != null)
+        {
+            var matches = _stateManager.GetRecentMatches(count);
+            await Clients.Caller.SendAsync("RecentMatches", matches);
+        }
     }
 
     /// <summary>
@@ -292,4 +314,78 @@ public class TournamentHub : Hub
         // Broadcast match completion to all viewers
         await Clients.Group("TournamentViewers").SendAsync("MatchCompleted", match);
     }
+
+    #region Bot Dashboard Events
+
+    /// <summary>
+    /// Broadcasts a bot submission event to all connected clients.
+    /// </summary>
+    public async Task BroadcastBotSubmitted(BotDashboardDto botDto)
+    {
+        if (botDto == null)
+            throw new ArgumentNullException(nameof(botDto));
+
+        _logger.LogInformation("Broadcasting bot submission for team: {TeamName}", botDto.TeamName);
+        await Clients.All.SendAsync("BotSubmitted", botDto);
+    }
+
+    /// <summary>
+    /// Broadcasts a bot validation completion event to all connected clients.
+    /// </summary>
+    public async Task BroadcastBotValidated(BotDashboardDto botDto)
+    {
+        if (botDto == null)
+            throw new ArgumentNullException(nameof(botDto));
+
+        _logger.LogInformation("Broadcasting bot validation for team: {TeamName}, Status: {Status}", 
+            botDto.TeamName, botDto.Status);
+        await Clients.All.SendAsync("BotValidated", botDto);
+    }
+
+    /// <summary>
+    /// Broadcasts a bot deletion event to all connected clients.
+    /// </summary>
+    public async Task BroadcastBotDeleted(string teamName)
+    {
+        if (string.IsNullOrWhiteSpace(teamName))
+            throw new ArgumentNullException(nameof(teamName));
+
+        _logger.LogInformation("Broadcasting bot deletion for team: {TeamName}", teamName);
+        await Clients.All.SendAsync("BotDeleted", teamName);
+    }
+
+    /// <summary>
+    /// Broadcasts an updated bot list to all connected clients.
+    /// </summary>
+    public async Task BroadcastBotListUpdated(List<BotDashboardDto> bots)
+    {
+        if (bots == null)
+            throw new ArgumentNullException(nameof(bots));
+
+        _logger.LogInformation("Broadcasting updated bot list with {Count} bots", bots.Count);
+        await Clients.All.SendAsync("BotListUpdated", bots);
+    }
+
+    /// <summary>
+    /// Broadcasts validation progress for a bot to all connected clients.
+    /// </summary>
+    public async Task BroadcastValidationProgress(string teamName, string message)
+    {
+        if (string.IsNullOrWhiteSpace(teamName))
+            throw new ArgumentNullException(nameof(teamName));
+        if (string.IsNullOrWhiteSpace(message))
+            throw new ArgumentNullException(nameof(message));
+
+        _logger.LogInformation("Broadcasting validation progress for team {TeamName}: {Message}", 
+            teamName, message);
+        
+        await Clients.All.SendAsync("ValidationProgress", new
+        {
+            teamName = teamName,
+            message = message,
+            timestamp = DateTime.UtcNow
+        });
+    }
+
+    #endregion
 }
