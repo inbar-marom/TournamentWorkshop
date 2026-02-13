@@ -22,5 +22,6 @@
   <ItemGroup>
     <ProjectReference Include="..\TournamentEngine.Core\TournamentEngine.Core.csproj" />
     <ProjectReference Include="..\TournamentEngine.Dashboard\TournamentEngine.Dashboard.csproj" />
+    <ProjectReference Include="..\TournamentEngine.Api\TournamentEngine.Api.csproj" />
   </ItemGroup>
 </Project>

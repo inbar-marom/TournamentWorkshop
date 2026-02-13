@@ -698,6 +698,8 @@ await tournamentManager.RunTournamentAsync(validBots, ...);
 
 ## Status
 
-**Current:** NOT STARTED - Awaiting Step 12 completion
+**Current:** IN PROGRESS - Starting Step 2.1 (API Project Setup)
 
-**Next:** Begin with Step 2.1 (API Project Setup) after Step 12 is fully complete
+**Approach:** Test-Driven Development (TDD) - Write tests first, then implementation
+
+**Next:** Step 2.1 - Create API project with ASP.NET Core 8.0 minimal API setup
