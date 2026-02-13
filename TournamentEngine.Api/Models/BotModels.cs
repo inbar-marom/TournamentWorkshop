@@ -71,3 +71,42 @@ public class BatchSubmissionRequest
 {
     public required List<BotSubmissionRequest> Bots { get; init; }
 }
+
+/// <summary>
+/// Validation status for bots in the dashboard
+/// </summary>
+public enum ValidationStatus
+{
+    Valid,
+    Invalid,
+    Pending,
+    ValidationInProgress
+}
+
+/// <summary>
+/// Version information for bot history
+/// </summary>
+public class BotVersionInfo
+{
+    public int Version { get; set; }
+    public DateTime SubmissionTime { get; set; }
+    public int FileCount { get; set; }
+    public ValidationStatus Status { get; set; }
+}
+
+/// <summary>
+/// Dashboard data transfer object showing bot details
+/// </summary>
+public class BotDashboardDto
+{
+    public string TeamName { get; set; } = string.Empty;
+    public DateTime SubmissionTime { get; set; }
+    public DateTime LastUpdatedTime { get; set; }
+    public ValidationStatus Status { get; set; }
+    public int FileCount { get; set; }
+    public long TotalSizeBytes { get; set; }
+    public int Version { get; set; }
+    public string? CompilationError { get; set; } // null if Valid
+    public List<string> FileNames { get; set; } = new();
+    public List<BotVersionInfo> VersionHistory { get; set; } = new();
+}
