@@ -23,7 +23,7 @@ public class GroupStandingsGridComponentTests
     public async Task GetGroupStandingsGrid_WithValidGroups_ReturnsFormattedGridData()
     {
         // Arrange
-        var state = new TournamentStateDto
+        var state = new DashboardStateDto
         {
             GroupStandings = new List<GroupDto>
             {
@@ -64,7 +64,7 @@ public class GroupStandingsGridComponentTests
     public async Task GridData_IsSortedByPointsDescending_WithinEachGroup()
     {
         // Arrange
-        var state = new TournamentStateDto
+        var state = new DashboardStateDto
         {
             GroupStandings = new List<GroupDto>
             {
@@ -97,7 +97,7 @@ public class GroupStandingsGridComponentTests
     public async Task GridData_WithTieInPoints_SortsByWinsDescending()
     {
         // Arrange
-        var state = new TournamentStateDto
+        var state = new DashboardStateDto
         {
             GroupStandings = new List<GroupDto>
             {
@@ -128,7 +128,7 @@ public class GroupStandingsGridComponentTests
     public async Task GetGroupStandingsGrid_WithNoGroups_ReturnsEmptyDictionary()
     {
         // Arrange
-        var state = new TournamentStateDto
+        var state = new DashboardStateDto
         {
             GroupStandings = new List<GroupDto>()
         };
@@ -148,7 +148,7 @@ public class GroupStandingsGridComponentTests
     public async Task GridData_ContainsAllRequiredColumns()
     {
         // Arrange
-        var state = new TournamentStateDto
+        var state = new DashboardStateDto
         {
             GroupStandings = new List<GroupDto>
             {
@@ -182,9 +182,9 @@ public class GroupStandingsGridComponentTests
     public async Task GridData_WhenGroupStageNotActive_ReturnsNullOrEmptyGrid()
     {
         // Arrange
-        var state = new TournamentStateDto
+        var state = new DashboardStateDto
         {
-            CurrentTournament = new CurrentTournamentDto
+            CurrentEvent = new CurrentEventDto
             {
                 Stage = TournamentStage.Finals
             },
@@ -205,9 +205,9 @@ public class GroupStandingsGridComponentTests
     public async Task GetGroupCount_ReturnsCorrectNumberOfGroups()
     {
         // Arrange
-        var state = new TournamentStateDto
+        var state = new DashboardStateDto
         {
-            CurrentTournament = new CurrentTournamentDto
+            CurrentEvent = new CurrentEventDto
             {
                 Stage = TournamentStage.GroupStage
             },
@@ -216,7 +216,8 @@ public class GroupStandingsGridComponentTests
                 new() { GroupName = "Group A", Rankings = new List<BotRankingDto>() },
                 new() { GroupName = "Group B", Rankings = new List<BotRankingDto>() },
                 new() { GroupName = "Group C", Rankings = new List<BotRankingDto>() }
-            }
+            },
+            TournamentState = new TournamentStateDto()
         };
 
         _mockStateManager.Setup(s => s.GetCurrentStateAsync()).ReturnsAsync(state);
@@ -233,7 +234,7 @@ public class GroupStandingsGridComponentTests
     public async Task GetTeamsInGroup_ReturnsCorrectTeamListForGroup()
     {
         // Arrange
-        var state = new TournamentStateDto
+        var state = new DashboardStateDto
         {
             GroupStandings = new List<GroupDto>
             {

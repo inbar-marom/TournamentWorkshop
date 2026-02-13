@@ -1,7 +1,10 @@
 namespace TournamentEngine.Core.Common;
 
 /// <summary>
-/// Represents the current state of the tournament
+/// Represents the current state of a single tournament (game type).
+/// NOTE: In the new terminology, this is an "Event" (individual game type within a tournament).
+/// This class will eventually be renamed to EventInfo.
+/// For now, it remains as TournamentInfo for backward compatibility.
 /// </summary>
 public class TournamentInfo
 {

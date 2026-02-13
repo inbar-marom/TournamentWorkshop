@@ -9,8 +9,12 @@ public interface ITournamentEventPublisher
 {
     Task PublishMatchCompletedAsync(MatchCompletedDto matchEvent);
     Task PublishStandingsUpdatedAsync(StandingsUpdatedDto standingsEvent);
-    Task PublishTournamentStartedAsync(TournamentStartedDto startEvent);
-    Task PublishTournamentCompletedAsync(TournamentCompletedDto completedEvent);
+    Task PublishEventStartedAsync(EventStartedEventDto startEvent);
+    Task PublishEventCompletedAsync(EventCompletedEventDto completedEvent);
     Task PublishRoundStartedAsync(RoundStartedDto roundEvent);
-    Task UpdateCurrentStateAsync(TournamentStateDto state);
+    Task UpdateCurrentStateAsync(DashboardStateDto state);
+    Task PublishTournamentStartedAsync(TournamentStartedEventDto tournamentEvent);
+    Task PublishTournamentProgressUpdatedAsync(TournamentProgressUpdatedEventDto progressEvent);
+    Task PublishEventStepCompletedAsync(EventStepCompletedDto completedEvent);
+    Task PublishTournamentCompletedAsync(TournamentCompletedEventDto completedEvent);
 }

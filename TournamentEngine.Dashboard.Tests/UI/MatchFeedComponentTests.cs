@@ -52,7 +52,7 @@ public class MatchFeedComponentTests
             }
         };
 
-        var state = new TournamentStateDto
+        var state = new DashboardStateDto
         {
             RecentMatches = matches
         };
@@ -88,7 +88,7 @@ public class MatchFeedComponentTests
             });
         }
 
-        var state = new TournamentStateDto
+        var state = new DashboardStateDto
         {
             RecentMatches = matches.OrderByDescending(m => m.CompletedAt).Take(20).ToList()
         };
@@ -165,7 +165,7 @@ public class MatchFeedComponentTests
     public async Task MatchFeed_WithNoMatches_ReturnsEmpty()
     {
         // Arrange
-        var state = new TournamentStateDto
+        var state = new DashboardStateDto
         {
             RecentMatches = new List<RecentMatchDto>()
         };

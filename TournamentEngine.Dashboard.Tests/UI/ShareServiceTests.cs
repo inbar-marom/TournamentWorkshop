@@ -24,9 +24,12 @@ public class ShareServiceTests
     public async Task GenerateShareLink_ReturnsUniqueLink()
     {
         // Arrange
-        var state = new TournamentStateDto
+        var state = new DashboardStateDto
         {
-            Status = TournamentStatus.InProgress
+            TournamentState = new TournamentStateDto
+            {
+                Status = TournamentStatus.InProgress
+            }
         };
 
         _mockStateManager.Setup(s => s.GetCurrentStateAsync()).ReturnsAsync(state);
@@ -46,7 +49,10 @@ public class ShareServiceTests
     public async Task GenerateShareLink_WithCustomMessage_IncludesMessage()
     {
         // Arrange
-        var state = new TournamentStateDto();
+        var state = new DashboardStateDto
+        {
+            TournamentState = new TournamentStateDto()
+        };
         _mockStateManager.Setup(s => s.GetCurrentStateAsync()).ReturnsAsync(state);
 
         var service = new ShareService(_mockStateManager.Object, _mockLogger.Object);
@@ -62,8 +68,9 @@ public class ShareServiceTests
     public async Task CreateSnapshot_GeneratesUniqueId()
     {
         // Arrange
-        var state = new TournamentStateDto
+        var state = new DashboardStateDto
         {
+            TournamentState = new TournamentStateDto(),
             OverallLeaderboard = new List<TeamStandingDto>
             {
                 new() { TeamName = "Team A", Rank = 1 }
@@ -87,9 +94,12 @@ public class ShareServiceTests
     public async Task CreateSnapshot_CapturesCurrentState()
     {
         // Arrange
-        var state = new TournamentStateDto
+        var state = new DashboardStateDto
         {
-            Status = TournamentStatus.InProgress,
+            TournamentState = new TournamentStateDto
+            {
+                Status = TournamentStatus.InProgress
+            },
             Message = "Round 5",
             OverallLeaderboard = new List<TeamStandingDto>
             {
@@ -115,9 +125,12 @@ public class ShareServiceTests
     public async Task GetSnapshot_RetrievesSavedSnapshot()
     {
         // Arrange
-        var state = new TournamentStateDto
+        var state = new DashboardStateDto
         {
-            Status = TournamentStatus.InProgress
+            TournamentState = new TournamentStateDto
+            {
+                Status = TournamentStatus.InProgress
+            }
         };
 
         _mockStateManager.Setup(s => s.GetCurrentStateAsync()).ReturnsAsync(state);
@@ -151,7 +164,10 @@ public class ShareServiceTests
     public async Task ListSnapshots_ReturnsAllSnapshots()
     {
         // Arrange
-        var state = new TournamentStateDto();
+        var state = new DashboardStateDto
+        {
+            TournamentState = new TournamentStateDto()
+        };
         _mockStateManager.Setup(s => s.GetCurrentStateAsync()).ReturnsAsync(state);
 
         var service = new ShareService(_mockStateManager.Object, _mockLogger.Object);
@@ -171,7 +187,10 @@ public class ShareServiceTests
     public async Task DeleteSnapshot_RemovesSnapshot()
     {
         // Arrange
-        var state = new TournamentStateDto();
+        var state = new DashboardStateDto
+        {
+            TournamentState = new TournamentStateDto()
+        };
         _mockStateManager.Setup(s => s.GetCurrentStateAsync()).ReturnsAsync(state);
 
         var service = new ShareService(_mockStateManager.Object, _mockLogger.Object);
@@ -191,7 +210,10 @@ public class ShareServiceTests
     public async Task GenerateEmbedCode_ReturnsHtmlIframe()
     {
         // Arrange
-        var state = new TournamentStateDto();
+        var state = new DashboardStateDto
+        {
+            TournamentState = new TournamentStateDto()
+        };
         _mockStateManager.Setup(s => s.GetCurrentStateAsync()).ReturnsAsync(state);
 
         var service = new ShareService(_mockStateManager.Object, _mockLogger.Object);
@@ -211,7 +233,10 @@ public class ShareServiceTests
     public async Task GenerateEmbedCode_WithCustomDimensions_UsesProvidedSize()
     {
         // Arrange
-        var state = new TournamentStateDto();
+        var state = new DashboardStateDto
+        {
+            TournamentState = new TournamentStateDto()
+        };
         _mockStateManager.Setup(s => s.GetCurrentStateAsync()).ReturnsAsync(state);
 
         var service = new ShareService(_mockStateManager.Object, _mockLogger.Object);
@@ -229,7 +254,10 @@ public class ShareServiceTests
     public async Task GetShareStats_ReturnsViewCounts()
     {
         // Arrange
-        var state = new TournamentStateDto();
+        var state = new DashboardStateDto
+        {
+            TournamentState = new TournamentStateDto()
+        };
         _mockStateManager.Setup(s => s.GetCurrentStateAsync()).ReturnsAsync(state);
 
         var service = new ShareService(_mockStateManager.Object, _mockLogger.Object);

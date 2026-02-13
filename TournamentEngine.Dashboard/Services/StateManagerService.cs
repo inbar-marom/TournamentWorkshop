@@ -10,14 +10,14 @@ public class StateManagerService
 {
     private readonly ILogger<StateManagerService> _logger;
     private readonly SemaphoreSlim _stateLock = new(1, 1);
-    private TournamentStateDto? _currentState;
+    private DashboardStateDto? _currentState;
     private readonly ConcurrentQueue<RecentMatchDto> _recentMatches = new();
     private const int MaxRecentMatches = 50;
 
     public StateManagerService(ILogger<StateManagerService> logger)
     {
         _logger = logger;
-        _currentState = new TournamentStateDto
+        _currentState = new DashboardStateDto
         {
             Status = TournamentStatus.NotStarted,
             Message = "Waiting for tournament to start...",
@@ -28,12 +28,12 @@ public class StateManagerService
     /// <summary>
     /// Gets the current tournament state snapshot
     /// </summary>
-    public virtual async Task<TournamentStateDto> GetCurrentStateAsync()
+    public virtual async Task<DashboardStateDto> GetCurrentStateAsync()
     {
         await _stateLock.WaitAsync();
         try
         {
-            var state = _currentState ?? new TournamentStateDto
+            var state = _currentState ?? new DashboardStateDto
             {
                 Status = TournamentStatus.NotStarted,
                 Message = "No tournament data available",
@@ -52,16 +52,30 @@ public class StateManagerService
     }
 
     /// <summary>
-    /// Updates the current tournament state
+    /// Updates the current tournament dashboard state
     /// </summary>
-    public virtual async Task UpdateStateAsync(TournamentStateDto newState)
+    public virtual async Task UpdateStateAsync(DashboardStateDto newState)
     {
         await _stateLock.WaitAsync();
         try
         {
+            if (newState.RecentMatches != null)
+            {
+                _recentMatches.Clear();
+                foreach (var match in newState.RecentMatches)
+                {
+                    _recentMatches.Enqueue(match);
+                }
+
+                while (_recentMatches.Count > MaxRecentMatches)
+                {
+                    _recentMatches.TryDequeue(out _);
+                }
+            }
+
             _currentState = newState;
             _currentState.LastUpdated = DateTime.UtcNow;
-            _logger.LogInformation("Tournament state updated: {Status}", newState.Status);
+            _logger.LogInformation("Dashboard state updated: {Status}", newState.Status);
         }
         finally
         {
@@ -115,14 +129,14 @@ public class StateManagerService
         await _stateLock.WaitAsync();
         try
         {
-            _currentState = new TournamentStateDto
+            _currentState = new DashboardStateDto
             {
                 Status = TournamentStatus.NotStarted,
                 Message = "State cleared",
                 LastUpdated = DateTime.UtcNow
             };
             _recentMatches.Clear();
-            _logger.LogInformation("Tournament state cleared");
+            _logger.LogInformation("Dashboard state cleared");
         }
         finally
         {
@@ -131,23 +145,38 @@ public class StateManagerService
     }
 
     /// <summary>
-    /// Handle TournamentStarted event
+    /// Handle EventStarted event (individual event/game type)
     /// </summary>
-    public virtual async Task UpdateTournamentStartedAsync(TournamentStartedDto tournamentEvent)
+    public virtual async Task UpdateEventStartedAsync(EventStartedEventDto eventStarted)
     {
         await _stateLock.WaitAsync();
         try
         {
-            _currentState = new TournamentStateDto
+            // Update existing state instead of creating new one - preserves TournamentState
+            _currentState ??= new DashboardStateDto
             {
-                TournamentId = tournamentEvent.TournamentId,
-                TournamentName = tournamentEvent.TournamentName,
                 Status = TournamentStatus.InProgress,
-                Message = $"Tournament started: {tournamentEvent.GameType}",
                 LastUpdated = DateTime.UtcNow
             };
-            _logger.LogInformation("Tournament started: {Id} - {Name} - {GameType}", 
-                tournamentEvent.TournamentId, tournamentEvent.TournamentName, tournamentEvent.GameType);
+            
+            _currentState.CurrentEvent = new CurrentEventDto
+            {
+                TournamentNumber = eventStarted.EventNumber,
+                GameType = eventStarted.GameType,
+                Stage = TournamentStage.GroupStage,
+                CurrentRound = 1,
+                TotalRounds = 1,
+                MatchesCompleted = 0,
+                TotalMatches = 0,
+                ProgressPercentage = 0
+            };
+            
+            _currentState.Status = TournamentStatus.InProgress;
+            _currentState.Message = $"Event started: {eventStarted.GameType}";
+            _currentState.LastUpdated = DateTime.UtcNow;
+            
+            _logger.LogInformation("Event started: {Id} - {Name} - {GameType}", 
+                eventStarted.EventId, eventStarted.EventName, eventStarted.GameType);
         }
         finally
         {
@@ -186,20 +215,175 @@ public class StateManagerService
     }
 
     /// <summary>
-    /// Handle TournamentCompleted event
+    /// Handle EventCompleted event (individual event/game type)
     /// </summary>
-    public virtual async Task UpdateTournamentCompletedAsync(TournamentCompletedDto completedEvent)
+    public virtual async Task UpdateEventCompletedAsync(EventCompletedEventDto completedEvent)
     {
         await _stateLock.WaitAsync();
         try
         {
             if (_currentState != null)
             {
-                _currentState.Status = TournamentStatus.Completed;
-                _currentState.Message = $"Tournament completed! Champion: {completedEvent.Champion}";
+                // Clear current event when completed
+                _currentState.CurrentEvent = null;
+                _currentState.Message = $"Event completed! Champion: {completedEvent.Champion}";
                 _currentState.LastUpdated = DateTime.UtcNow;
-                _logger.LogInformation("Tournament completed: {Champion} wins!", completedEvent.Champion);
+                _logger.LogInformation("Event completed: {Champion} wins!", completedEvent.Champion);
             }
+        }
+        finally
+        {
+            _stateLock.Release();
+        }
+    }
+
+    /// <summary>
+    /// Handle TournamentStarted event (whole tournament with multiple events)
+    /// </summary>
+    public virtual async Task UpdateTournamentStartedAsync(TournamentStartedEventDto tournamentEvent)
+    {
+        await _stateLock.WaitAsync();
+        try
+        {
+            _currentState ??= new DashboardStateDto
+            {
+                Status = TournamentStatus.NotStarted,
+                Message = "Waiting for tournament to start...",
+                LastUpdated = DateTime.UtcNow
+            };
+
+            var currentStepIndex = tournamentEvent.Steps.FirstOrDefault(s => s.Status == EventStepStatus.InProgress)?.StepIndex ?? 1;
+
+            _currentState.TournamentState = new TournamentStateDto
+            {
+                TournamentId = tournamentEvent.TournamentId,
+                TournamentName = tournamentEvent.TournamentName,
+                TotalSteps = tournamentEvent.TotalSteps,
+                CurrentStepIndex = currentStepIndex,
+                Status = TournamentStatus.InProgress,
+                Steps = tournamentEvent.Steps,
+                LastUpdated = DateTime.UtcNow
+            };
+
+            _logger.LogInformation("Tournament started: {TournamentName} with {TotalSteps} steps", tournamentEvent.TournamentName, tournamentEvent.TotalSteps);
+            _currentState.LastUpdated = DateTime.UtcNow;
+        }
+        finally
+        {
+            _stateLock.Release();
+        }
+    }
+
+    /// <summary>
+    /// Handle TournamentProgressUpdated event
+    /// </summary>
+    public virtual async Task UpdateTournamentProgressAsync(TournamentProgressUpdatedEventDto progressEvent)
+    {
+        await _stateLock.WaitAsync();
+        try
+        {
+            _currentState ??= new DashboardStateDto
+            {
+                Status = TournamentStatus.NotStarted,
+                Message = "Waiting for tournament to start...",
+                LastUpdated = DateTime.UtcNow
+            };
+
+            if (progressEvent?.TournamentState != null)
+            {
+                progressEvent.TournamentState.LastUpdated = DateTime.UtcNow;
+                _currentState.TournamentState = progressEvent.TournamentState;
+                _logger.LogInformation("Tournament state updated: {TournamentName} - Step {CurrentStep}/{TotalSteps}",
+                    progressEvent.TournamentState.TournamentName,
+                    progressEvent.TournamentState.CurrentStepIndex,
+                    progressEvent.TournamentState.TotalSteps);
+            }
+            _currentState.LastUpdated = DateTime.UtcNow;
+        }
+        finally
+        {
+            _stateLock.Release();
+        }
+    }
+
+    /// <summary>
+    /// Handle EventStepCompleted event
+    /// </summary>
+    public virtual async Task UpdateEventStepCompletedAsync(EventStepCompletedDto completedEvent)
+    {
+        await _stateLock.WaitAsync();
+        try
+        {
+            _currentState ??= new DashboardStateDto
+            {
+                Status = TournamentStatus.NotStarted,
+                Message = "Waiting for tournament to start...",
+                LastUpdated = DateTime.UtcNow
+            };
+
+            if (_currentState.TournamentState == null)
+            {
+                _logger.LogWarning("EventStepCompleted received but TournamentState is null. Creating skeleton state for step {StepIndex}", completedEvent.StepIndex);
+                _currentState.TournamentState = new TournamentStateDto
+                {
+                    TournamentId = completedEvent.TournamentId,
+                    Status = TournamentStatus.InProgress,
+                    LastUpdated = DateTime.UtcNow,
+                    Steps = new List<EventStepDto>()
+                };
+            }
+
+            var step = _currentState.TournamentState.Steps.SingleOrDefault(s => s.StepIndex == completedEvent.StepIndex);
+            if (step == null)
+            {
+                step = new EventStepDto { StepIndex = completedEvent.StepIndex };
+                _currentState.TournamentState.Steps.Add(step);
+            }
+
+            step.GameType = completedEvent.GameType;
+            step.Status = EventStepStatus.Completed;
+            step.WinnerName = completedEvent.WinnerName;
+            step.EventId = completedEvent.EventId;
+            step.EventName = completedEvent.EventName;
+            step.TournamentId = completedEvent.TournamentId;
+
+            _logger.LogInformation("Event step completed: {StepIndex} - {WinnerName}", completedEvent.StepIndex, completedEvent.WinnerName);
+
+            _currentState.TournamentState.LastUpdated = DateTime.UtcNow;
+            _currentState.LastUpdated = DateTime.UtcNow;
+        }
+        finally
+        {
+            _stateLock.Release();
+        }
+    }
+
+    /// <summary>
+    /// Handle TournamentCompleted event (whole tournament)
+    /// </summary>
+    public virtual async Task UpdateTournamentCompletedAsync(TournamentCompletedEventDto completedEvent)
+    {
+        await _stateLock.WaitAsync();
+        try
+        {
+            _currentState ??= new DashboardStateDto
+            {
+                Status = TournamentStatus.NotStarted,
+                Message = "Waiting for tournament to start...",
+                LastUpdated = DateTime.UtcNow
+            };
+
+            _currentState.TournamentState ??= new TournamentStateDto
+            {
+                TournamentId = completedEvent.TournamentId,
+                TournamentName = completedEvent.TournamentName
+            };
+
+            _currentState.TournamentState.TournamentId = completedEvent.TournamentId;
+            _currentState.TournamentState.TournamentName = completedEvent.TournamentName;
+            _currentState.TournamentState.Status = TournamentStatus.Completed;
+            _currentState.TournamentState.LastUpdated = DateTime.UtcNow;
+            _currentState.LastUpdated = DateTime.UtcNow;
         }
         finally
         {

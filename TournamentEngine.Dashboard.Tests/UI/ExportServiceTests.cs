@@ -31,13 +31,16 @@ public class ExportServiceTests
     public async Task ExportToJson_ReturnsValidJsonString()
     {
         // Arrange
-        var state = new TournamentStateDto
+        var state = new DashboardStateDto
         {
-            Status = TournamentStatus.InProgress,
             Message = "Test tournament",
             OverallLeaderboard = new List<TeamStandingDto>
             {
                 new() { TeamName = "Team A", TotalPoints = 15, Rank = 1 }
+            },
+            TournamentState = new TournamentStateDto
+            {
+                Status = TournamentStatus.InProgress
             }
         };
 
@@ -59,13 +62,14 @@ public class ExportServiceTests
     public async Task ExportToCsv_ReturnsValidCsvFormat()
     {
         // Arrange
-        var state = new TournamentStateDto
+        var state = new DashboardStateDto
         {
             OverallLeaderboard = new List<TeamStandingDto>
             {
                 new() { TeamName = "Team A", TotalPoints = 15, TotalWins = 5, TotalLosses = 2, Rank = 1 },
                 new() { TeamName = "Team B", TotalPoints = 12, TotalWins = 4, TotalLosses = 3, Rank = 2 }
-            }
+            },
+            TournamentState = new TournamentStateDto()
         };
 
         _mockStateManager.Setup(s => s.GetCurrentStateAsync()).ReturnsAsync(state);
@@ -123,9 +127,12 @@ public class ExportServiceTests
     public async Task ExportWithFormat_Json_ReturnsJsonData()
     {
         // Arrange
-        var state = new TournamentStateDto
+        var state = new DashboardStateDto
         {
-            Status = TournamentStatus.InProgress
+            TournamentState = new TournamentStateDto
+            {
+                Status = TournamentStatus.InProgress
+            }
         };
 
         _mockStateManager.Setup(s => s.GetCurrentStateAsync()).ReturnsAsync(state);
@@ -145,12 +152,13 @@ public class ExportServiceTests
     public async Task ExportWithFormat_Csv_ReturnsCsvData()
     {
         // Arrange
-        var state = new TournamentStateDto
+        var state = new DashboardStateDto
         {
             OverallLeaderboard = new List<TeamStandingDto>
             {
                 new() { TeamName = "Team A", Rank = 1 }
-            }
+            },
+            TournamentState = new TournamentStateDto()
         };
 
         _mockStateManager.Setup(s => s.GetCurrentStateAsync()).ReturnsAsync(state);
@@ -179,9 +187,12 @@ public class ExportServiceTests
     public async Task ExportFileName_IncludesTimestamp()
     {
         // Arrange
-        var state = new TournamentStateDto
+        var state = new DashboardStateDto
         {
-            Status = TournamentStatus.InProgress
+            TournamentState = new TournamentStateDto
+            {
+                Status = TournamentStatus.InProgress
+            }
         };
 
         _mockStateManager.Setup(s => s.GetCurrentStateAsync()).ReturnsAsync(state);
@@ -200,17 +211,20 @@ public class ExportServiceTests
     public async Task ExportFullSnapshot_IncludesAllData()
     {
         // Arrange
-        var state = new TournamentStateDto
+        var state = new DashboardStateDto
         {
-            Status = TournamentStatus.InProgress,
             OverallLeaderboard = new List<TeamStandingDto>
             {
                 new() { TeamName = "Team A", Rank = 1 }
             },
-            CurrentTournament = new CurrentTournamentDto
+            CurrentEvent = new CurrentEventDto
             {
                 GameType = GameType.RPSLS,
                 Stage = TournamentStage.GroupStage
+            },
+            TournamentState = new TournamentStateDto
+            {
+                Status = TournamentStatus.InProgress
             }
         };
 
@@ -237,7 +251,10 @@ public class ExportServiceTests
     public async Task ExportMetadata_IncludesExportInfo()
     {
         // Arrange
-        var state = new TournamentStateDto();
+        var state = new DashboardStateDto
+        {
+            TournamentState = new TournamentStateDto()
+        };
         _mockStateManager.Setup(s => s.GetCurrentStateAsync()).ReturnsAsync(state);
 
         var service = new ExportService(_mockStateManager.Object, _mockMatchFeed.Object, _mockLogger.Object);

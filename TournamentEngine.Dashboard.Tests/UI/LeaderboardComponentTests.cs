@@ -24,7 +24,7 @@ public class LeaderboardComponentTests
     public async Task GetLeaderboardData_WithValidState_ReturnsFormattedLeaderboard()
     {
         // Arrange
-        var state = new TournamentStateDto
+        var state = new DashboardStateDto
         {
             OverallLeaderboard = new List<TeamStandingDto>
             {
@@ -69,7 +69,7 @@ public class LeaderboardComponentTests
     public async Task GetLeaderboardData_WithRankChanges_ShowsRankChange()
     {
         // Arrange
-        var state = new TournamentStateDto
+        var state = new DashboardStateDto
         {
             OverallLeaderboard = new List<TeamStandingDto>
             {
@@ -102,7 +102,7 @@ public class LeaderboardComponentTests
     public async Task GetLeaderboardData_WithNoTeams_ReturnsEmptyList()
     {
         // Arrange
-        var state = new TournamentStateDto
+        var state = new DashboardStateDto
         {
             OverallLeaderboard = new List<TeamStandingDto>()
         };

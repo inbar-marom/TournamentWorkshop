@@ -9,11 +9,16 @@ namespace TournamentEngine.Dashboard.Controllers;
 public class TournamentApiController : ControllerBase
 {
     private readonly StateManagerService _stateManager;
+    private readonly SeriesDashboardViewService _seriesDashboard;
     private readonly ILogger<TournamentApiController> _logger;
 
-    public TournamentApiController(StateManagerService stateManager, ILogger<TournamentApiController> logger)
+    public TournamentApiController(
+        StateManagerService stateManager,
+        SeriesDashboardViewService seriesDashboard,
+        ILogger<TournamentApiController> logger)
     {
         _stateManager = stateManager;
+        _seriesDashboard = seriesDashboard;
         _logger = logger;
     }
 
@@ -35,6 +40,27 @@ public class TournamentApiController : ControllerBase
     {
         var matches = _stateManager.GetRecentMatches(count);
         return Ok(matches);
+    }
+
+    /// <summary>
+    /// Get series dashboard layout view.
+    /// </summary>
+    [HttpGet("series-view")]
+    public async Task<ActionResult<SeriesDashboardViewDto>> GetSeriesView()
+    {
+        var view = await _seriesDashboard.BuildSeriesViewAsync();
+        return Ok(view);
+    }
+
+    /// <summary>
+    /// Clear all tournament data from backend and reset state
+    /// </summary>
+    [HttpPost("clear")]
+    public async Task<ActionResult> ClearAllData()
+    {
+        _logger.LogWarning("Clearing all tournament data - initiated from dashboard");
+        await _stateManager.ClearStateAsync();
+        return Ok(new { Message = "All tournament data cleared successfully" });
     }
 
     /// <summary>

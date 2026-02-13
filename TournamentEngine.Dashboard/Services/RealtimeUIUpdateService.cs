@@ -9,7 +9,7 @@ namespace TournamentEngine.Dashboard.Services;
 public class RealtimeUIUpdateService
 {
     private readonly StateManagerService _stateManager;
-    private TournamentStateDto _currentState;
+    private DashboardStateDto _currentState;
 
     public event EventHandler<StateUpdateEventArgs>? StateUpdateReceived;
     public event EventHandler<MatchUpdateEventArgs>? MatchUpdateReceived;
@@ -18,7 +18,7 @@ public class RealtimeUIUpdateService
     public RealtimeUIUpdateService(StateManagerService stateManager)
     {
         _stateManager = stateManager ?? throw new ArgumentNullException(nameof(stateManager));
-        _currentState = new TournamentStateDto();
+        _currentState = new DashboardStateDto();
     }
 
     /// <summary>
@@ -30,18 +30,18 @@ public class RealtimeUIUpdateService
     }
 
     /// <summary>
-    /// Handle tournament started event.
+    /// Handle event started event.
     /// </summary>
-    public async Task OnTournamentStartedAsync(TournamentStartedDto evt)
+    public async Task OnTournamentStartedAsync(EventStartedEventDto evt)
     {
         _currentState.Status = TournamentStatus.InProgress;
         _currentState.LastUpdated = DateTime.UtcNow;
 
-        if (_currentState.CurrentTournament == null)
+        if (_currentState.CurrentEvent == null)
         {
-            _currentState.CurrentTournament = new CurrentTournamentDto
+            _currentState.CurrentEvent = new CurrentEventDto
             {
-                TournamentNumber = evt.TournamentNumber,
+                TournamentNumber = evt.EventNumber,
                 GameType = evt.GameType,
                 Stage = TournamentStage.GroupStage,
                 MatchesCompleted = 0,
@@ -66,11 +66,11 @@ public class RealtimeUIUpdateService
     /// </summary>
     public async Task OnRoundStartedAsync(RoundStartedDto evt)
     {
-        if (_currentState.CurrentTournament != null)
+        if (_currentState.CurrentEvent != null)
         {
-            _currentState.CurrentTournament.CurrentRound = evt.RoundNumber;
-            _currentState.CurrentTournament.ProgressPercentage = 
-                GetProgressPercentage(_currentState.CurrentTournament);
+            _currentState.CurrentEvent.CurrentRound = evt.RoundNumber;
+            _currentState.CurrentEvent.ProgressPercentage = 
+                GetProgressPercentage(_currentState.CurrentEvent);
         }
 
         _currentState.LastUpdated = DateTime.UtcNow;
@@ -108,12 +108,12 @@ public class RealtimeUIUpdateService
                 .ToList();
         }
 
-        // Update tournament progress
-        if (_currentState.CurrentTournament != null)
+        // Update event progress
+        if (_currentState.CurrentEvent != null)
         {
-            _currentState.CurrentTournament.MatchesCompleted++;
-            _currentState.CurrentTournament.ProgressPercentage = 
-                GetProgressPercentage(_currentState.CurrentTournament);
+            _currentState.CurrentEvent.MatchesCompleted++;
+            _currentState.CurrentEvent.ProgressPercentage = 
+                GetProgressPercentage(_currentState.CurrentEvent);
         }
 
         _currentState.LastUpdated = DateTime.UtcNow;
@@ -154,15 +154,15 @@ public class RealtimeUIUpdateService
     }
 
     /// <summary>
-    /// Handle tournament completed event.
+    /// Handle event completed event.
     /// </summary>
-    public async Task OnTournamentCompletedAsync(TournamentCompletedDto evt)
+    public async Task OnTournamentCompletedAsync(EventCompletedEventDto evt)
     {
         _currentState.Status = TournamentStatus.Completed;
         
-        if (_currentState.CurrentTournament != null)
+        if (_currentState.CurrentEvent != null)
         {
-            _currentState.CurrentTournament.ProgressPercentage = 100.0;
+            _currentState.CurrentEvent.ProgressPercentage = 100.0;
         }
 
         _currentState.LastUpdated = DateTime.UtcNow;
@@ -179,7 +179,7 @@ public class RealtimeUIUpdateService
     /// <summary>
     /// Get current UI state.
     /// </summary>
-    public TournamentStateDto GetCurrentState()
+    public DashboardStateDto GetCurrentState()
     {
         return _currentState;
     }
@@ -196,7 +196,7 @@ public class RealtimeUIUpdateService
     /// <summary>
     /// Check if state has changed since last update.
     /// </summary>
-    public bool HasStateChanged(TournamentStateDto previousState)
+    public bool HasStateChanged(DashboardStateDto previousState)
     {
         return previousState.Status != _currentState.Status ||
                previousState.LastUpdated != _currentState.LastUpdated;
@@ -205,7 +205,7 @@ public class RealtimeUIUpdateService
     /// <summary>
     /// Get list of changes between two states.
     /// </summary>
-    public List<string> GetStateChanges(TournamentStateDto previousState)
+    public List<string> GetStateChanges(DashboardStateDto previousState)
     {
         var changes = new List<string>();
 
@@ -218,8 +218,8 @@ public class RealtimeUIUpdateService
         if (previousState.RecentMatches?.Count != _currentState.RecentMatches?.Count)
             changes.Add("Match feed updated");
 
-        if (previousState.CurrentTournament?.MatchesCompleted != _currentState.CurrentTournament?.MatchesCompleted)
-            changes.Add("Tournament progress updated");
+        if (previousState.CurrentEvent?.MatchesCompleted != _currentState.CurrentEvent?.MatchesCompleted)
+            changes.Add("Event progress updated");
 
         return changes;
     }
@@ -229,7 +229,7 @@ public class RealtimeUIUpdateService
         await _stateManager.UpdateStateAsync(_currentState);
     }
 
-    private double GetProgressPercentage(CurrentTournamentDto tournament)
+    private double GetProgressPercentage(CurrentEventDto tournament)
     {
         if (tournament.TotalMatches == 0)
             return 0.0;

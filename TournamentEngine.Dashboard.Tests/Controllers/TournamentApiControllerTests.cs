@@ -12,24 +12,29 @@ namespace TournamentEngine.Dashboard.Tests.Controllers;
 public class TournamentApiControllerTests
 {
     private readonly Mock<StateManagerService> _mockStateManager;
+    private readonly SeriesDashboardViewService _seriesDashboard;
     private readonly TournamentApiController _controller;
 
     public TournamentApiControllerTests()
     {
         var mockLogger = Mock.Of<ILogger<StateManagerService>>();
         _mockStateManager = new Mock<StateManagerService>(mockLogger);
+        _seriesDashboard = new SeriesDashboardViewService(_mockStateManager.Object);
         var controllerLogger = Mock.Of<ILogger<TournamentApiController>>();
-        _controller = new TournamentApiController(_mockStateManager.Object, controllerLogger);
+        _controller = new TournamentApiController(_mockStateManager.Object, _seriesDashboard, controllerLogger);
     }
 
     [Fact]
     public async Task GetCurrentState_ReturnsOkWithState()
     {
         // Arrange
-        var expectedState = new TournamentStateDto
+        var expectedState = new DashboardStateDto
         {
-            TournamentId = "tournament-123",
-            Status = TournamentStatus.InProgress,
+            TournamentState = new TournamentStateDto
+            {
+                TournamentId = "tournament-123",
+                Status = TournamentStatus.InProgress
+            },
             Message = "Round 1 in progress"
         };
         _mockStateManager
@@ -107,5 +112,56 @@ public class TournamentApiControllerTests
         var statusProp = val!.GetType().GetProperty("Status");
         statusProp.Should().NotBeNull();
         statusProp!.GetValue(val).Should().Be("Healthy");
+    }
+
+    [Fact]
+    public async Task GetSeriesView_ReturnsOkWithViewModel()
+    {
+        // Arrange
+        var seriesState = new TournamentStateDto
+        {
+            TournamentId = "series-1",
+            TournamentName = "Spring Series",
+            TotalSteps = 2,
+            CurrentStepIndex = 1,
+            Status = TournamentStatus.InProgress,
+            Steps = new List<EventStepDto>
+            {
+                new()
+                {
+                    StepIndex = 1,
+                    GameType = GameType.RPSLS,
+                    Status = EventStepStatus.InProgress
+                },
+                new()
+                {
+                    StepIndex = 2,
+                    GameType = GameType.PenaltyKicks,
+                    Status = EventStepStatus.NotStarted
+                }
+            }
+        };
+
+        var state = new DashboardStateDto
+        {
+            TournamentState = seriesState
+        };
+
+        _mockStateManager.Setup(x => x.GetCurrentStateAsync()).ReturnsAsync(state);
+
+        // Act
+        var result = await _controller.GetSeriesView();
+
+        // Assert
+        var okResult = result.Result as OkObjectResult;
+        okResult.Should().NotBeNull();
+
+        var view = okResult!.Value as SeriesDashboardViewDto;
+        view.Should().NotBeNull();
+        view!.SeriesTitle.Should().Be("Spring Series");
+        view.SeriesStatus.Should().Be(TournamentStatus.InProgress);
+        view.TotalSteps.Should().Be(2);
+        view.CurrentStepIndex.Should().Be(1);
+        view.StepTrack.Should().HaveCount(2);
     }
 }

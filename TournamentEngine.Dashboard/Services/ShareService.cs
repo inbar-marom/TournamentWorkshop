@@ -132,7 +132,7 @@ public class ShareService
 public class TournamentSnapshotDto
 {
     public string Id { get; set; } = "";
-    public TournamentStateDto State { get; set; } = new();
+    public DashboardStateDto State { get; set; } = new();
     public DateTime CreatedAt { get; set; }
 }
 

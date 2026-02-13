@@ -232,12 +232,12 @@ public class FullStackIntegrationTests
         };
 
         var receivedMatches = new List<RecentMatchDto>();
-        var tournamentStartEvents = new List<TournamentStartedDto>();
-        var tournamentCompleteEvents = new List<TournamentCompletedDto>();
+        var tournamentStartEvents = new List<EventStartedEventDto>();
+        var tournamentCompleteEvents = new List<EventCompletedEventDto>();
 
         _hubConnection.On<RecentMatchDto>("MatchCompleted", match => receivedMatches.Add(match));
-        _hubConnection.On<TournamentStartedDto>("TournamentStarted", evt => tournamentStartEvents.Add(evt));
-        _hubConnection.On<TournamentCompletedDto>("TournamentCompleted", evt => tournamentCompleteEvents.Add(evt));
+        _hubConnection.On<EventStartedEventDto>("EventStarted", evt => tournamentStartEvents.Add(evt));
+        _hubConnection.On<EventCompletedEventDto>("EventCompleted", evt => tournamentCompleteEvents.Add(evt));
 
         // Act - Run series, events stream in REAL-TIME across all tournaments
         var seriesInfo = await _seriesManager.RunSeriesAsync(bots, seriesConfig);
@@ -346,8 +346,8 @@ public class FullStackIntegrationTests
             BaseConfig = _baseConfig
         };
 
-        var completedEvents = new List<TournamentCompletedDto>();
-        _hubConnection.On<TournamentCompletedDto>("TournamentCompleted", evt => completedEvents.Add(evt));
+        var completedEvents = new List<EventCompletedEventDto>();
+        _hubConnection.On<EventCompletedEventDto>("EventCompleted", evt => completedEvents.Add(evt));
 
         // Act
         var seriesInfo = await _seriesManager.RunSeriesAsync(bots, seriesConfig);
@@ -411,10 +411,10 @@ public class FullStackIntegrationTests
         };
 
         var receivedMatches = new List<RecentMatchDto>();
-        var tournamentCompleted = new List<TournamentCompletedDto>();
+        var tournamentCompleted = new List<EventCompletedEventDto>();
         
         _hubConnection.On<RecentMatchDto>("MatchCompleted", match => receivedMatches.Add(match));
-        _hubConnection.On<TournamentCompletedDto>("TournamentCompleted", evt => tournamentCompleted.Add(evt));
+        _hubConnection.On<EventCompletedEventDto>("EventCompleted", evt => tournamentCompleted.Add(evt));
 
         // Act - Run large series
         var seriesInfo = await _seriesManager.RunSeriesAsync(bots, seriesConfig);

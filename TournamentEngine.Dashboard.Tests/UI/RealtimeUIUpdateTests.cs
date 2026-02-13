@@ -25,7 +25,7 @@ public class RealtimeUIUpdateTests
     {
         // Arrange
         var initialMatches = new List<RecentMatchDto>();
-        var state = new TournamentStateDto
+        var state = new DashboardStateDto
         {
             RecentMatches = initialMatches
         };
@@ -64,7 +64,7 @@ public class RealtimeUIUpdateTests
             new TeamStandingDto { Rank = 1, TeamName = "Team A", TotalPoints = 100, RankChange = 0 }
         };
 
-        var state = new TournamentStateDto
+        var state = new DashboardStateDto
         {
             OverallLeaderboard = oldStandings
         };
@@ -85,9 +85,9 @@ public class RealtimeUIUpdateTests
     public async Task OnTournamentUpdated_RefreshesTournamentStatus()
     {
         // Arrange
-        var state = new TournamentStateDto
+        var state = new DashboardStateDto
         {
-            CurrentTournament = new CurrentTournamentDto
+            CurrentEvent = new CurrentEventDto
             {
                 TournamentNumber = 1,
                 GameType = GameType.RPSLS,
@@ -98,12 +98,12 @@ public class RealtimeUIUpdateTests
         };
 
         // Act
-        state.CurrentTournament.MatchesCompleted = 10;
-        state.CurrentTournament.ProgressPercentage = 50.0;
+        state.CurrentEvent.MatchesCompleted = 10;
+        state.CurrentEvent.ProgressPercentage = 50.0;
 
         // Assert
-        state.CurrentTournament.MatchesCompleted.Should().Be(10);
-        state.CurrentTournament.ProgressPercentage.Should().Be(50.0, "Progress should update to 50%");
+        state.CurrentEvent.MatchesCompleted.Should().Be(10);
+        state.CurrentEvent.ProgressPercentage.Should().Be(50.0, "Progress should update to 50%");
     }
 
     [Fact]
@@ -190,7 +190,7 @@ public class RealtimeUIUpdateTests
     public async Task NextMatch_Preview_UpdatesWhenAvailable()
     {
         // Arrange
-        var state = new TournamentStateDto
+        var state = new DashboardStateDto
         {
             NextMatch = null
         };

@@ -47,17 +47,17 @@ public class TournamentManager : ITournamentManager
         // Publish tournament started event
         if (_eventPublisher != null)
         {
-            var startedEvent = new TournamentStartedDto
+            var startedEvent = new EventStartedEventDto
             {
-                TournamentId = tournamentId,
-                TournamentName = tournamentName,
+                EventId = tournamentId,
+                EventName = tournamentName,
                 GameType = gameType,
                 TotalBots = bots.Count,
                 StartedAt = DateTime.UtcNow,
                 TotalGroups = 1,
-                TournamentNumber = 1
+                EventNumber = 1
             };
-            await _eventPublisher.PublishTournamentStartedAsync(startedEvent);
+            await _eventPublisher.PublishEventStartedAsync(startedEvent);
         }
 
         // Main tournament loop - runs until engine signals completion
@@ -193,18 +193,18 @@ public class TournamentManager : ITournamentManager
                 ? finalTournamentInfo.EndTime.Value - finalTournamentInfo.StartTime
                 : TimeSpan.Zero;
 
-            var completedEvent = new TournamentCompletedDto
+            var completedEvent = new EventCompletedEventDto
             {
-                TournamentId = tournamentId,
-                TournamentName = tournamentName,
+                EventId = tournamentId,
+                EventName = tournamentName,
                 Champion = finalTournamentInfo.Champion ?? "Unknown",
                 GameType = gameType,
                 TotalMatches = finalTournamentInfo.MatchResults?.Count ?? 0,
                 CompletedAt = DateTime.UtcNow,
-                TournamentNumber = 1,
+                EventNumber = 1,
                 Duration = duration
             };
-            await _eventPublisher.PublishTournamentCompletedAsync(completedEvent);
+            await _eventPublisher.PublishEventCompletedAsync(completedEvent);
         }
 
         return finalTournamentInfo;

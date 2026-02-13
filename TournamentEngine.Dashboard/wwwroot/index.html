@@ -3,8 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tournament Dashboard - Live</title>
+    <title>Productivity with AI Tournament Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --bg-1: #f6f3ec;
+            --bg-2: #e7efe8;
+            --ink: #1f2a2e;
+            --muted: #5b6b73;
+            --accent: #0f766e;
+            --accent-strong: #0b4f4a;
+            --accent-soft: #d7f0ea;
+            --warm: #f4b266;
+            --card: #ffffff;
+            --border: rgba(31, 42, 46, 0.12);
+            --shadow: 0 18px 45px rgba(25, 31, 35, 0.12);
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -12,149 +29,383 @@
         }
 
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: #333;
-            padding: 20px;
+            font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+            background: radial-gradient(circle at top left, rgba(15, 118, 110, 0.12), transparent 50%),
+                radial-gradient(circle at 20% 40%, rgba(244, 178, 102, 0.18), transparent 45%),
+                linear-gradient(135deg, var(--bg-1), var(--bg-2));
+            color: var(--ink);
+            padding: 28px;
+            min-height: 100vh;
         }
 
-        .container {
+        .page {
             max-width: 1400px;
             margin: 0 auto;
+            display: grid;
+            gap: 22px;
         }
 
-        header {
-            background: white;
-            padding: 20px 30px;
-            border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            margin-bottom: 20px;
+        .topbar {
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid var(--border);
+            backdrop-filter: blur(10px);
+            padding: 20px 28px;
+            border-radius: 18px;
+            box-shadow: var(--shadow);
             display: flex;
             justify-content: space-between;
             align-items: center;
+            gap: 16px;
         }
 
-        header h1 {
-            color: #667eea;
-            font-size: 2em;
+        .topbar h1 {
+            font-family: "Space Grotesk", "IBM Plex Sans", sans-serif;
+            font-size: 1.9em;
+            color: var(--accent-strong);
+            letter-spacing: 0.02em;
         }
 
-        .connection-status {
+        .topbar-meta {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 18px;
+            flex-wrap: wrap;
         }
 
-        .status-indicator {
-            width: 12px;
-            height: 12px;
+        .status-pill {
+            padding: 8px 14px;
+            border-radius: 999px;
+            background: var(--accent-soft);
+            color: var(--accent-strong);
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            font-size: 0.75em;
+        }
+
+        .status-pill.completed {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .status-pill.not-started {
+            background: #e2e8f0;
+            color: #334155;
+        }
+
+        .connection {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.95em;
+            color: var(--muted);
+        }
+
+        .connection-dot {
+            width: 10px;
+            height: 10px;
             border-radius: 50%;
-            background: #ccc;
-            animation: pulse 2s infinite;
+            background: #d1d5db;
+            box-shadow: 0 0 0 6px rgba(209, 213, 219, 0.25);
         }
 
-        .status-indicator.connected {
-            background: #10b981;
+        .connection-dot.connected {
+            background: #16a34a;
+            box-shadow: 0 0 0 6px rgba(22, 163, 74, 0.2);
         }
 
-        .status-indicator.disconnected {
-            background: #ef4444;
-            animation: none;
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-            gap: 20px;
+        .connection-dot.disconnected {
+            background: #dc2626;
+            box-shadow: 0 0 0 6px rgba(220, 38, 38, 0.2);
         }
 
         .card {
-            background: white;
-            padding: 25px;
-            border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            background: var(--card);
+            padding: 22px;
+            border-radius: 18px;
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow);
         }
 
         .card h2 {
-            color: #667eea;
-            margin-bottom: 15px;
-            font-size: 1.5em;
-            border-bottom: 2px solid #667eea;
+            font-family: "Space Grotesk", "IBM Plex Sans", sans-serif;
+            color: var(--accent-strong);
+            margin-bottom: 14px;
+            font-size: 1.2em;
+            border-bottom: 1px solid var(--border);
             padding-bottom: 10px;
         }
 
-        .status-message {
-            font-size: 1.2em;
-            color: #666;
-            text-align: center;
-            padding: 40px;
+        .status-card-grid {
+            display: grid;
+            gap: 20px;
         }
 
-        .leaderboard-item {
+        .progress-header {
             display: flex;
             justify-content: space-between;
-            padding: 12px;
-            margin: 5px 0;
-            background: #f8f9fa;
-            border-radius: 5px;
-            border-left: 4px solid #667eea;
+            align-items: center;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 14px;
+            background: #e2e8f0;
+            border-radius: 999px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            width: 0;
+            background: linear-gradient(90deg, var(--accent), var(--warm));
+            transition: width 0.4s ease;
+        }
+
+        .step-track {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 12px;
+            justify-content: space-between;
+            width: 100%;
+        }
+
+        .step-chip {
+            padding: 6px 12px;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            font-size: 0.85em;
+            background: #f7f7f4;
+            color: var(--muted);
+        }
+
+        .step-chip.completed {
+            background: rgba(245, 158, 11, 0.15);
+            color: #b45309;
+            border-color: rgba(245, 158, 11, 0.3);
+        }
+
+        .step-chip.running {
+            background: rgba(15, 118, 110, 0.12);
+            color: var(--accent-strong);
+            border-color: rgba(15, 118, 110, 0.35);
+        }
+
+        .status-panels {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 18px;
+        }
+
+        .panel-title {
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--muted);
+            margin-bottom: 10px;
+        }
+
+        .panel-body {
+            display: grid;
+            gap: 10px;
+        }
+
+        .leaderboard-item,
+        .list-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 12px;
+            border-radius: 12px;
+            background: #f7f7f4;
+            border-left: 4px solid var(--accent);
         }
 
         .leaderboard-item:nth-child(1) {
-            border-left-color: #fbbf24;
-            font-weight: bold;
+            border-left-color: #f59e0b;
         }
 
         .leaderboard-item:nth-child(2) {
-            border-left-color: #9ca3af;
+            border-left-color: #94a3b8;
         }
 
         .leaderboard-item:nth-child(3) {
-            border-left-color: #cd7f32;
+            border-left-color: #c08457;
+        }
+
+        .leaderboard-item.champion {
+            font-size: 1.3em;
+            padding: 16px 18px;
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(15, 118, 110, 0.1));
+            border: 2px solid #f59e0b;
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2);
+        }
+
+        .champion-label {
+            display: inline-block;
+            font-size: 0.65em;
+            color: var(--warm);
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            margin-left: 8px;
+        }
+
+        .details-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 18px;
+        }
+
+        .status-message {
+            color: var(--muted);
+            font-size: 0.95em;
+            padding: 8px 0;
+        }
+
+        .matches-carousel {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .matches-page {
+            display: grid;
+            grid-auto-rows: minmax(auto, 1fr);
+            gap: 8px;
+            flex: 1;
+            overflow-y: auto;
+            animation: slideIn 0.3s ease-in-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         .match-item {
-            padding: 10px;
-            margin: 5px 0;
-            background: #f8f9fa;
-            border-radius: 5px;
+            padding: 10px 12px;
+            border-radius: 12px;
+            background: #f7f7f4;
+            border: 1px solid var(--border);
             font-size: 0.95em;
+            transition: background-color 0.2s ease;
+        }
+
+        .match-item:hover {
+            background: #efefeb;
         }
 
         .match-result {
-            font-weight: bold;
-            color: #667eea;
-        }
-
-        .tournament-badge {
-            display: inline-block;
-            background: #e0e7ff;
-            color: #4f46e5;
-            padding: 2px 8px;
-            border-radius: 12px;
-            font-size: 0.75em;
-            margin-left: 8px;
-            font-weight: normal;
+            font-weight: 600;
+            color: var(--accent-strong);
         }
 
         .timestamp {
-            color: #999;
+            color: #6b7280;
             font-size: 0.85em;
         }
 
+        .matches-pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid var(--border);
+        }
+
+        .pagination-btn {
+            padding: 6px 12px;
+            border: 1px solid var(--border);
+            background: #f7f7f4;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.85em;
+            color: var(--muted);
+            transition: all 0.2s ease;
+        }
+
+        .pagination-btn:hover {
+            background: var(--accent-soft);
+            color: var(--accent-strong);
+            border-color: var(--accent);
+        }
+
+        .pagination-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .pagination-info {
+            font-size: 0.85em;
+            color: var(--muted);
+            white-space: nowrap;
+        }
+
+        .carousel-timer {
+            font-size: 0.75em;
+            color: var(--warm);
+            font-weight: 600;
+        }
+
+        .group-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .log-panel {
+            border-radius: 18px;
+            background: rgba(255, 255, 255, 0.8);
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            padding: 0;
+        }
+
+        .log-panel summary {
+            cursor: pointer;
+            list-style: none;
+            padding: 18px 22px;
+            font-family: "Space Grotesk", "IBM Plex Sans", sans-serif;
+            font-size: 1.05em;
+            font-weight: 600;
+            color: var(--accent-strong);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .log-panel summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .log-body {
+            padding: 0 22px 22px;
+            display: grid;
+            gap: 16px;
+        }
+
         #messages {
-            height: 300px;
+            height: 260px;
             overflow-y: auto;
-            border: 1px solid #ddd;
+            border: 1px solid var(--border);
             padding: 10px;
-            background: #f8f9fa;
-            border-radius: 5px;
-            font-family: 'Courier New', monospace;
+            background: #f7f7f4;
+            border-radius: 10px;
+            font-family: "Courier New", monospace;
             font-size: 0.9em;
         }
 
@@ -164,163 +415,195 @@
         }
 
         .log-info {
-            color: #3b82f6;
+            color: #0369a1;
         }
 
         .log-success {
-            color: #10b981;
+            color: #16a34a;
         }
 
         .log-error {
-            color: #ef4444;
+            color: #dc2626;
         }
 
         button {
-            background: #667eea;
+            background: var(--accent);
             color: white;
             border: none;
             padding: 10px 20px;
-            border-radius: 5px;
+            border-radius: 999px;
             cursor: pointer;
-            font-size: 1em;
-            margin: 5px;
+            font-size: 0.95em;
         }
 
         button:hover {
-            background: #5568d3;
+            background: #0d5c56;
         }
 
-        button:disabled {
-            background: #ccc;
-            cursor: not-allowed;
+        button.danger {
+            background: #dc2626;
+        }
+
+        @media (max-width: 800px) {
+            body {
+                padding: 18px;
+            }
+
+            .topbar {
+                flex-direction: column;
+                align-items: flex-start;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>🎮 Tournament Dashboard</h1>
-            <div class="connection-status">
-                <div class="status-indicator" id="statusIndicator"></div>
-                <span id="statusText">Connecting...</span>
+    <div class="page">
+        <header class="topbar">
+            <h1>Productivity with AI Tournament Dashboard</h1>
+            <div class="topbar-meta">
+                <span class="status-pill not-started" id="tournamentStatus">Not Started</span>
+                <span class="connection"><span class="connection-dot" id="statusIndicator"></span><span id="statusText">Connecting...</span></span>
             </div>
         </header>
 
-        <div class="grid">
-            <div class="card">
-                <h2>📊 Current Status</h2>
-                <div id="currentStatus" class="status-message">
-                    Connecting to server...
+        <section class="card">
+            <h2>Tournament Status</h2>
+            <div class="status-card-grid">
+                <div>
+                    <div class="progress-header">
+                        <span id="progressLabel">Event Progress</span>
+                        <span id="progressPercent">0% Complete</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <div class="step-track" id="eventSteps"></div>
+                </div>
+
+                <div class="status-panels">
+                    <div>
+                        <div class="panel-title">Event Champions</div>
+                        <div class="panel-body" id="eventChampions">
+                            <div class="status-message">No winners yet</div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="panel-title">Overall Leaders <span id="leadersNote" style="font-size: 0.75em; color: var(--muted); font-weight: 400; margin-left: 8px;">(Not Final)</span></div>
+                        <div class="panel-body">
+                            <div id="overallLeaders"></div>
+                        </div>
+                    </div>
                 </div>
             </div>
+        </section>
 
-            <div class="card">
-                <h2>🏆 Overall Leaders</h2>
-                <div id="leaderboard">
-                    <p class="status-message">No data available</p>
+        <section class="card">
+            <h2>Events Details</h2>
+            <div class="details-grid">
+                <div>
+                    <div class="panel-title">Recent Matches</div>
+                    <div id="recentMatches">
+                        <div class="status-message">No matches yet</div>
+                    </div>
+                </div>
+                <div>
+                    <div class="panel-title">Now Running Event</div>
+                    <div id="nowRunningEvent">
+                        <div class="status-message">Waiting for tournament data...</div>
+                    </div>
+                </div>
+                <div>
+                    <div class="panel-title">Group Standings</div>
+                    <div id="groupStandings">
+                        <div class="status-message">No group data yet</div>
+                    </div>
                 </div>
             </div>
+        </section>
 
-            <div class="card">
-                <h2>🎯 Recent Matches</h2>
-                <div id="recentMatches">
-                    <p class="status-message">No matches yet</p>
-                </div>
-            </div>
-
-            <div class="card">
-                <h2>📡 Connection Log</h2>
+        <details class="log-panel" id="logPanel">
+            <summary>
+                <span>System Details</span>
+                <span id="logToggle">Show</span>
+            </summary>
+            <div class="log-body">
                 <div id="messages"></div>
-                <div style="margin-top: 10px;">
+                <div>
                     <button onclick="requestCurrentState()">Get Current State</button>
                     <button onclick="clearLog()">Clear Log</button>
+                    <button class="danger" onclick="clearAllData()">Clear All Data</button>
                 </div>
             </div>
-        </div>
+        </details>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/7.0.14/signalr.min.js"></script>
     <script>
         const connection = new signalR.HubConnectionBuilder()
             .withUrl("/tournamentHub")
-            .withAutomaticReconnect()
+            .withAutomaticReconnect([0, 0, 1000, 3000, 5000, 10000])
             .build();
 
-        // Connection event handlers
+        let connectionRetries = 0;
+        let lastState = null;
+        let groupCycleIndex = 0;
+        let groupCycleTimer = null;
+        let recentMatches = []; // Separate array for live match streaming
+        
+        // Pagination state for Recent Matches
+        let currentMatchPage = 0;
+        let matchesPerPage = 5;
+        let matchCarouselTimer = null;
+        let lastMatchCarouselTime = 0;
+
+        connection.on("reconnected", (connectionId) => {
+            connectionRetries = 0;
+            logMessage(`Reconnected to hub (ID: ${connectionId})`, 'success');
+            updateConnectionStatus(true);
+            requestCurrentState();
+        });
+
+        connection.on("reconnecting", () => {
+            connectionRetries++;
+            logMessage(`Attempting reconnection (attempt ${connectionRetries})...`, 'info');
+            updateConnectionStatus(false);
+        });
+
         connection.on("CurrentState", (state) => {
             logMessage('Received current state', 'success');
-            console.log('State:', state);
-            updateCurrentStatus(state);
-            updateLeaderboard(state.overallLeaderboard);
-            updateRecentMatches(state.recentMatches);
+            lastState = state;
+            updateFromState(state);
         });
 
         connection.on("MatchCompleted", (match) => {
-            console.log('MatchCompleted event received:', match);
-            const displayMatch = {
-                bot1Name: match.Bot1Name || match.bot1Name,
-                bot2Name: match.Bot2Name || match.bot2Name,
-                winnerName: match.WinnerName || match.winnerName,
-                bot1Score: match.Bot1Score || match.bot1Score,
-                bot2Score: match.Bot2Score || match.bot2Score,
-                completedAt: match.CompletedAt || match.completedAt,
-                tournamentId: match.TournamentId || match.tournamentId,
-                tournamentName: match.TournamentName || match.tournamentName
-            };
-            const tournamentInfo = displayMatch.tournamentName ? ` [${displayMatch.tournamentName}]` : '';
-            logMessage(`Match: ${displayMatch.bot1Name} vs ${displayMatch.bot2Name} - Winner: ${displayMatch.winnerName || 'Draw'}${tournamentInfo}`, 'info');
-            addMatchToFeed(displayMatch);
+            logMessage(`Match: ${match.Bot1Name || match.bot1Name} vs ${match.Bot2Name || match.bot2Name} - Winner: ${match.WinnerName || match.winnerName || 'Draw'}`, 'info');
+            addMatchToFeed(match);
         });
 
         connection.on("StandingsUpdated", (standings) => {
-            const tournamentInfo = standings.TournamentName || standings.tournamentName 
-                ? ` [${standings.TournamentName || standings.tournamentName}]` 
-                : '';
-            logMessage(`Standings updated${tournamentInfo}`, 'info');
-            console.log('Standings received:', standings);
-            updateLeaderboard(standings.OverallStandings || standings.overallStandings);
-        });
-
-        connection.on("TournamentStarted", (tournamentEvent) => {
-            logMessage(`Tournament started: ${tournamentEvent.TournamentName || tournamentEvent.tournamentName}`, 'info');
-            updateCurrentStatus({
-                tournamentId: tournamentEvent.TournamentId || tournamentEvent.tournamentId,
-                tournamentName: tournamentEvent.TournamentName || tournamentEvent.tournamentName,
-                status: 1, // InProgress
-                message: `Tournament started: ${tournamentEvent.GameType || tournamentEvent.gameType} with ${tournamentEvent.TotalBots || tournamentEvent.totalBots} bots`,
-                lastUpdated: tournamentEvent.StartedAt || tournamentEvent.startedAt
-            });
-        });
-
-        connection.on("TournamentCompleted", (completedEvent) => {
-            const tournamentName = completedEvent.TournamentName || completedEvent.tournamentName || '';
-            logMessage(`Tournament completed: ${tournamentName} - Champion: ${completedEvent.Champion || completedEvent.champion}`, 'success');
-            updateCurrentStatus({
-                tournamentId: completedEvent.TournamentId || completedEvent.tournamentId,
-                tournamentName: tournamentName,
-                status: 3, // Completed
-                message: `Tournament completed! Champion: ${completedEvent.Champion || completedEvent.champion}`,
-                champion: completedEvent.Champion || completedEvent.champion,
-                lastUpdated: completedEvent.CompletedAt || completedEvent.completedAt
-            });
-        });
-
-        connection.on("RoundStarted", (roundEvent) => {
-            const tournamentInfo = roundEvent.TournamentName || roundEvent.tournamentName 
-                ? ` [${roundEvent.TournamentName || roundEvent.tournamentName}]` 
-                : '';
-            logMessage(`Round ${roundEvent.RoundNumber || roundEvent.roundNumber} started${tournamentInfo}`, 'info');
-        });
-
-        connection.on("SubscriptionConfirmed", (data) => {
-            logMessage(data.message, 'success');
-            if (data.currentState) {
-                updateCurrentStatus(data.currentState);
+            const leaders = standings.OverallStandings || standings.overallStandings;
+            if (leaders) {
+                const isTournamentComplete = lastState && formatStatus(lastState.Status || lastState.status) === 'Completed';
+                updateOverallLeaders(leaders, isTournamentComplete);
+            }
+            if (standings.GroupStandings || standings.groupStandings) {
+                updateGroupStandings(standings.GroupStandings || standings.groupStandings);
             }
         });
 
-        connection.on("Pong", (timestamp) => {
-            logMessage(`Pong received at ${new Date(timestamp).toLocaleTimeString()}`, 'info');
+        connection.on("EventStarted", () => requestCurrentState());
+        connection.on("TournamentStarted", () => requestCurrentState());
+        connection.on("TournamentProgressUpdated", () => requestCurrentState());
+        connection.on("TournamentCompleted", () => requestCurrentState());
+        connection.on("EventCompleted", () => requestCurrentState());
+        connection.on("EventStepCompleted", () => requestCurrentState());
+        connection.on("SeriesProgressUpdated", () => requestCurrentState());
+        connection.on("SeriesStarted", () => requestCurrentState());
+        connection.on("SeriesCompleted", () => requestCurrentState());
+
+        connection.on("SubscriptionConfirmed", (data) => {
+            logMessage(data.message, 'success');
+            requestCurrentState();
         });
 
         connection.onclose(() => {
@@ -328,32 +611,22 @@
             logMessage('Connection closed', 'error');
         });
 
-        connection.onreconnecting(() => {
-            updateConnectionStatus(false);
-            logMessage('Reconnecting...', 'info');
-        });
-
-        connection.onreconnected(() => {
-            updateConnectionStatus(true);
-            logMessage('Reconnected successfully', 'success');
-            requestCurrentState();
-        });
-
-        // Start connection
         async function start() {
             try {
                 await connection.start();
                 updateConnectionStatus(true);
                 logMessage('Connected to tournament hub', 'success');
+                connectionRetries = 0;
                 await connection.invoke("SubscribeToUpdates");
             } catch (err) {
                 updateConnectionStatus(false);
                 logMessage(`Connection error: ${err}`, 'error');
-                setTimeout(start, 5000);
+                const delay = Math.min(1000 * Math.pow(1.5, connectionRetries), 10000);
+                connectionRetries++;
+                setTimeout(start, delay);
             }
         }
 
-        // Helper functions
         function updateConnectionStatus(connected) {
             const indicator = document.getElementById('statusIndicator');
             const text = document.getElementById('statusText');
@@ -368,94 +641,329 @@
             }
         }
 
-        function updateCurrentStatus(state) {
-            const statusDiv = document.getElementById('currentStatus');
-            // Handle both string enum names and numeric values
-            let statusText = state.status;
-            if (typeof state.status === 'number') {
-                const statusNames = ['Not Started', 'In Progress', 'Paused', 'Completed'];
-                statusText = statusNames[state.status] || state.status;
+        function formatStatus(status) {
+            if (typeof status === 'number') {
+                const statusNames = ['NotStarted', 'InProgress', 'Paused', 'Completed'];
+                return statusNames[status] || 'NotStarted';
             }
-            
-            const tournamentNameLine = state.tournamentName || state.TournamentName
-                ? `<p><strong>🎯 Tournament:</strong> ${state.tournamentName || state.TournamentName}</p>`
-                : '';
-            const tournamentIdLine = state.tournamentId || state.TournamentId
-                ? `<p style="font-size: 0.85em; color: #666;"><strong>ID:</strong> ${state.tournamentId || state.TournamentId}</p>`
-                : '';
-            const championLine = state.champion
-                ? `<p><strong>🏆 Champion:</strong> ${state.champion}</p>`
-                : '';
+            return status || 'NotStarted';
+        }
+
+        function formatGameType(gameType) {
+            if (!gameType) {
+                return '';
+            }
+            const value = gameType.toString();
+            const map = {
+                RPSLS: 'RPSLS',
+                ColonelBlotto: 'Colonel Blotto',
+                PenaltyKicks: 'Penalty Kicks'
+            };
+            return map[value] || value.replace(/([a-z])([A-Z])/g, '$1 $2');
+        }
+
+        function updateFromState(state) {
+            const tournamentState = state.TournamentState || state.tournamentState;
+            const steps = tournamentState?.Steps || tournamentState?.steps || [];
+            const status = formatStatus(state.Status || state.status || tournamentState?.Status || tournamentState?.status);
+            const totalSteps = tournamentState?.TotalSteps || tournamentState?.totalSteps || steps.length || 0;
+            const completedSteps = steps.filter(step => formatStepStatus(step.Status || step.status) === 'Completed').length;
+            const progressPercent = totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0;
+            const isTournamentComplete = status === 'Completed';
+
+            // Sync recent matches from state
+            const stateMatches = state.RecentMatches || state.recentMatches || [];
+            if (stateMatches.length > 0) {
+                recentMatches = stateMatches;
+            }
+
+            updateStatusPill(status);
+            updateProgress(progressPercent);
+            updateStepTrack(steps);
+            updateEventChampions(steps);
+            updateOverallLeaders(state.OverallLeaderboard || state.overallLeaderboard || [], isTournamentComplete);
+            updateNowRunning(state, steps, isTournamentComplete);
+            updateGroupStandings(state.GroupStandings || state.groupStandings || []);
+            updateRecentMatches(recentMatches);
+        }
+
+        function updateStatusPill(status) {
+            const pill = document.getElementById('tournamentStatus');
+            pill.textContent = status.replace(/([a-z])([A-Z])/g, '$1 $2');
+            pill.classList.remove('completed', 'not-started');
+            if (status === 'Completed') {
+                pill.classList.add('completed');
+            } else if (status === 'NotStarted') {
+                pill.classList.add('not-started');
+            }
+        }
+
+        function updateProgress(percent) {
+            document.getElementById('progressPercent').textContent = `${percent}% Complete`;
+            document.getElementById('progressFill').style.width = `${percent}%`;
+        }
+
+        function formatStepStatus(status) {
+            if (typeof status === 'number') {
+                const statusNames = ['NotStarted', 'InProgress', 'Completed'];
+                return statusNames[status] || 'NotStarted';
+            }
+            return status || 'NotStarted';
+        }
+
+        function updateStepTrack(steps) {
+            const container = document.getElementById('eventSteps');
+            if (!steps.length) {
+                container.innerHTML = '<div class="status-message">No events configured</div>';
+                return;
+            }
+
+            container.innerHTML = steps.map(step => {
+                const status = formatStepStatus(step.Status || step.status);
+                const className = status === 'InProgress'
+                    ? 'running'
+                    : status === 'Completed'
+                        ? 'completed'
+                        : '';
+                const label = formatGameType(step.GameType || step.gameType) || `Event ${step.StepIndex || step.stepIndex}`;
+                return `<span class="step-chip ${className}">${label}</span>`;
+            }).join('');
+        }
+
+        function updateEventChampions(steps) {
+            const container = document.getElementById('eventChampions');
+            if (!steps || steps.length === 0) {
+                container.innerHTML = '<div class="status-message">No events configured</div>';
+                return;
+            }
+
+            // Show all events with their status and winners
+            container.innerHTML = steps.map(step => {
+                const status = formatStepStatus(step.Status || step.status);
+                const winner = step.WinnerName || step.winnerName || 'TBD';
+                const label = formatGameType(step.GameType || step.gameType) || `Event ${step.StepIndex || step.stepIndex}`;
+                const statusBadge = status === 'Completed' 
+                    ? `<span style="color: #16a34a; font-weight: 600;">✓ ${winner}</span>`
+                    : status === 'InProgress'
+                        ? `<span style="color: var(--accent); font-weight: 600;">⧖ Running</span>`
+                        : `<span style="color: var(--muted); font-weight: 500;">⊙ Pending</span>`;
                 
-            statusDiv.innerHTML = `
-                ${tournamentNameLine}
-                ${tournamentIdLine}
-                <p><strong>Status:</strong> ${statusText}</p>
-                <p><strong>Message:</strong> ${state.message}</p>
-                ${championLine}
-                <p><strong>Last Updated:</strong> ${new Date(state.lastUpdated).toLocaleString()}</p>
-            `;
-        }
-
-        function updateLeaderboard(leaders) {
-            const leaderboardDiv = document.getElementById('leaderboard');
-            if (!leaders || leaders.length === 0) {
-                leaderboardDiv.innerHTML = '<p class="status-message">No standings available</p>';
-                return;
-            }
-            
-            leaderboardDiv.innerHTML = leaders.slice(0, 10).map((team, index) => `
-                <div class="leaderboard-item">
-                    <span>${index + 1}. ${team.teamName}</span>
-                    <span>${team.totalPoints} pts</span>
-                </div>
-            `).join('');
-        }
-
-        function updateRecentMatches(matches) {
-            const matchesDiv = document.getElementById('recentMatches');
-            if (!matches || matches.length === 0) {
-                matchesDiv.innerHTML = '<p class="status-message">No matches yet</p>';
-                return;
-            }
-            
-            matchesDiv.innerHTML = matches.slice(-10).reverse().map(match => {
-                const tournamentName = match.TournamentName || match.tournamentName || '';
-                const tournamentBadge = tournamentName ? `<span class="tournament-badge">${tournamentName}</span>` : '';
                 return `
-                    <div class="match-item">
-                        <div class="match-result">${match.Bot1Name || match.bot1Name} vs ${match.Bot2Name || match.bot2Name}${tournamentBadge}</div>
-                        <div>Result: ${match.WinnerName || match.winnerName || 'Draw'} (${match.Bot1Score || match.bot1Score}-${match.Bot2Score || match.bot2Score})</div>
-                        <div class="timestamp">${new Date(match.CompletedAt || match.completedAt).toLocaleTimeString()}</div>
+                    <div class="list-item">
+                        <span>${label}</span>
+                        ${statusBadge}
                     </div>
                 `;
             }).join('');
         }
 
-        function addMatchToFeed(match) {
-            const matchesDiv = document.getElementById('recentMatches');
-            const bot1Name = match.Bot1Name || match.bot1Name;
-            const bot2Name = match.Bot2Name || match.bot2Name;
-            const winnerName = match.WinnerName || match.winnerName;
-            const bot1Score = match.Bot1Score || match.bot1Score;
-            const bot2Score = match.Bot2Score || match.bot2Score;
-            const completedAt = match.CompletedAt || match.completedAt;
-            const tournamentName = match.TournamentName || match.tournamentName || '';
-            const tournamentBadge = tournamentName ? `<span class="tournament-badge">${tournamentName}</span>` : '';
+        function updateOverallLeaders(leaders, isTournamentComplete = false) {
+            const container = document.getElementById('overallLeaders');
+            const note = document.getElementById('leadersNote');
             
-            const matchHtml = `
-                <div class="match-item" style="animation: slideIn 0.3s;">
-                    <div class="match-result">${bot1Name} vs ${bot2Name}${tournamentBadge}</div>
-                    <div>Result: ${winnerName || 'Draw'} (${bot1Score}-${bot2Score})</div>
-                    <div class="timestamp">${new Date(completedAt).toLocaleTimeString()}</div>
+            if (!leaders || leaders.length === 0) {
+                container.innerHTML = '<div class="status-message">No standings available</div>';
+                return;
+            }
+
+            // Update disclaimer visibility
+            if (note) {
+                note.style.display = isTournamentComplete ? 'none' : 'inline';
+            }
+
+            container.innerHTML = leaders.slice(0, 5).map((team, index) => {
+                const isChampion = index === 0 && isTournamentComplete;
+                const championClass = isChampion ? ' champion' : '';
+                const championIcon = isChampion ? '🏆 ' : '';
+                const championLabel = isChampion ? '<span class="champion-label">Tournament Champion</span>' : '';
+                
+                return `
+                    <div class="leaderboard-item${championClass}">
+                        <span>${championIcon}${index + 1}. ${team.TeamName || team.teamName}${championLabel}</span>
+                        <span>${team.TotalPoints || team.totalPoints} pts</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function updateNowRunning(state, steps, isTournamentComplete = false) {
+            const container = document.getElementById('nowRunningEvent');
+            
+            // If tournament is complete, show completion message instead of event details
+            if (isTournamentComplete) {
+                container.innerHTML = `<div class="status-message">All events completed</div>`;
+                return;
+            }
+            
+            const currentStep = steps.find(step => formatStepStatus(step.Status || step.status) === 'InProgress');
+            const currentEvent = state.CurrentEvent || state.currentEvent;
+            const gameType = currentStep?.GameType || currentStep?.gameType || currentEvent?.GameType || currentEvent?.gameType;
+            const eventName = currentEvent?.EventName || currentEvent?.eventName || formatGameType(gameType);
+            const stage = currentEvent?.Stage || currentEvent?.stage;
+            const progress = currentEvent?.ProgressPercentage || currentEvent?.progressPercentage;
+            const matchesCompleted = currentEvent?.MatchesCompleted || currentEvent?.matchesCompleted;
+            const totalMatches = currentEvent?.TotalMatches || currentEvent?.totalMatches;
+            const statusMessage = state.Message || state.message || 'Awaiting updates';
+
+            if (!currentStep && !currentEvent) {
+                container.innerHTML = `<div class="status-message">${statusMessage}</div>`;
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="list-item">
+                    <span>Event Name</span>
+                    <span>${eventName || 'In progress'}</span>
+                </div>
+                <div class="list-item">
+                    <span>Stage</span>
+                    <span>${stage || 'Group Stage'}</span>
+                </div>
+                <div class="list-item">
+                    <span>Matches</span>
+                    <span>${matchesCompleted ?? 0} / ${totalMatches ?? 0}</span>
+                </div>
+                <div class="status-message">${progress ? `${Math.round(progress)}% complete` : statusMessage}</div>
+            `;
+        }
+
+        function updateGroupStandings(groups) {
+            if (!groups || groups.length === 0) {
+                document.getElementById('groupStandings').innerHTML = '<div class="status-message">No group data yet</div>';
+                return;
+            }
+
+            if (groupCycleTimer) {
+                clearInterval(groupCycleTimer);
+            }
+
+            groupCycleIndex = Math.min(groupCycleIndex, groups.length - 1);
+            renderGroup(groups[groupCycleIndex]);
+
+            groupCycleTimer = setInterval(() => {
+                groupCycleIndex = (groupCycleIndex + 1) % groups.length;
+                renderGroup(groups[groupCycleIndex]);
+            }, 5000);
+        }
+
+        function renderGroup(group) {
+            const container = document.getElementById('groupStandings');
+            const rankings = group.Rankings || group.rankings || [];
+            const rows = rankings.slice(0, 5).map(team => `
+                <div class="list-item">
+                    <span>${team.Rank || team.rank}. ${team.TeamName || team.teamName}</span>
+                    <span>${team.Points || team.points} pts</span>
+                </div>
+            `).join('');
+
+            container.innerHTML = `
+                <div class="group-header">
+                    <span>${group.GroupName || group.groupName}</span>
+                    <span class="timestamp">Auto-cycles</span>
+                </div>
+                ${rows || '<div class="status-message">No standings yet</div>'}
+            `;
+        }
+
+        function updateRecentMatches(matches) {
+            const container = document.getElementById('recentMatches');
+            if (!matches || matches.length === 0) {
+                container.innerHTML = '<div class="status-message">No matches yet</div>';
+                return;
+            }
+
+            const totalPages = Math.ceil(matches.length / matchesPerPage);
+            const maxPage = Math.max(0, totalPages - 1);
+            
+            // Reset page if out of bounds
+            if (currentMatchPage > maxPage) {
+                currentMatchPage = maxPage;
+            }
+
+            const startIdx = currentMatchPage * matchesPerPage;
+            const endIdx = startIdx + matchesPerPage;
+            const pageMatches = matches.slice(startIdx, endIdx).reverse();
+
+            const pageHTML = pageMatches.map(match => {
+                const bot1 = match.Bot1Name || match.bot1Name;
+                const bot2 = match.Bot2Name || match.bot2Name;
+                const winner = match.WinnerName || match.winnerName || 'Draw';
+                const score1 = match.Bot1Score || match.bot1Score || 0;
+                const score2 = match.Bot2Score || match.bot2Score || 0;
+                const when = new Date(match.CompletedAt || match.completedAt).toLocaleTimeString();
+                const gameLabel = formatGameType(match.GameType || match.gameType);
+                return `
+                    <div class="match-item">
+                        <div class="match-result">${bot1} vs ${bot2}</div>
+                        <div>Result: ${winner} (${score1}-${score2})</div>
+                        <div class="timestamp">${gameLabel} - ${when}</div>
+                    </div>
+                `;
+            }).join('');
+
+            const timerDisplay = matchCarouselTimer ? ` <span class="carousel-timer">(Auto-advance in ${Math.ceil((lastMatchCarouselTime + 10000 - Date.now()) / 1000)}s)</span>` : '';
+
+            container.innerHTML = `
+                <div class="matches-carousel">
+                    <div class="matches-page">
+                        ${pageHTML || '<div class="status-message">No matches on this page</div>'}
+                    </div>
+                    <div class="matches-pagination">
+                        <button class="pagination-btn" onclick="previousMatchesPage()" ${currentMatchPage === 0 ? 'disabled' : ''}>← Previous</button>
+                        <span class="pagination-info">
+                            Page ${currentMatchPage + 1} of ${totalPages}${timerDisplay}
+                        </span>
+                        <button class="pagination-btn" onclick="nextMatchesPage()" ${currentMatchPage >= maxPage ? 'disabled' : ''}>Next →</button>
+                    </div>
                 </div>
             `;
-            matchesDiv.insertAdjacentHTML('afterbegin', matchHtml);
+
+            // Reset or continue carousel timer
+            clearTimeout(matchCarouselTimer);
+            lastMatchCarouselTime = Date.now();
             
-            // Keep only last 10 matches
-            const items = matchesDiv.querySelectorAll('.match-item');
-            if (items.length > 10) {
-                items[items.length - 1].remove();
+            if (currentMatchPage < maxPage) {
+                matchCarouselTimer = setTimeout(() => {
+                    currentMatchPage++;
+                    updateRecentMatches(matches);
+                }, 10000); // Auto-advance every 10 seconds
+            }
+        }
+
+        function addMatchToFeed(match) {
+            // Add to local matches array for live streaming
+            recentMatches.unshift(match); // Add to beginning for most recent first
+            
+            // Keep only last 100 matches to avoid memory bloat
+            if (recentMatches.length > 100) {
+                recentMatches = recentMatches.slice(0, 100);
+            }
+            
+            updateRecentMatches(recentMatches);
+            
+            // Also update lastState if it exists
+            if (lastState) {
+                const list = lastState.RecentMatches || lastState.recentMatches || [];
+                list.unshift(match);
+                if (list.length > 100) {
+                    lastState.RecentMatches = list.slice(0, 100);
+                    lastState.recentMatches = list.slice(0, 100);
+                }
+            }
+        }
+
+        function nextMatchesPage() {
+            const maxPage = Math.max(0, Math.ceil(recentMatches.length / matchesPerPage) - 1);
+            if (currentMatchPage < maxPage) {
+                currentMatchPage++;
+                updateRecentMatches(recentMatches);
+            }
+        }
+
+        function previousMatchesPage() {
+            if (currentMatchPage > 0) {
+                currentMatchPage--;
+                updateRecentMatches(recentMatches);
             }
         }
 
@@ -479,7 +987,40 @@
             document.getElementById('messages').innerHTML = '';
         }
 
-        // Start the connection
+        async function clearAllData() {
+            if (!confirm('Are you sure you want to clear all tournament data from both Frontend and Backend? This action cannot be undone.')) {
+                return;
+            }
+
+            try {
+                logMessage('Clearing all data...', 'info');
+                const response = await fetch('/api/tournament/clear', { method: 'POST' });
+                if (!response.ok) {
+                    throw new Error(`Clear failed: ${response.status}`);
+                }
+                logMessage('All data cleared successfully', 'success');
+                lastState = null;
+                recentMatches = [];
+                currentMatchPage = 0;
+                clearTimeout(matchCarouselTimer);
+                matchCarouselTimer = null;
+                updateFromState({ OverallLeaderboard: [], GroupStandings: [], RecentMatches: [] });
+            } catch (err) {
+                logMessage(`Error clearing data: ${err}`, 'error');
+            }
+        }
+
+        function setupLogPanel() {
+            const panel = document.getElementById('logPanel');
+            const toggle = document.getElementById('logToggle');
+            const updateToggle = () => {
+                toggle.textContent = panel.open ? 'Hide' : 'Show';
+            };
+            updateToggle();
+            panel.addEventListener('toggle', updateToggle);
+        }
+
+        setupLogPanel();
         start();
     </script>
 </body>

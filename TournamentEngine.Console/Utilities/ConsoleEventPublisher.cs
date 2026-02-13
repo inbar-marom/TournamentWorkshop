@@ -71,14 +71,27 @@ public class ConsoleEventPublisher : ITournamentEventPublisher, IAsyncDisposable
         try
         {
             _logger?.LogInformation("Attempting to connect to dashboard hub...");
-            await _hubConnection.StartAsync();
+            
+            // Add timeout to prevent hanging
+            using (var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(30)))
+            {
+                await _hubConnection.StartAsync(cts.Token);
+            }
+            
             _isConnected = true;
             _logger?.LogInformation("✅ Connected to dashboard hub successfully");
             return true;
         }
+        catch (OperationCanceledException ex)
+        {
+            _logger?.LogError(ex, "❌ Connection to dashboard timed out after 30 seconds");
+            _isConnected = false;
+            return false;
+        }
         catch (Exception ex)
         {
             _logger?.LogError(ex, "❌ Could not connect to dashboard - events will not be published");
+            _logger?.LogError("Exception type: {ExceptionType}, Message: {Message}", ex.GetType().Name, ex.Message);
             _isConnected = false;
             return false;
         }
@@ -94,14 +107,14 @@ public class ConsoleEventPublisher : ITournamentEventPublisher, IAsyncDisposable
         await PublishEventAsync("StandingsUpdated", standingsEvent);
     }
 
-    public async Task PublishTournamentStartedAsync(TournamentStartedDto startEvent)
+    public async Task PublishEventStartedAsync(EventStartedEventDto startEvent)
     {
-        await PublishEventAsync("TournamentStarted", startEvent);
+        await PublishEventAsync("EventStarted", startEvent);
     }
 
-    public async Task PublishTournamentCompletedAsync(TournamentCompletedDto completedEvent)
+    public async Task PublishEventCompletedAsync(EventCompletedEventDto completedEvent)
     {
-        await PublishEventAsync("TournamentCompleted", completedEvent);
+        await PublishEventAsync("EventCompleted", completedEvent);
     }
 
     public async Task PublishRoundStartedAsync(RoundStartedDto roundEvent)
@@ -109,23 +122,45 @@ public class ConsoleEventPublisher : ITournamentEventPublisher, IAsyncDisposable
         await PublishEventAsync("RoundStarted", roundEvent);
     }
 
-    public async Task UpdateCurrentStateAsync(TournamentStateDto state)
+    public async Task UpdateCurrentStateAsync(DashboardStateDto state)
     {
         await PublishEventAsync("CurrentState", state);
+    }
+
+    public async Task PublishTournamentStartedAsync(TournamentStartedEventDto tournamentEvent)
+    {
+        await PublishEventAsync("TournamentStarted", tournamentEvent);
+    }
+
+    public async Task PublishTournamentProgressUpdatedAsync(TournamentProgressUpdatedEventDto progressEvent)
+    {
+        await PublishEventAsync("TournamentProgressUpdated", progressEvent);
+    }
+
+    public async Task PublishEventStepCompletedAsync(EventStepCompletedDto completedEvent)
+    {
+        await PublishEventAsync("EventStepCompleted", completedEvent);
+    }
+
+    public async Task PublishTournamentCompletedAsync(TournamentCompletedEventDto completedEvent)
+    {
+        await PublishEventAsync("TournamentCompleted", completedEvent);
     }
 
     private async Task PublishEventAsync<T>(string eventName, T eventData)
     {
         if (_hubConnection == null || !_isConnected)
-        {_logger?.LogDebug("Skipping event {EventName} - not connected to dashboard", eventName);
+        {
+            _logger?.LogWarning("Skipping event {EventName} - HubConnection: {HubNull}, IsConnected: {IsConnected}", 
+                eventName, _hubConnection == null, _isConnected);
             return; // Silently skip if not connected
         }
 
         try
         {
-            _logger?.LogDebug("Publishing event {EventName} to dashboard", eventName);
+            _logger?.LogInformation("Publishing event {EventName} to dashboard", eventName);
             await _hubConnection.SendAsync(eventName, eventData);
-            _logger?.LogDebug("Successfully published {EventName}", eventName);
+            _logger?.LogInformation("Successfully published {EventName}", eventName);
         }
         catch (Exception ex)
         {

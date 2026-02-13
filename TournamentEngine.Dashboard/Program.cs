@@ -17,14 +17,15 @@ builder.Services.AddControllers()
         options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
     });
 
-// Add CORS for remote browser access
+// Add CORS for remote browser access and SignalR
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        policy.AllowAnyOrigin()
+        policy.SetIsOriginAllowed(_ => true)  // Allow any origin
               .AllowAnyHeader()
-              .AllowAnyMethod();
+              .AllowAnyMethod()
+              .AllowCredentials();  // Required for SignalR
     });
 });
 
@@ -49,6 +50,7 @@ builder.Services.AddSingleton<ExportService>();
 builder.Services.AddSingleton<ShareService>();
 builder.Services.AddSingleton<NotificationPreferencesService>();
 builder.Services.AddSingleton<ResponsiveLayoutService>();
+builder.Services.AddSingleton<SeriesDashboardViewService>();
 
 // Configure to listen on all network interfaces for remote access
 builder.WebHost.UseUrls("http://0.0.0.0:5000", "https://0.0.0.0:5001");

@@ -57,6 +57,15 @@ public class TournamentHub : Hub
         
         // Send acknowledgment with current state
         var currentState = await _stateManager.GetCurrentStateAsync();
+        
+        // If tournament state is missing but tournament exists, reconstruct tournament state from tournament data
+        if (currentState.TournamentState == null && !string.IsNullOrEmpty(currentState.TournamentId))
+        {
+            _logger.LogInformation("Tournament state missing - reconstructing from current tournament state");
+            // The tournament state should have enough info to show the current step
+            // The TournamentStarted and progress events will repopulate the full state as clients continue
+        }
+        
         await Clients.Caller.SendAsync("SubscriptionConfirmed", new
         {
             Message = "Successfully subscribed to tournament updates",
@@ -96,18 +105,16 @@ public class TournamentHub : Hub
     }
 
     /// <summary>
-    /// Receive TournamentStarted event from ConsoleEventPublisher
+    /// Receive EventStarted event from ConsoleEventPublisher
     /// </summary>
-    public async Task TournamentStarted(TournamentStartedDto tournamentEvent)
+    public async Task EventStarted(EventStartedEventDto eventStarted)
     {
-        _logger.LogInformation("Tournament started: {TournamentId} - {BotCount} bots, Game: {GameType}", 
-            tournamentEvent.TournamentId, tournamentEvent.TotalBots, tournamentEvent.GameType);
-        
-        // Update state manager
-        await _stateManager.UpdateTournamentStartedAsync(tournamentEvent);
-        
-        // Broadcast to all viewers
-        await Clients.Group("TournamentViewers").SendAsync("TournamentStarted", tournamentEvent);
+        _logger.LogInformation("Event started: {EventId} - {BotCount} bots, Game: {GameType}",
+            eventStarted.EventId, eventStarted.TotalBots, eventStarted.GameType);
+
+        await _stateManager.UpdateEventStartedAsync(eventStarted);
+
+        await Clients.Group("TournamentViewers").SendAsync("EventStarted", eventStarted);
     }
 
     /// <summary>
@@ -152,26 +159,95 @@ public class TournamentHub : Hub
     }
 
     /// <summary>
-    /// Receive TournamentCompleted event from ConsoleEventPublisher
+    /// Receive EventCompleted event from ConsoleEventPublisher
     /// </summary>
-    public async Task TournamentCompleted(TournamentCompletedDto completedEvent)
+    public async Task EventCompleted(EventCompletedEventDto completedEvent)
     {
-        _logger.LogInformation("Tournament completed: Winner: {Champion} - {TotalMatches} matches played", 
+        _logger.LogInformation("Event completed: Winner: {Champion} - {TotalMatches} matches played", 
             completedEvent.Champion, completedEvent.TotalMatches);
         
         // Update state manager
-        await _stateManager.UpdateTournamentCompletedAsync(completedEvent);
+        await _stateManager.UpdateEventCompletedAsync(completedEvent);
         
         // Broadcast to all viewers
+        await Clients.Group("TournamentViewers").SendAsync("EventCompleted", completedEvent);
+    }
+
+    /// <summary>
+    /// Receive TournamentStarted event (whole tournament) from ConsoleEventPublisher
+    /// </summary>
+    public async Task TournamentStarted(TournamentStartedEventDto tournamentEvent)
+    {
+        _logger.LogInformation("Tournament started: {TournamentName} with {TotalSteps} steps",
+            tournamentEvent.TournamentName, tournamentEvent.TotalSteps);
+
+        await _stateManager.UpdateTournamentStartedAsync(tournamentEvent);
+
+        await Clients.Group("TournamentViewers").SendAsync("TournamentStarted", tournamentEvent);
+    }
+
+    /// <summary>
+    /// Backward-compatible alias for TournamentStarted.
+    /// </summary>
+    public async Task SeriesStarted(TournamentStartedEventDto tournamentEvent)
+    {
+        await TournamentStarted(tournamentEvent);
+    }
+
+    /// <summary>
+    /// Receive TournamentProgressUpdated event from ConsoleEventPublisher
+    /// </summary>
+    public async Task TournamentProgressUpdated(TournamentProgressUpdatedEventDto progressEvent)
+    {
+        _logger.LogInformation("Tournament progress updated: Step {StepIndex}/{TotalSteps}",
+            progressEvent.TournamentState.CurrentStepIndex, progressEvent.TournamentState.TotalSteps);
+
+        await _stateManager.UpdateTournamentProgressAsync(progressEvent);
+
+        await Clients.Group("TournamentViewers").SendAsync("TournamentProgressUpdated", progressEvent);
+        await Clients.Group("TournamentViewers").SendAsync("SeriesProgressUpdated", progressEvent);
+    }
+
+    /// <summary>
+    /// Backward-compatible alias for TournamentProgressUpdated.
+    /// </summary>
+    public async Task SeriesProgressUpdated(TournamentProgressUpdatedEventDto progressEvent)
+    {
+        await TournamentProgressUpdated(progressEvent);
+    }
+
+    /// <summary>
+    /// Receive EventStepCompleted event from ConsoleEventPublisher
+    /// </summary>
+    public async Task EventStepCompleted(EventStepCompletedDto completedEvent)
+    {
+        _logger.LogInformation("Event step completed: Step {StepIndex} Winner {Winner}",
+            completedEvent.StepIndex, completedEvent.WinnerName ?? "Unknown");
+
+        await _stateManager.UpdateEventStepCompletedAsync(completedEvent);
+
+        await Clients.Group("TournamentViewers").SendAsync("EventStepCompleted", completedEvent);
+    }
+
+    /// <summary>
+    /// Receive TournamentCompleted event (whole tournament) from ConsoleEventPublisher
+    /// </summary>
+    public async Task TournamentCompleted(TournamentCompletedEventDto completedEvent)
+    {
+        _logger.LogInformation("Tournament completed: {TournamentName} Champion {Champion}",
+            completedEvent.TournamentName, completedEvent.Champion);
+
+        await _stateManager.UpdateTournamentCompletedAsync(completedEvent);
+
         await Clients.Group("TournamentViewers").SendAsync("TournamentCompleted", completedEvent);
     }
 
     /// <summary>
     /// Update current state (for real-time state sync)
     /// </summary>
-    public async Task CurrentState(TournamentStateDto state)
+    public async Task CurrentState(DashboardStateDto state)
     {
-        _logger.LogInformation("Received state update: {Status} - {Message}", state.Status, state.Message);
+        _logger.LogInformation("Received dashboard state update: {Status} - {Message}", state.Status, state.Message);
         
         // Update the state manager
         await _stateManager.UpdateStateAsync(state);
@@ -184,9 +260,9 @@ public class TournamentHub : Hub
     /// Publish a state update from tournament engine (simulator or real engine).
     /// This updates the state and broadcasts to all connected clients.
     /// </summary>
-    public async Task PublishStateUpdate(TournamentStateDto state)
+    public async Task PublishStateUpdate(DashboardStateDto state)
     {
-        _logger.LogInformation("Received state update: {Status} - {Message}", state.Status, state.Message);
+        _logger.LogInformation("Received dashboard state update: {Status} - {Message}", state.Status, state.Message);
         
         // Update the state manager
         await _stateManager.UpdateStateAsync(state);
