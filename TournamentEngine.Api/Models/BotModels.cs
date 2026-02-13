@@ -63,3 +63,11 @@ public class BatchSubmissionResponse
     public int FailureCount { get; set; }
     public List<BotSubmissionResult> Results { get; init; } = new();
 }
+
+/// <summary>
+/// Request to submit multiple bots at once
+/// </summary>
+public class BatchSubmissionRequest
+{
+    public required List<BotSubmissionRequest> Bots { get; init; }
+}
