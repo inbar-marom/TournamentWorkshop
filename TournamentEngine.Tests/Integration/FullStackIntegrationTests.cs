@@ -141,6 +141,9 @@ public class FullStackIntegrationTests
             .Build();
 
         await _hubConnection.StartAsync();
+        
+        // Give SignalR time to establish connection properly
+        await Task.Delay(500);
     }
 
     [TestCleanup]
@@ -183,7 +186,7 @@ public class FullStackIntegrationTests
         var tournamentInfo = await _tournamentManager.RunTournamentAsync(
             bots, GameType.RPSLS, _baseConfig);
 
-        await Task.Delay(200); // Give SignalR time to deliver all events
+        await Task.Delay(1000); // Give SignalR time to deliver all events
 
         // Assert
         Assert.AreEqual(TournamentState.Completed, tournamentInfo.State);
