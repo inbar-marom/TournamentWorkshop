@@ -37,6 +37,9 @@ public static class BotEndpoints
 
         group.MapGet("/pause-status", GetPauseStatus)
             .WithName("GetPauseStatus");
+
+        group.MapPost("/verify", VerifyBot)
+            .WithName("VerifyBot");
     }
 
     /// <summary>
@@ -79,7 +82,7 @@ public static class BotEndpoints
 
         // Validate file sizes
         var maxFileSize = 50_000; // 50KB
-        var maxTotalSize = 200_000; // 200KB
+        var maxTotalSize = 500_000; // 500KB
 
         foreach (var file in request.Files)
         {
@@ -107,7 +110,7 @@ public static class BotEndpoints
             {
                 Success = false,
                 TeamName = request.TeamName,
-                Message = "Total submission size exceeds maximum of 200KB",
+                Message = "Total submission size exceeds maximum of 500KB",
                 Errors = new() { "Submitted files are too large in total" }
             }, statusCode: StatusCodes.Status413PayloadTooLarge);
         }
@@ -277,5 +280,107 @@ public static class BotEndpoints
     {
         var isPaused = botStorage.IsPaused();
         return Results.Ok(new { success = true, isPaused });
+    }
+
+    /// <summary>
+    /// POST /api/bots/verify - Verify a bot before submission
+    /// </summary>
+    private static async Task<IResult> VerifyBot(
+        BotVerificationRequest request,
+        BotStorageService botStorage,
+        ILogger<Program> logger)
+    {
+        logger.LogInformation("Verifying bot for team {TeamName}", request.TeamName);
+
+        if (string.IsNullOrWhiteSpace(request.TeamName))
+            return Results.BadRequest(new BotVerificationResult
+            {
+                IsValid = false,
+                Message = "Team name is required",
+                Errors = new() { "TeamName cannot be empty" }
+            });
+
+        if (request.Files == null || request.Files.Count == 0)
+            return Results.BadRequest(new BotVerificationResult
+            {
+                IsValid = false,
+                Message = "At least one file is required",
+                Errors = new() { "Files collection is empty" }
+            });
+
+        // Validate team name format
+        if (!IsValidTeamName(request.TeamName))
+            return Results.BadRequest(new BotVerificationResult
+            {
+                IsValid = false,
+                Message = "Invalid team name format",
+                Errors = new() { "Team name must contain only alphanumeric characters, hyphens, and underscores" }
+            });
+
+        // Validate file sizes (same limits as submission)
+        var maxFileSize = 50_000;
+        var maxTotalSize = 500_000;
+        var errors = new List<string>();
+        var warnings = new List<string>();
+
+        foreach (var file in request.Files)
+        {
+            var fileSize = System.Text.Encoding.UTF8.GetByteCount(file.Code);
+            if (fileSize > maxFileSize)
+            {
+                errors.Add($"File {file.FileName} exceeds maximum size of 50KB ({fileSize} bytes)");
+            }
+        }
+
+        var totalSize = request.Files.Sum(f => System.Text.Encoding.UTF8.GetByteCount(f.Code));
+        if (totalSize > maxTotalSize)
+        {
+            errors.Add($"Total submission size exceeds maximum of 500KB ({totalSize} bytes)");
+        }
+
+        // Check for duplicate filenames
+        var fileNames = request.Files.Select(f => f.FileName).ToList();
+        if (fileNames.Distinct().Count() != fileNames.Count)
+        {
+            errors.Add("Duplicate file names detected");
+        }
+
+        // Basic syntax/structure validation (simplified - just check for common issues)
+        foreach (var file in request.Files)
+        {
+            if (string.IsNullOrWhiteSpace(file.Code))
+            {
+                errors.Add($"File {file.FileName} is empty");
+            }
+            else if (file.FileName.EndsWith(".py") && !file.Code.Contains("def "))
+            {
+                warnings.Add($"File {file.FileName} appears to be Python but has no function definitions");
+            }
+            else if (file.FileName.EndsWith(".cs") && !file.Code.Contains("class "))
+            {
+                warnings.Add($"File {file.FileName} appears to be C# but has no class definitions");
+            }
+        }
+
+        if (errors.Count > 0)
+        {
+            logger.LogWarning("Bot verification failed for team {TeamName}: {ErrorCount} errors", request.TeamName, errors.Count);
+            return Results.BadRequest(new BotVerificationResult
+            {
+                IsValid = false,
+                Message = "Bot verification failed",
+                Errors = errors,
+                Warnings = warnings
+            });
+        }
+
+        logger.LogInformation("Bot verification successful for team {TeamName}", request.TeamName);
+        return Results.Ok(new BotVerificationResult
+        {
+            IsValid = true,
+            Message = "Bot verification successful. Ready for submission.",
+            Errors = new(),
+            Warnings = warnings
+        });
     }
 }

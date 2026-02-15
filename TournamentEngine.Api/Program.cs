@@ -19,6 +19,9 @@ app.UseHttpsRedirection();
 // Map bot endpoints
 app.MapBotEndpoints();
 
+// Map resource endpoints
+app.MapResourceEndpoints();
+
 app.Run();
 
 public partial class Program { }

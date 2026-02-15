@@ -1,5 +1,7 @@
 namespace TournamentEngine.Api.Models;
 
+using TournamentEngine.Core.Common;
+
 /// <summary>
 /// Represents a file submission as part of a bot
 /// </summary>
@@ -109,4 +111,25 @@ public class BotDashboardDto
     public string? CompilationError { get; set; } // null if Valid
     public List<string> FileNames { get; set; } = new();
     public List<BotVersionInfo> VersionHistory { get; set; } = new();
+}
+
+/// <summary>
+/// Request to verify a bot before submission
+/// </summary>
+public class BotVerificationRequest
+{
+    public required string TeamName { get; init; }
+    public required List<BotFile> Files { get; init; }
+    public GameType? GameType { get; init; } // Optional: verify for specific game
+}
+
+/// <summary>
+/// Result of bot verification
+/// </summary>
+public class BotVerificationResult
+{
+    public bool IsValid { get; init; }
+    public List<string> Errors { get; init; } = new();
+    public List<string> Warnings { get; init; } = new();
+    public string Message { get; init; } = string.Empty;
 }
