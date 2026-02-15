@@ -555,32 +555,75 @@ namespace {teamName}Bot
 
         public Task<string> MakePenaltyDecision(GameState gameState, CancellationToken cancellationToken)
         {{
-            // Penalty executor accepts only Left/Right
+            // Penalty Kicks: Left, Center, or Right
             var roll = _rng.NextDouble();
             if (_leftBias)
             {{
-                return Task.FromResult(roll < 0.65 ? ""Left"" : ""Right"");
+                // Left-biased strategy
+                if (roll < 0.50) return Task.FromResult("Left");
+                if (roll < 0.75) return Task.FromResult("Center");
+                return Task.FromResult("Right");
             }}
 
-            return Task.FromResult(roll < 0.35 ? ""Left"" : ""Right"");
+            // Right-biased strategy  
+            if (roll < 0.20) return Task.FromResult("Left");
+            if (roll < 0.45) return Task.FromResult("Center");
+            return Task.FromResult("Right");
         }}
 
         public Task<string> MakeSecurityMove(GameState gameState, CancellationToken cancellationToken)
         {{
-            var roll = _rng.NextDouble();
-
-            // Security game accepts only Attack/Defend with per-bot bias and periodic flips.
-            if ((_moveCount + gameState.CurrentRound) % 5 == 0)
+            // Security Game: Check role and respond accordingly
+            var role = gameState.State.TryGetValue(""Role"", out var r) ? r?.ToString() : ""Attacker"";
+            
+            if (role == ""Attacker"")
             {{
-                return Task.FromResult(_attackBias ? ""Defend"" : ""Attack"");
+                // Choose target index (0, 1, or 2)
+                // Higher value targets are more attractive but may be more defended
+                var roll = _rng.NextDouble();
+                if (_attackBias)
+                {{
+                    // Aggressive: favor high-value targets
+                    if (roll < 0.15) return Task.FromResult(""0"");  // Target 0 (value 10)
+                    if (roll < 0.40) return Task.FromResult(""1"");  // Target 1 (value 20)
+                    return Task.FromResult(""2"");                   // Target 2 (value 30)
+                }}
+                else
+                {{
+                    // Balanced approach
+                    if (roll < 0.30) return Task.FromResult(""0"");
+                    if (roll < 0.65) return Task.FromResult(""1"");
+                    return Task.FromResult(""2"");
+                }}
             }}
-
-            if (_attackBias)
+            else // Defender
             {{
-                return Task.FromResult(roll < 0.65 ? ""Attack"" : ""Defend"");
+                // Distribute 30 defense units across 3 targets [10, 20, 30]
+                // Different strategies based on bot personality
+                if (_leftBias)
+                {{
+                    // Protect high-value targets heavily
+                    return Task.FromResult(""2,8,20"");  // Heavy defense on target 2
+                }}
+                else if (_attackBias)
+                {{
+                    // Balanced defense
+                    return Task.FromResult(""5,10,15"");
+                }}
+                else
+                {{
+                    // Random distribution (still sums to 30)
+                    var allocations = new int[3];
+                    var remaining = 30;
+                    for (int i = 0; i < 2; i++)
+                    {{
+                        allocations[i] = _rng.Next(0, remaining + 1);
+                        remaining -= allocations[i];
+                    }}
+                    allocations[2] = remaining;
+                    return Task.FromResult($""{{allocations[0]}},{{allocations[1]}},{{allocations[2]}}"");
+                }}
             }}
-
-            return Task.FromResult(roll < 0.35 ? ""Attack"" : ""Defend"");
         }}
 
         private int[] CreateRandomAllocation()

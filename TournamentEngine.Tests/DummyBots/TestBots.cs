@@ -28,7 +28,8 @@ public class PaperBot : IBot
 
     public Task<string> MakeSecurityMove(GameState gameState, CancellationToken cancellationToken)
     {
-        return Task.FromResult("Defend");
+        var role = gameState.State.TryGetValue("Role", out var r) ? r?.ToString() : "Attacker";
+        return Task.FromResult(role == "Attacker" ? "1" : "10,10,10");
     }
 }
 
@@ -93,6 +94,7 @@ public class TimeoutBot : IBot
     public async Task<string> MakeSecurityMove(GameState gameState, CancellationToken cancellationToken)
     {
         await Task.Delay(5000, cancellationToken);
-        return "Defend";
+        var role = gameState.State.TryGetValue("Role", out var r) ? r?.ToString() : "Attacker";
+        return role == "Attacker" ? "0" : "10,10,10";
     }
 }

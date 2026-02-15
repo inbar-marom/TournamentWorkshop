@@ -68,7 +68,8 @@ public class TestBot : IBot
     public async Task<string> MakeSecurityMove(GameState gameState, CancellationToken cancellationToken)
     {
         await Task.CompletedTask;
-        return ""Scan"";
+        var role = gameState.State.TryGetValue(""Role"", out var r) ? r?.ToString() : ""Attacker"";
+        return role == ""Attacker"" ? ""0"" : ""10,10,10"";
     }
 }";
 
@@ -168,7 +169,8 @@ namespace MultiFileBot
         public async Task<string> MakeSecurityMove(GameState gameState, CancellationToken cancellationToken)
         {
             await Task.CompletedTask;
-            return ""Scan"";
+            var role = gameState.State.TryGetValue(""Role"", out var r) ? r?.ToString() : ""Attacker"";
+            return role == ""Attacker"" ? ""0"" : ""10,10,10"";
         }
     }
 }";
@@ -289,7 +291,8 @@ public class Bot1 : IBot
     public async Task<string> MakeSecurityMove(GameState gameState, CancellationToken cancellationToken)
     {
         await Task.CompletedTask;
-        return ""Scan"";
+        var role = gameState.State.TryGetValue(""Role"", out var r) ? r?.ToString() : ""Attacker"";
+        return role == ""Attacker"" ? ""0"" : ""10,10,10"";
     }
 }";
 
@@ -407,7 +410,8 @@ namespace LargeBot
         public async Task<string> MakeSecurityMove(GameState gameState, CancellationToken cancellationToken)
         {
             await Task.CompletedTask;
-            return ""Scan"";
+            var role = gameState.State.TryGetValue(""Role"", out var r) ? r?.ToString() : ""Attacker"";
+            return role == ""Attacker"" ? ""0"" : ""10,10,10"";
         }
     }
 }";
@@ -474,7 +478,8 @@ public class FileBot : IBot
     public async Task<string> MakeSecurityMove(GameState gameState, CancellationToken cancellationToken)
     {
         await Task.CompletedTask;
-        return ""Scan"";
+        var role = gameState.State.TryGetValue(""Role"", out var r) ? r?.ToString() : ""Attacker"";
+        return role == ""Attacker"" ? ""0"" : ""10,10,10"";
     }
 }";
 
@@ -535,7 +540,8 @@ public class NetworkBot : IBot
     public async Task<string> MakeSecurityMove(GameState gameState, CancellationToken cancellationToken)
     {
         await Task.CompletedTask;
-        return ""Scan"";
+        var role = gameState.State.TryGetValue(""Role"", out var r) ? r?.ToString() : ""Attacker"";
+        return role == ""Attacker"" ? ""0"" : ""10,10,10"";
     }
 }";
 
@@ -599,7 +605,8 @@ namespace MultiFileBlockedBot
         public async Task<string> MakeSecurityMove(GameState gameState, CancellationToken cancellationToken)
         {
             await Task.CompletedTask;
-            return ""Scan"";
+            var role = gameState.State.TryGetValue(""Role"", out var r) ? r?.ToString() : ""Attacker"";
+            return role == ""Attacker"" ? ""0"" : ""10,10,10"";
         }
     }
 }";
@@ -685,7 +692,8 @@ public class CleanBot : IBot
     public async Task<string> MakeSecurityMove(GameState gameState, CancellationToken cancellationToken)
     {
         await Task.CompletedTask;
-        return ""Scan"";
+        var role = gameState.State.TryGetValue(""Role"", out var r) ? r?.ToString() : ""Attacker"";
+        return role == ""Attacker"" ? ""0"" : ""10,10,10"";
     }
 }";
 
@@ -742,7 +750,8 @@ public class {0} : IBot
     public async Task<string> MakeSecurityMove(GameState gameState, CancellationToken cancellationToken)
     {{
         await Task.CompletedTask;
-        return ""Scan"";
+        var role = gameState.State.TryGetValue(""Role"", out var r) ? r?.ToString() : ""Attacker"";
+        return role == ""Attacker"" ? ""0"" : ""10,10,10"";
     }}
 }}";
 
@@ -843,7 +852,8 @@ public class GoodBot : IBot
     public async Task<string> MakeSecurityMove(GameState gameState, CancellationToken cancellationToken)
     {
         await Task.CompletedTask;
-        return ""Scan"";
+        var role = gameState.State.TryGetValue(""Role"", out var r) ? r?.ToString() : ""Attacker"";
+        return role == ""Attacker"" ? ""0"" : ""10,10,10"";
     }
 }";
         await File.WriteAllTextAsync(Path.Combine(folder1, "GoodBot.cs"), validCode);
@@ -892,7 +902,8 @@ public class BlockedBot : IBot
     public async Task<string> MakeSecurityMove(GameState gameState, CancellationToken cancellationToken)
     {
         await Task.CompletedTask;
-        return ""Scan"";
+        var role = gameState.State.TryGetValue(""Role"", out var r) ? r?.ToString() : ""Attacker"";
+        return role == ""Attacker"" ? ""0"" : ""10,10,10"";
     }
 }";
         await File.WriteAllTextAsync(Path.Combine(folder3, "BlockedBot.cs"), blockedCode);
@@ -983,7 +994,8 @@ public class {0} : IBot
     public async Task<string> MakeSecurityMove(GameState gameState, CancellationToken cancellationToken)
     {{
         await Task.CompletedTask;
-        return ""Scan"";
+        var role = gameState.State.TryGetValue(""Role"", out var r) ? r?.ToString() : ""Attacker"";
+        return role == ""Attacker"" ? ""0"" : ""10,10,10"";
     }}
 }}";
 

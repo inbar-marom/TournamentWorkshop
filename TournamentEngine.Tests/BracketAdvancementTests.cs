@@ -374,6 +374,9 @@ public class BracketAdvancementTests
             => Task.FromResult("Left");
 
         public Task<string> MakeSecurityMove(GameState gameState, CancellationToken cancellationToken)
-            => Task.FromResult("Defend");
+        {
+            var role = gameState.State.TryGetValue("Role", out var r) ? r?.ToString() : "Attacker";
+            return Task.FromResult(role == "Attacker" ? "0" : "10,10,10");
+        }
     }
 }

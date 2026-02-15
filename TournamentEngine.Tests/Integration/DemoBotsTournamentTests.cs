@@ -20,7 +20,11 @@ public class DemoBotsTournamentTests
         public Task<string> MakeMove(GameState gameState, CancellationToken ct) => Task.FromResult("Rock");
         public Task<int[]> AllocateTroops(GameState gameState, CancellationToken ct) => Task.FromResult(new[] { 20, 20, 20, 20, 20 });
         public Task<string> MakePenaltyDecision(GameState gameState, CancellationToken ct) => Task.FromResult("Left");
-        public Task<string> MakeSecurityMove(GameState gameState, CancellationToken ct) => Task.FromResult("Defend");
+        public Task<string> MakeSecurityMove(GameState gameState, CancellationToken ct)
+        {
+            var role = gameState.State.TryGetValue("Role", out var r) ? r?.ToString() : "Attacker";
+            return Task.FromResult(role == "Attacker" ? "1" : "10,10,10");
+        }
     }
 
     private sealed class InlinePaperBot : IBot
@@ -30,7 +34,11 @@ public class DemoBotsTournamentTests
         public Task<string> MakeMove(GameState gameState, CancellationToken ct) => Task.FromResult("Paper");
         public Task<int[]> AllocateTroops(GameState gameState, CancellationToken ct) => Task.FromResult(new[] { 20, 20, 20, 20, 20 });
         public Task<string> MakePenaltyDecision(GameState gameState, CancellationToken ct) => Task.FromResult("Left");
-        public Task<string> MakeSecurityMove(GameState gameState, CancellationToken ct) => Task.FromResult("Defend");
+        public Task<string> MakeSecurityMove(GameState gameState, CancellationToken ct)
+        {
+            var role = gameState.State.TryGetValue("Role", out var r) ? r?.ToString() : "Attacker";
+            return Task.FromResult(role == "Attacker" ? "2" : "0,5,25");
+        }
     }
 
     private static TournamentConfig CreateConfig() => new TournamentConfig

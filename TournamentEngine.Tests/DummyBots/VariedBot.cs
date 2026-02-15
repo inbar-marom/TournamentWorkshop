@@ -56,6 +56,17 @@ public class VariedBot : IBot
     public async Task<string> MakeSecurityMove(GameState gameState, CancellationToken cancellationToken)
     {
         await Task.Delay(100, cancellationToken);
-        return "Scan";
+        var role = gameState.State.TryGetValue("Role", out var r) ? r?.ToString() : "Attacker";
+        if (role == "Attacker")
+        {
+            // Pick target based on seed
+            return ((_seed + gameState.CurrentRound) % 3).ToString();
+        }
+        else
+        {
+            // Different defense patterns based on seed
+            var patterns = new[] { "10,10,10", "5,10,15", "2,8,20", "15,10,5" };
+            return patterns[_seed % patterns.Length];
+        }
     }
 }

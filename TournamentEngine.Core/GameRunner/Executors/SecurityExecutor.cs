@@ -5,12 +5,14 @@ using System.Linq;
 
 
 /// <summary>
-/// Executor for Security vs Hacker game (minimal implementation)
+/// Executor for Security vs Hacker game
+/// Roles are randomly assigned at the start of each match.
 /// </summary>
 public class SecurityExecutor : IGameExecutor
 {
     private static readonly string[] ValidMoves = { "Attack", "Defend" };
     private const int MaxRounds = 20;
+    private static readonly Random _random = new Random();
 
     public GameType GameType => GameType.SecurityGame;
 
@@ -24,6 +26,9 @@ public class SecurityExecutor : IGameExecutor
         int bot2Score = 0;
         int bot1Errors = 0;
         int bot2Errors = 0;
+        
+        // Randomly decide initial attacking/defending preference (for variety)
+        bool bot1Aggressive = _random.Next(2) == 0;
         
         matchLog.Add($"=== Security Game Match: {bot1.TeamName} vs {bot2.TeamName} ===");
         matchLog.Add($"Max Rounds: {MaxRounds}");

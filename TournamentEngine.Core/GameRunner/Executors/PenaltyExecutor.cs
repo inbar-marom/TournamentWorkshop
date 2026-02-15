@@ -5,12 +5,17 @@ using System.Linq;
 
 
 /// <summary>
-/// Executor for Penalty Kicks game (minimal implementation)
+/// Executor for Penalty Kicks game
+/// Roles (Shooter/Goalkeeper) are randomly assigned at the start of each match.
+/// - Shooter scores 1 point when choosing a different direction than the goalkeeper
+/// - Goalkeeper scores 2 points when matching the shooter's direction (saving the shot)
+/// - 9 rounds total
 /// </summary>
 public class PenaltyExecutor : IGameExecutor
 {
-    private static readonly string[] ValidDecisions = { "Left", "Right" };
-    private const int MaxRounds = 10;
+    private static readonly string[] ValidDecisions = { "Left", "Center", "Right" };
+    private const int MaxRounds = 9;
+    private static readonly Random _random = new Random();
 
     public GameType GameType => GameType.PenaltyKicks;
 
@@ -25,73 +30,83 @@ public class PenaltyExecutor : IGameExecutor
         int bot1Errors = 0;
         int bot2Errors = 0;
         
+        // Randomly assign roles
+        bool bot1IsShooter = _random.Next(2) == 0;
+        var shooterBot = bot1IsShooter ? bot1 : bot2;
+        var goalkeeperBot = bot1IsShooter ? bot2 : bot1;
+        
         matchLog.Add($"=== Penalty Kicks Match: {bot1.TeamName} vs {bot2.TeamName} ===");
+        matchLog.Add($"Shooter: {shooterBot.TeamName}, Goalkeeper: {goalkeeperBot.TeamName}");
         matchLog.Add($"Max Rounds: {MaxRounds}");
         matchLog.Add("");
 
-        // Execute rounds (simplified: both bots make decisions, score if they differ)
+        // Execute rounds with assigned roles
         for (int round = 1; round <= MaxRounds; round++)
         {
-            var gameState = CreateGameState(round, MaxRounds);
+            var shooterGameState = CreateGameState(round, MaxRounds, "Shooter");
+            var goalkeeperGameState = CreateGameState(round, MaxRounds, "Goalkeeper");
             
-            var (decision1, error1) = await GetBotDecisionWithTimeout(bot1, gameState, config.MoveTimeout, cancellationToken);
-            var (decision2, error2) = await GetBotDecisionWithTimeout(bot2, gameState, config.MoveTimeout, cancellationToken);
+            var (shooterDecision, shooterError) = await GetBotDecisionWithTimeout(shooterBot, shooterGameState, config.MoveTimeout, cancellationToken);
+            var (goalkeeperDecision, goalkeeperError) = await GetBotDecisionWithTimeout(goalkeeperBot, goalkeeperGameState, config.MoveTimeout, cancellationToken);
             
-            if (error1 != null)
+            if (shooterError != null)
             {
-                bot1Errors++;
-                errors.Add($"Round {round}: {bot1.TeamName} - {error1}");
-                matchLog.Add($"Round {round}: {bot1.TeamName} ERROR - {error1}");
+                if (bot1IsShooter) bot1Errors++; else bot2Errors++;
+                errors.Add($"Round {round}: {shooterBot.TeamName} (Shooter) - {shooterError}");
+                matchLog.Add($"Round {round}: {shooterBot.TeamName} (Shooter) ERROR - {shooterError}");
             }
             
-            if (error2 != null)
+            if (goalkeeperError != null)
             {
-                bot2Errors++;
-                errors.Add($"Round {round}: {bot2.TeamName} - {error2}");
-                matchLog.Add($"Round {round}: {bot2.TeamName} ERROR - {error2}");
+                if (bot1IsShooter) bot2Errors++; else bot1Errors++;
+                errors.Add($"Round {round}: {goalkeeperBot.TeamName} (Goalkeeper) - {goalkeeperError}");
+                matchLog.Add($"Round {round}: {goalkeeperBot.TeamName} (Goalkeeper) ERROR - {goalkeeperError}");
             }
             
-            bool valid1 = decision1 != null && IsValidDecision(decision1);
-            bool valid2 = decision2 != null && IsValidDecision(decision2);
+            bool validShooter = shooterDecision != null && IsValidDecision(shooterDecision);
+            bool validGoalkeeper = goalkeeperDecision != null && IsValidDecision(goalkeeperDecision);
             
-            if (!valid1 && error1 == null)
+            if (!validShooter && shooterError == null)
             {
-                var invalidError = $"Invalid decision: '{decision1}'";
-                bot1Errors++;
-                errors.Add($"Round {round}: {bot1.TeamName} - {invalidError}");
-                matchLog.Add($"Round {round}: {bot1.TeamName} - {invalidError}");
+                var invalidError = $"Invalid decision: '{shooterDecision}'";
+                if (bot1IsShooter) bot1Errors++; else bot2Errors++;
+                errors.Add($"Round {round}: {shooterBot.TeamName} (Shooter) - {invalidError}");
+                matchLog.Add($"Round {round}: {shooterBot.TeamName} (Shooter) - {invalidError}");
             }
             
-            if (!valid2 && error2 == null)
+            if (!validGoalkeeper && goalkeeperError == null)
             {
-                var invalidError = $"Invalid decision: '{decision2}'";
-                bot2Errors++;
-                errors.Add($"Round {round}: {bot2.TeamName} - {invalidError}");
-                matchLog.Add($"Round {round}: {bot2.TeamName} - {invalidError}");
+                var invalidError = $"Invalid decision: '{goalkeeperDecision}'";
+                if (bot1IsShooter) bot2Errors++; else bot1Errors++;
+                errors.Add($"Round {round}: {goalkeeperBot.TeamName} (Goalkeeper) - {invalidError}");
+                matchLog.Add($"Round {round}: {goalkeeperBot.TeamName} (Goalkeeper) - {invalidError}");
             }
             
-            // Simplified scoring: if both valid and different, bot1 scores
-            if (valid1 && valid2)
+            // Penalty kicks scoring: shooter scores 1 if different, goalkeeper scores 2 if same
+            if (validShooter && validGoalkeeper)
             {
-                if (decision1 != decision2)
+                if (shooterDecision != goalkeeperDecision)
                 {
-                    bot1Score++;
-                    matchLog.Add($"Round {round}: {bot1.TeamName} scores ({decision1} != {decision2}) - Score: {bot1Score}-{bot2Score}");
+                    // Shooter scores
+                    if (bot1IsShooter) bot1Score++; else bot2Score++;
+                    matchLog.Add($"Round {round}: GOAL! {shooterBot.TeamName} (Shooter: {shooterDecision}) vs {goalkeeperBot.TeamName} (Goalkeeper: {goalkeeperDecision}) - Score: {bot1Score}-{bot2Score}");
                 }
                 else
                 {
-                    matchLog.Add($"Round {round}: No score ({decision1} == {decision2}) - Score: {bot1Score}-{bot2Score}");
+                    // Goalkeeper scores
+                    if (bot1IsShooter) bot2Score += 2; else bot1Score += 2;
+                    matchLog.Add($"Round {round}: SAVE! {goalkeeperBot.TeamName} blocks {shooterBot.TeamName} (both chose {shooterDecision}) - Score: {bot1Score}-{bot2Score}");
                 }
             }
-            else if (valid1 && !valid2)
+            else if (validShooter && !validGoalkeeper)
             {
-                bot1Score++;
-                matchLog.Add($"Round {round}: {bot1.TeamName} scores by default - Score: {bot1Score}-{bot2Score}");
+                if (bot1IsShooter) bot1Score++; else bot2Score++;
+                matchLog.Add($"Round {round}: {shooterBot.TeamName} scores by default - Score: {bot1Score}-{bot2Score}");
             }
-            else if (!valid1 && valid2)
+            else if (!validShooter && validGoalkeeper)
             {
-                bot2Score++;
-                matchLog.Add($"Round {round}: {bot2.TeamName} scores by default - Score: {bot1Score}-{bot2Score}");
+                if (bot1IsShooter) bot2Score++; else bot1Score++;
+                matchLog.Add($"Round {round}: {goalkeeperBot.TeamName} scores by default - Score: {bot1Score}-{bot2Score}");
             }
         }
         
@@ -123,13 +138,14 @@ public class PenaltyExecutor : IGameExecutor
         };
     }
 
-    private static GameState CreateGameState(int currentRound = 1, int maxRounds = MaxRounds)
+    private static GameState CreateGameState(int currentRound = 1, int maxRounds = MaxRounds, string role = "Shooter")
     {
         return new GameState
         {
             State = new Dictionary<string, object>
             {
-                ["GameType"] = GameType.PenaltyKicks
+                ["GameType"] = GameType.PenaltyKicks,
+                ["Role"] = role  // "Shooter" or "Goalkeeper"
             },
             MoveHistory = new List<string>(),
             CurrentRound = currentRound,
