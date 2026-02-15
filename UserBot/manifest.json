@@ -1,0 +1,22 @@
+{
+    "version":  "1.0.0",
+    "description":  "UserBot template for TournamentWorkshop",
+    "baseUrl":  "https://raw.githubusercontent.com/inbar-marom/TournamentWorkshop/main/UserBot",
+    "repository":  "https://github.com/inbar-marom/TournamentWorkshop",
+    "files":  [
+                  "UserBot.sln",
+                  "UserBot.slnx",
+                  "Directory.Build.props",
+                  "UserBot.Core/IBot.cs",
+                  "UserBot.Core/GameType.cs",
+                  "UserBot.Core/GameState.cs",
+                  "UserBot.Core/UserBot.Core.csproj",
+                  "UserBot.BasicBot/NaiveBot.cs",
+                  "UserBot.BasicBot/UserBot.BasicBot.csproj"
+              ],
+    "requiredForSubmission":  [
+                                  "YourBot.cs"
+                              ],
+    "buildCommand":  "dotnet build UserBot.sln",
+    "targetFramework":  "net10.0"
+}
