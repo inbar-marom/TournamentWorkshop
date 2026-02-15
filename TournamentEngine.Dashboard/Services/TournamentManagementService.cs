@@ -410,6 +410,30 @@ public class TournamentManagementService
                 return;
             }
 
+            var initialLeaderboard = bots
+                .Select(bot => bot.TeamName)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(teamName => teamName, StringComparer.OrdinalIgnoreCase)
+                .Select((teamName, index) => new TeamStandingDto
+                {
+                    Rank = index + 1,
+                    TeamName = teamName,
+                    TotalPoints = 0,
+                    TournamentWins = 0,
+                    TotalWins = 0,
+                    TotalLosses = 0,
+                    RankChange = 0
+                })
+                .ToList();
+
+            await _stateManager.UpdateStateAsync(new DashboardStateDto
+            {
+                Status = TournamentStatus.InProgress,
+                Message = "Tournament initialized - waiting for first matches",
+                OverallLeaderboard = initialLeaderboard,
+                LastUpdated = DateTime.UtcNow
+            });
+
             // Create a minimal tournament series config with default settings
             var baseConfig = new TournamentConfig
             {
@@ -734,9 +758,10 @@ public class TournamentManagementService
                 };
 
                 await _stateManager.UpdateStateAsync(dashboardState);
+                var currentState = await _stateManager.GetCurrentStateAsync();
                 
                 // Broadcast state update to all connected clients
-                await _hubContext.Clients.All.SendAsync("CurrentState", dashboardState);
+                await _hubContext.Clients.All.SendAsync("CurrentState", currentState);
                 
                 _logger.LogInformation("Match {Completed}/{Total}: {Bot1} vs {Bot2} - {Winner} wins", 
                     completedMatches, totalMatches, bot1, bot2, winner);
@@ -801,9 +826,10 @@ public class TournamentManagementService
                         LastUpdated = DateTime.UtcNow
                     };
                     await _stateManager.UpdateStateAsync(finalState);
+                    var currentState = await _stateManager.GetCurrentStateAsync();
                     
                     // Broadcast final state to all clients
-                    await _hubContext.Clients.All.SendAsync("CurrentState", finalState);
+                    await _hubContext.Clients.All.SendAsync("CurrentState", currentState);
                     await _hubContext.Clients.All.SendAsync("TournamentCompleted", new { TournamentId = tournamentId, Champion = champion });
                     
                     _logger.LogInformation("Tournament simulation completed with {Matches} matches. Champion: {Champion}", 

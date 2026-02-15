@@ -12,6 +12,7 @@ public class StateManagerService
     private readonly SemaphoreSlim _stateLock = new(1, 1);
     private DashboardStateDto? _currentState;
     private readonly ConcurrentQueue<RecentMatchDto> _recentMatches = new();
+    private readonly Dictionary<string, List<TeamStandingDto>> _standingsByEventId = new(StringComparer.OrdinalIgnoreCase);
     private const int MaxRecentMatches = 50;
 
     public StateManagerService(ILogger<StateManagerService> logger)
@@ -73,9 +74,34 @@ public class StateManagerService
                 }
             }
 
+            if (_currentState?.TournamentState?.Steps?.Count > 0)
+            {
+                if (newState.TournamentState == null || newState.TournamentState.Steps.Count == 0)
+                {
+                    newState.TournamentState = _currentState.TournamentState;
+                }
+            }
+
+            if (_currentState?.OverallLeaderboard?.Count > 0)
+            {
+                if (newState.OverallLeaderboard == null || newState.OverallLeaderboard.Count == 0)
+                {
+                    newState.OverallLeaderboard = _currentState.OverallLeaderboard;
+                }
+            }
+
+            if (_standingsByEventId.Count > 0)
+            {
+                var cumulativeLeaderboard = BuildCumulativeLeaderboard();
+                if (cumulativeLeaderboard.Count > 0)
+                {
+                    newState.OverallLeaderboard = cumulativeLeaderboard;
+                }
+            }
+
             _currentState = newState;
             _currentState.LastUpdated = DateTime.UtcNow;
-            _logger.LogInformation("Dashboard state updated: {Status}", newState.Status);
+            _logger.LogDebug("Dashboard state updated: {Status}", newState.Status);
         }
         finally
         {
@@ -135,6 +161,7 @@ public class StateManagerService
                 Message = "State cleared",
                 LastUpdated = DateTime.UtcNow
             };
+            _standingsByEventId.Clear();
             _recentMatches.Clear();
             _logger.LogInformation("Dashboard state cleared");
         }
@@ -201,12 +228,43 @@ public class StateManagerService
         await _stateLock.WaitAsync();
         try
         {
-            if (_currentState != null)
+            _currentState ??= new DashboardStateDto
             {
-                _currentState.OverallLeaderboard = standingsEvent.OverallStandings;
-                _currentState.LastUpdated = DateTime.UtcNow;
-                _logger.LogInformation("Standings updated: {BotCount} bots", standingsEvent.OverallStandings.Count);
+                Status = TournamentStatus.NotStarted,
+                Message = "Waiting for tournament to start...",
+                LastUpdated = DateTime.UtcNow
+            };
+
+            var eventId = string.IsNullOrWhiteSpace(standingsEvent.TournamentId)
+                ? "unknown-event"
+                : standingsEvent.TournamentId;
+
+            if (standingsEvent.OverallStandings != null && standingsEvent.OverallStandings.Count > 0)
+            {
+                _standingsByEventId[eventId] = standingsEvent.OverallStandings
+                    .Select(standing => new TeamStandingDto
+                    {
+                        TeamName = standing.TeamName,
+                        TotalPoints = standing.TotalPoints,
+                        TournamentWins = standing.TournamentWins,
+                        TotalWins = standing.TotalWins,
+                        TotalLosses = standing.TotalLosses,
+                        RankChange = standing.RankChange
+                    })
+                    .ToList();
             }
+
+            var cumulativeLeaderboard = BuildCumulativeLeaderboard();
+            if (cumulativeLeaderboard.Count > 0)
+            {
+                _currentState.OverallLeaderboard = cumulativeLeaderboard;
+            }
+            _currentState.LastUpdated = DateTime.UtcNow;
+            _logger.LogDebug(
+                "Standings updated for event {EventId}: {BotCount} bots. Aggregated leaderboard entries: {AggregatedCount}",
+                eventId,
+                standingsEvent.OverallStandings.Count,
+                _currentState.OverallLeaderboard.Count);
         }
         finally
         {
@@ -264,6 +322,8 @@ public class StateManagerService
                 Steps = tournamentEvent.Steps,
                 LastUpdated = DateTime.UtcNow
             };
+
+            _standingsByEventId.Clear();
 
             _logger.LogInformation("Tournament started: {TournamentName} with {TotalSteps} steps", tournamentEvent.TournamentName, tournamentEvent.TotalSteps);
             _currentState.LastUpdated = DateTime.UtcNow;
@@ -376,18 +436,71 @@ public class StateManagerService
             _currentState.TournamentState ??= new TournamentStateDto
             {
                 TournamentId = completedEvent.TournamentId,
-                TournamentName = completedEvent.TournamentName
+                TournamentName = completedEvent.TournamentName,
+                Steps = new List<EventStepDto>()
             };
 
             _currentState.TournamentState.TournamentId = completedEvent.TournamentId;
             _currentState.TournamentState.TournamentName = completedEvent.TournamentName;
             _currentState.TournamentState.Status = TournamentStatus.Completed;
             _currentState.TournamentState.LastUpdated = DateTime.UtcNow;
+            
+            // Update overall message to reflect completion
+            _currentState.Message = $"Tournament completed! Champion: {completedEvent.Champion}";
+            _currentState.Status = TournamentStatus.Completed;
             _currentState.LastUpdated = DateTime.UtcNow;
+            
+            _logger.LogInformation("Tournament completed: {TournamentName} - Champion: {Champion}", 
+                completedEvent.TournamentName, completedEvent.Champion);
         }
         finally
         {
             _stateLock.Release();
         }
+    }
+
+    private List<TeamStandingDto> BuildCumulativeLeaderboard()
+    {
+        var aggregate = new Dictionary<string, TeamStandingDto>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var standings in _standingsByEventId.Values)
+        {
+            foreach (var standing in standings)
+            {
+                if (!aggregate.TryGetValue(standing.TeamName, out var combined))
+                {
+                    combined = new TeamStandingDto
+                    {
+                        TeamName = standing.TeamName,
+                        TotalPoints = 0,
+                        TournamentWins = 0,
+                        TotalWins = 0,
+                        TotalLosses = 0,
+                        RankChange = 0
+                    };
+                    aggregate[standing.TeamName] = combined;
+                }
+
+                combined.TotalPoints += standing.TotalPoints;
+                combined.TournamentWins += standing.TournamentWins;
+                combined.TotalWins += standing.TotalWins;
+                combined.TotalLosses += standing.TotalLosses;
+            }
+        }
+
+        var leaderboard = aggregate.Values
+            .OrderByDescending(item => item.TotalPoints)
+            .ThenByDescending(item => item.TotalWins)
+            .ThenBy(item => item.TotalLosses)
+            .ThenBy(item => item.TeamName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        for (var index = 0; index < leaderboard.Count; index++)
+        {
+            leaderboard[index].Rank = index + 1;
+            leaderboard[index].RankChange = 0;
+        }
+
+        return leaderboard;
     }
 }

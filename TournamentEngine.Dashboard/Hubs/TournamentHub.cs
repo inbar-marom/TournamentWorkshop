@@ -276,9 +276,11 @@ public class TournamentHub : Hub
         
         // Update the state manager
         await _stateManager.UpdateStateAsync(state);
+
+        var currentState = await _stateManager.GetCurrentStateAsync();
         
         // Broadcast to all connected viewers
-        await Clients.Group("TournamentViewers").SendAsync("CurrentState", state);
+        await Clients.Group("TournamentViewers").SendAsync("CurrentState", currentState);
     }
 
     /// <summary>
@@ -291,16 +293,18 @@ public class TournamentHub : Hub
         
         // Update the state manager
         await _stateManager.UpdateStateAsync(state);
+
+        var currentState = await _stateManager.GetCurrentStateAsync();
         
         // Broadcast to all connected viewers
-        await Clients.Group("TournamentViewers").SendAsync("CurrentState", state);
+        await Clients.Group("TournamentViewers").SendAsync("CurrentState", currentState);
         
         // Also broadcast standings update if available
-        if (state.OverallLeaderboard?.Count > 0)
+        if (currentState.OverallLeaderboard?.Count > 0)
         {
             await Clients.Group("TournamentViewers").SendAsync("StandingsUpdated", new
             {
-                OverallStandings = state.OverallLeaderboard,
+                OverallStandings = currentState.OverallLeaderboard,
                 Timestamp = DateTime.UtcNow
             });
         }

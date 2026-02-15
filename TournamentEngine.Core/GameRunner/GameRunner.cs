@@ -2,12 +2,14 @@ namespace TournamentEngine.Core.GameRunner;
 
 using Common;
 using Executors;
+using System.Diagnostics;
 
 /// <summary>
 /// Main game runner implementation that orchestrates match execution
 /// </summary>
 public class GameRunner : IGameRunner
 {
+    private static readonly TimeSpan MinMatchDuration = TimeSpan.FromMilliseconds(50);
     private readonly Dictionary<GameType, IGameExecutor> _executors;
     private readonly TournamentConfig _config;
 
@@ -34,8 +36,17 @@ public class GameRunner : IGameRunner
         {
             throw new ArgumentException($"No executor found for game type: {gameType}", nameof(gameType));
         }
-        
-        return await executor.Execute(bot1, bot2, _config, cancellationToken);
+
+        var stopwatch = Stopwatch.StartNew();
+        var result = await executor.Execute(bot1, bot2, _config, cancellationToken);
+        stopwatch.Stop();
+
+        if (stopwatch.Elapsed < MinMatchDuration)
+        {
+            await Task.Delay(MinMatchDuration - stopwatch.Elapsed, cancellationToken);
+        }
+
+        return result;
     }
 
     public async Task<MatchResult> ExecuteMatch(IBot bot1, IBot bot2, IGame game, CancellationToken cancellationToken)

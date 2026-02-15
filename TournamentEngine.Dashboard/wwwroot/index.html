@@ -544,6 +544,8 @@
             .withAutomaticReconnect([0, 0, 1000, 3000, 5000, 10000])
             .build();
 
+            let statePollTimer = null;
+
         let connectionRetries = 0;
         let lastState = null;
         let groupCycleIndex = 0;
@@ -581,14 +583,10 @@
         });
 
         connection.on("StandingsUpdated", (standings) => {
-            const leaders = standings.OverallStandings || standings.overallStandings;
-            if (leaders) {
-                const isTournamentComplete = lastState && formatStatus(lastState.Status || lastState.status) === 'Completed';
-                updateOverallLeaders(leaders, isTournamentComplete);
-            }
             if (standings.GroupStandings || standings.groupStandings) {
                 updateGroupStandings(standings.GroupStandings || standings.groupStandings);
             }
+            requestCurrentState();
         });
 
         connection.on("EventStarted", () => requestCurrentState());
@@ -609,6 +607,10 @@
         connection.onclose(() => {
             updateConnectionStatus(false);
             logMessage('Connection closed', 'error');
+                if (statePollTimer) {
+                    clearInterval(statePollTimer);
+                    statePollTimer = null;
+                }
         });
 
         async function start() {
@@ -618,6 +620,15 @@
                 logMessage('Connected to tournament hub', 'success');
                 connectionRetries = 0;
                 await connection.invoke("SubscribeToUpdates");
+
+                    if (statePollTimer) {
+                        clearInterval(statePollTimer);
+                    }
+                    statePollTimer = setInterval(() => {
+                        if (connection.state === signalR.HubConnectionState.Connected) {
+                            requestCurrentState();
+                        }
+                    }, 2000);
             } catch (err) {
                 updateConnectionStatus(false);
                 logMessage(`Connection error: ${err}`, 'error');

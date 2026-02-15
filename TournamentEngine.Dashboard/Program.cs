@@ -11,8 +11,17 @@ using TournamentEngine.Core.GameRunner;
 using TournamentEngine.Core.Scoring;
 using TournamentEngine.Core.Tournament;
 using TournamentEngine.Api.Endpoints;
+using Microsoft.Extensions.Logging;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Reduce log noise: keep warnings/errors globally, allow selected app summaries
+builder.Logging.AddFilter("Microsoft", LogLevel.Warning);
+builder.Logging.AddFilter("System", LogLevel.Warning);
+builder.Logging.AddFilter("TournamentEngine.Dashboard.Hubs.TournamentHub", LogLevel.Warning);
+builder.Logging.AddFilter("TournamentEngine.Dashboard.Services.BotDashboardService", LogLevel.Warning);
+builder.Logging.AddFilter("TournamentEngine.Dashboard.Services.StateManagerService", LogLevel.Information);
+builder.Logging.AddFilter("TournamentEngine.Dashboard.Services.SignalRTournamentEventPublisher", LogLevel.Information);
 
 // Add services to the container
 builder.Services.AddSignalR()

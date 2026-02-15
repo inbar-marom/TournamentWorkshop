@@ -4,6 +4,7 @@ using TournamentEngine.Tests.DummyBots;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Diagnostics;
 
 namespace TournamentEngine.Tests.GameRunner;
 
@@ -149,6 +150,26 @@ public class RpslsGameRunnerTests
         {
             await gameRunner.ExecuteMatch(rockBot, paperBot, GameType.RPSLS, cts.Token);
         });
+    }
+
+    [TestMethod]
+    public async Task ExecuteMatch_ShouldTakeAtLeastFiftyMilliseconds()
+    {
+        // Arrange
+        var config = CreateTestConfig();
+        var gameRunner = new Core.GameRunner.GameRunner(config);
+        var rockBot = new RockBot();
+        var paperBot = new PaperBot();
+        var stopwatch = Stopwatch.StartNew();
+
+        // Act
+        var result = await gameRunner.ExecuteMatch(rockBot, paperBot, GameType.RPSLS, CancellationToken.None);
+        stopwatch.Stop();
+
+        // Assert
+        Assert.IsNotNull(result);
+        Assert.IsTrue(stopwatch.Elapsed >= TimeSpan.FromMilliseconds(50),
+            $"Expected at least 50ms but got {stopwatch.Elapsed.TotalMilliseconds}ms");
     }
 
     [TestMethod]

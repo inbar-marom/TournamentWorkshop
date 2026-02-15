@@ -502,20 +502,12 @@ class Step13_Step15_IntegrationSimulator
         // Create a hash-based pseudo-random strategy for each bot name
         // This ensures each team plays a different but consistent strategy
         int hash = Math.Abs(teamName.GetHashCode());
-        string[] rpsls = { "Rock", "Paper", "Scissors", "Lizard", "Spock" };
-        string[] penaltyMoves = { "KickLeft", "KickRight", "KickCenter", "DiveLeft", "DiveRight" };
-        string[] securityMoves = { "Scan", "Monitor", "Block", "Alert", "Decrypt" };
+        int rpslsBias = hash % 5;
+        bool leftBias = ((hash / 7) % 2) == 0;
         
-        // Use hash to select different moves for each team
-        string primaryMove = rpsls[hash % 5];
-        string secondaryMove = rpsls[(hash / 5) % 5];
-        string tertiaryMove = rpsls[(hash / 25) % 5];
-        string penaltyMove = penaltyMoves[hash % 5];
-        string securityMove = securityMoves[hash % 5];
+        // Use hash to select different behavior bias per team
+        bool attackBias = (hash % 2) == 0;
         
-        // Vary troop allocation based on team name hash
-        int[] troopAllocation = CalculateTroopAllocation(hash);
-
         return $@"
 using System;
 using System.Threading;
@@ -527,51 +519,100 @@ namespace {teamName}Bot
     public class {teamName}Bot : IBot
     {{
         private int _moveCount = 0;
+        private readonly Random _rng = new Random(Guid.NewGuid().GetHashCode() ^ ""{teamName}"".GetHashCode());
+        private static readonly string[] _rpslsMoves = new[] {{ ""Rock"", ""Paper"", ""Scissors"", ""Lizard"", ""Spock"" }};
+        private readonly bool _attackBias = {(attackBias ? "true" : "false")};
+        private readonly bool _leftBias = {(leftBias ? "true" : "false")};
+        private readonly int _rpslsBias = {rpslsBias};
         
         public string TeamName => ""{teamName}"";
         public GameType GameType => GameType.RPSLS;
 
         public Task<string> MakeMove(GameState gameState, CancellationToken cancellationToken)
         {{
-            // Vary moves based on round to create different outcomes
+            // Randomized RPSLS with team-specific bias
             _moveCount++;
-            if (_moveCount % 3 == 0)
-                return Task.FromResult(""{tertiaryMove}"");
-            else if (_moveCount % 2 == 0)
-                return Task.FromResult(""{secondaryMove}"");
-            else
-                return Task.FromResult(""{primaryMove}"");
+            var roll = _rng.NextDouble();
+
+            if (roll < 0.45)
+            {{
+                return Task.FromResult(_rpslsMoves[_rpslsBias]);
+            }}
+
+            if (roll < 0.80)
+            {{
+                var altIndex = (_rpslsBias + (_moveCount % 4) + 1) % _rpslsMoves.Length;
+                return Task.FromResult(_rpslsMoves[altIndex]);
+            }}
+
+            return Task.FromResult(_rpslsMoves[_rng.Next(_rpslsMoves.Length)]);
         }}
 
         public Task<int[]> AllocateTroops(GameState gameState, CancellationToken cancellationToken)
         {{
-            return Task.FromResult(new[] {{ {troopAllocation[0]}, {troopAllocation[1]}, {troopAllocation[2]}, {troopAllocation[3]}, {troopAllocation[4]} }});
+            return Task.FromResult(CreateRandomAllocation());
         }}
 
         public Task<string> MakePenaltyDecision(GameState gameState, CancellationToken cancellationToken)
         {{
-            return Task.FromResult(""{penaltyMove}"");
+            // Penalty executor accepts only Left/Right
+            var roll = _rng.NextDouble();
+            if (_leftBias)
+            {{
+                return Task.FromResult(roll < 0.65 ? ""Left"" : ""Right"");
+            }}
+
+            return Task.FromResult(roll < 0.35 ? ""Left"" : ""Right"");
         }}
 
         public Task<string> MakeSecurityMove(GameState gameState, CancellationToken cancellationToken)
         {{
-            return Task.FromResult(""{securityMove}"");
+            var roll = _rng.NextDouble();
+
+            // Security game accepts only Attack/Defend with per-bot bias and periodic flips.
+            if ((_moveCount + gameState.CurrentRound) % 5 == 0)
+            {{
+                return Task.FromResult(_attackBias ? ""Defend"" : ""Attack"");
+            }}
+
+            if (_attackBias)
+            {{
+                return Task.FromResult(roll < 0.65 ? ""Attack"" : ""Defend"");
+            }}
+
+            return Task.FromResult(roll < 0.35 ? ""Attack"" : ""Defend"");
+        }}
+
+        private int[] CreateRandomAllocation()
+        {{
+            const int battlefields = 5;
+            const int totalTroops = 100;
+            const int minPerField = 5;
+
+            var allocation = new int[battlefields];
+            var remaining = totalTroops;
+
+            for (int i = 0; i < battlefields - 1; i++)
+            {{
+                var maxForField = remaining - ((battlefields - i - 1) * minPerField);
+                allocation[i] = _rng.Next(minPerField, maxForField + 1);
+                remaining -= allocation[i];
+            }}
+
+            allocation[battlefields - 1] = remaining;
+
+            // Shuffle so the heavy field is not always in the same index
+            for (int i = allocation.Length - 1; i > 0; i--)
+            {{
+                var j = _rng.Next(i + 1);
+                (allocation[i], allocation[j]) = (allocation[j], allocation[i]);
+            }}
+
+            return allocation;
         }}
     }}
 }}
 ";
-    }
-
-    private int[] CalculateTroopAllocation(int hash)
-    {
-        // Create varied troop allocations based on team hash
-        int base1 = 10 + (hash % 15);
-        int base2 = 10 + ((hash / 5) % 15);
-        int base3 = 10 + ((hash / 25) % 15);
-        int base4 = 10 + ((hash / 125) % 15);
-        int base5 = 100 - (base1 + base2 + base3 + base4);
-        
-        return new[] { base1, base2, base3, base4, Math.Max(5, base5) };
     }
 
     private string GetSampleHelperCode()

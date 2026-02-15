@@ -365,4 +365,96 @@ public class StateManagerServiceTests
         state.TournamentState.Should().NotBeNull();
         state.TournamentState!.Status.Should().Be(TournamentStatus.Completed);
     }
+
+    [Fact]
+    public async Task UpdateStateAsync_PreservesTournamentSteps_WhenIncomingStateOmitsTournamentState()
+    {
+        await _service.UpdateTournamentStartedAsync(new TournamentStartedEventDto
+        {
+            TournamentId = "series-keep-steps",
+            TournamentName = "Keep Steps Series",
+            TotalSteps = 2,
+            Steps = new List<EventStepDto>
+            {
+                new() { StepIndex = 1, GameType = GameType.RPSLS, Status = EventStepStatus.Completed, WinnerName = "TeamA" },
+                new() { StepIndex = 2, GameType = GameType.ColonelBlotto, Status = EventStepStatus.InProgress }
+            },
+            StartedAt = DateTime.UtcNow
+        });
+
+        await _service.UpdateStateAsync(new DashboardStateDto
+        {
+            Status = TournamentStatus.Completed,
+            Message = "Final snapshot with partial fields",
+            OverallLeaderboard = new List<TeamStandingDto>
+            {
+                new() { TeamName = "TeamA", TotalPoints = 12, Rank = 1 }
+            }
+        });
+
+        var state = await _service.GetCurrentStateAsync();
+
+        state.TournamentState.Should().NotBeNull();
+        state.TournamentState!.Steps.Should().HaveCount(2);
+        state.TournamentState.Steps.Should().Contain(s => s.StepIndex == 1 && s.WinnerName == "TeamA");
+    }
+
+    [Fact]
+    public async Task UpdateStandingsAsync_AggregatesScoresAcrossEvents_AndReplacesLatestSnapshotPerEvent()
+    {
+        await _service.UpdateTournamentStartedAsync(new TournamentStartedEventDto
+        {
+            TournamentId = "series-cumulative",
+            TournamentName = "Cumulative Series",
+            TotalSteps = 2,
+            Steps = new List<EventStepDto>
+            {
+                new() { StepIndex = 1, GameType = GameType.RPSLS, Status = EventStepStatus.InProgress },
+                new() { StepIndex = 2, GameType = GameType.ColonelBlotto, Status = EventStepStatus.NotStarted }
+            },
+            StartedAt = DateTime.UtcNow
+        });
+
+        await _service.UpdateStandingsAsync(new StandingsUpdatedDto
+        {
+            TournamentId = "event-1",
+            TournamentName = "Event 1",
+            OverallStandings = new List<TeamStandingDto>
+            {
+                new() { TeamName = "TeamA", TotalPoints = 3 },
+                new() { TeamName = "TeamB", TotalPoints = 1 }
+            },
+            UpdatedAt = DateTime.UtcNow
+        });
+
+        await _service.UpdateStandingsAsync(new StandingsUpdatedDto
+        {
+            TournamentId = "event-2",
+            TournamentName = "Event 2",
+            OverallStandings = new List<TeamStandingDto>
+            {
+                new() { TeamName = "TeamA", TotalPoints = 2 },
+                new() { TeamName = "TeamB", TotalPoints = 4 }
+            },
+            UpdatedAt = DateTime.UtcNow
+        });
+
+        await _service.UpdateStandingsAsync(new StandingsUpdatedDto
+        {
+            TournamentId = "event-1",
+            TournamentName = "Event 1",
+            OverallStandings = new List<TeamStandingDto>
+            {
+                new() { TeamName = "TeamA", TotalPoints = 5 },
+                new() { TeamName = "TeamB", TotalPoints = 0 }
+            },
+            UpdatedAt = DateTime.UtcNow
+        });
+
+        var state = await _service.GetCurrentStateAsync();
+        state.OverallLeaderboard.Should().NotBeNull();
+        state.OverallLeaderboard.Should().Contain(s => s.TeamName == "TeamA" && s.TotalPoints == 7);
+        state.OverallLeaderboard.Should().Contain(s => s.TeamName == "TeamB" && s.TotalPoints == 4);
+        state.OverallLeaderboard.First().TeamName.Should().Be("TeamA");
+    }
 }

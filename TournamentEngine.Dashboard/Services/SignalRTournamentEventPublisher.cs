@@ -28,7 +28,7 @@ public class SignalRTournamentEventPublisher : ITournamentEventPublisher
 
     public async Task PublishMatchCompletedAsync(MatchCompletedDto matchEvent)
     {
-        _logger.LogInformation("Publishing match completed: {Bot1} vs {Bot2} - Winner: {Winner}",
+        _logger.LogDebug("Publishing match completed: {Bot1} vs {Bot2} - Winner: {Winner}",
             matchEvent.Bot1Name, matchEvent.Bot2Name, matchEvent.WinnerName ?? "Draw");
 
         // Add to state manager for persistence
@@ -55,7 +55,7 @@ public class SignalRTournamentEventPublisher : ITournamentEventPublisher
 
     public async Task PublishStandingsUpdatedAsync(StandingsUpdatedDto standingsEvent)
     {
-        _logger.LogInformation("Publishing standings update");
+        _logger.LogDebug("Publishing standings update");
 
         await _stateManager.UpdateStandingsAsync(standingsEvent);
 
@@ -102,9 +102,11 @@ public class SignalRTournamentEventPublisher : ITournamentEventPublisher
         // Update the state manager
         await _stateManager.UpdateStateAsync(state);
 
+        var currentState = await _stateManager.GetCurrentStateAsync();
+
         // Broadcast to all connected viewers
         await _hubContext.Clients.Group("TournamentViewers")
-            .SendAsync("CurrentState", state);
+            .SendAsync("CurrentState", currentState);
     }
 
     public async Task PublishTournamentStartedAsync(TournamentStartedEventDto tournamentEvent)
