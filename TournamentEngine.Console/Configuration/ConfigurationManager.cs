@@ -43,7 +43,6 @@ public class ConfigurationManager
         var config = GetConfiguration();
         return new TournamentConfig
         {
-            Games = config.TournamentEngine?.DefaultGameTypes ?? new List<GameType>(),
             ImportTimeout = TimeSpan.FromSeconds(config.TournamentEngine?.BotLoadingTimeout ?? 30),
             MoveTimeout = TimeSpan.FromSeconds(config.TournamentEngine?.MoveTimeout ?? 5),
             MemoryLimitMB = config.TournamentEngine?.MemoryLimitMB ?? 512,

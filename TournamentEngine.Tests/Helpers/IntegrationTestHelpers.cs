@@ -60,9 +60,27 @@ public static class IntegrationTestHelpers
     /// <summary>
     /// Generates C# bot implementation code with deterministic behavior.
     /// Returns a string containing a valid IBot implementation.
+    /// Each bot has unique logic based on botNumber.
     /// </summary>
     public static string GetBotCode(int botNumber, string teamName)
     {
+        // Create different strategies for different bots
+        var strategyType = botNumber % 10;
+        string moveStrategy;
+        
+        if (strategyType == 0)
+            moveStrategy = @"return ""Rock"";";
+        else if (strategyType == 1)
+            moveStrategy = @"return ""Paper"";";
+        else if (strategyType == 2)
+            moveStrategy = @"return ""Scissors"";";
+        else if (strategyType == 3)
+            moveStrategy = @"return ""Lizard"";";
+        else if (strategyType == 4)
+            moveStrategy = @"return ""Spock"";";
+        else
+            moveStrategy = $@"var moves = new[] {{ ""Rock"", ""Paper"", ""Scissors"", ""Lizard"", ""Spock"" }}; return moves[(gameState.CurrentRound + {botNumber}) % 5];";
+
         return $@"using System;
 using System.Threading;
 using System.Threading.Tasks;
@@ -76,8 +94,7 @@ public class Bot{botNumber} : IBot
     public async Task<string> MakeMove(GameState gameState, CancellationToken cancellationToken)
     {{
         await Task.CompletedTask;
-        var moves = new[] {{ ""Rock"", ""Paper"", ""Scissors"" }};
-        return moves[gameState.CurrentRound % 3];
+        {moveStrategy}
     }}
 
     public async Task<int[]> AllocateTroops(GameState gameState, CancellationToken cancellationToken)
@@ -107,7 +124,6 @@ public class Bot{botNumber} : IBot
     {
         return new TournamentConfig
         {
-            Games = new List<GameType> { GameType.RPSLS },
             ImportTimeout = TimeSpan.FromSeconds(5),
             MoveTimeout = TimeSpan.FromSeconds(1),
             MemoryLimitMB = 512,

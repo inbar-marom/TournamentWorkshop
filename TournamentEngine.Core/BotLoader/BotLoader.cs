@@ -2,6 +2,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using System.Collections.Concurrent;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using TournamentEngine.Core.Common;
 
 namespace TournamentEngine.Core.BotLoader;
@@ -70,7 +71,7 @@ public class BotLoader : IBotLoader
                 {
                     // If loading fails catastrophically, create a BotInfo with error
                     var folderName = Path.GetFileName(teamFolder);
-                    var teamName = folderName.Split('_')[0];
+                    var teamName = Regex.Replace(folderName, @"_v\d+$", "");
                     
                     results.Add(new BotInfo
                     {
@@ -102,9 +103,9 @@ public class BotLoader : IBotLoader
         
         try
         {
-            // Extract team name from folder path (e.g., "TeamRocket_v1" -> "TeamRocket")
+            // Extract team name from folder path (e.g., "Alpha_Team_001_v2" -> "Alpha_Team_001")
             var folderName = Path.GetFileName(teamFolder);
-            var teamName = folderName.Split('_')[0];
+            var teamName = Regex.Replace(folderName, @"_v\d+$", "");
 
             // 1. Collect all .cs files from team folder
             if (!Directory.Exists(teamFolder))

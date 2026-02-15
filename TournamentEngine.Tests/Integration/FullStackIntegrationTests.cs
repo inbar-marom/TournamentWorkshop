@@ -122,13 +122,13 @@ public class FullStackIntegrationTests
         // Start the dashboard
         await _dashboardApp.StartAsync();
 
-        // Get the real StateManagerService from the dashboard
+        //Get the real StateManagerService from the dashboard
         _stateManager = _dashboardApp.Services.GetRequiredService<StateManagerService>();
         _eventPublisher = _dashboardApp.Services.GetRequiredService<SignalRTournamentEventPublisher>();
 
         // Create TournamentManager with real-time event publisher
         _tournamentManager = new TournamentManager(_engine, _gameRunner, _eventPublisher);
-        _seriesManager = new TournamentSeriesManager(_tournamentManager, _scoringSystem);
+        _seriesManager = new TournamentSeriesManager(_tournamentManager, _scoringSystem, _eventPublisher);
 
         // Connect SignalR client to real dashboard
         _hubConnection = new HubConnectionBuilder()
@@ -427,26 +427,27 @@ public class FullStackIntegrationTests
         };
 
         var receivedMatches = new List<RecentMatchDto>();
-        var tournamentCompleted = new List<EventCompletedEventDto>();
+        var tournamentStepsCompleted = new List<EventStepCompletedDto>();
         
         _hubConnection.On<RecentMatchDto>("MatchCompleted", match => receivedMatches.Add(match));
-        _hubConnection.On<EventCompletedEventDto>("EventCompleted", evt => tournamentCompleted.Add(evt));
+        _hubConnection.On<EventStepCompletedDto>("EventStepCompleted", evt => tournamentStepsCompleted.Add(evt));
 
         // Act - Run large series
         var seriesInfo = await _seriesManager.RunSeriesAsync(bots, seriesConfig);
         
-        await Task.Delay(500);
+        // Wait for all SignalR messages to be received
+        await Task.Delay(2000);
 
         // Assert
         Assert.AreEqual(3, seriesInfo.Tournaments.Count);
-        Assert.AreEqual(3, tournamentCompleted.Count, "Should complete all 3 tournaments");
+        Assert.AreEqual(3, tournamentStepsCompleted.Count, "Should complete all 3 tournaments");
         
         int totalMatches = seriesInfo.Tournaments.Sum(t => t.MatchResults.Count);
         Assert.AreEqual(totalMatches, receivedMatches.Count);
         
         // Verify final champion
-        var finalEvent = tournamentCompleted.Last();
-        Assert.IsNotNull(finalEvent.Champion);
+        var finalStep = tournamentStepsCompleted.Last();
+        Assert.IsNotNull(finalStep.WinnerName);
     }
 }
 

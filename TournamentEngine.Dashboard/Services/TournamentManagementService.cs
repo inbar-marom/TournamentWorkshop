@@ -413,7 +413,6 @@ public class TournamentManagementService
             // Create a minimal tournament series config with default settings
             var baseConfig = new TournamentConfig
             {
-                Games = new List<GameType> { GameType.RPSLS },
                 ImportTimeout = TimeSpan.FromSeconds(10),
                 MoveTimeout = TimeSpan.FromSeconds(2),
                 MaxParallelMatches = 1,
@@ -423,7 +422,7 @@ public class TournamentManagementService
 
             var seriesConfig = new TournamentSeriesConfig
             {
-                GameTypes = new List<GameType> { GameType.RPSLS }, // Run RPSLS tournament
+                GameTypes = new List<GameType> { GameType.RPSLS, GameType.ColonelBlotto, GameType.PenaltyKicks, GameType.SecurityGame },
                 BaseConfig = baseConfig,
                 SeriesName = "Dashboard Tournament Series",
                 AggregateScores = true
@@ -432,9 +431,12 @@ public class TournamentManagementService
             // Run the tournament series
             var result = await _seriesManager!.RunSeriesAsync(bots, seriesConfig, cancellationToken);
 
+            _logger.LogInformation("Tournament series execution returned: {Result}, Champion: {Champion}, Tournaments: {Count}",
+                result != null ? "not null" : "null", result?.SeriesChampion ?? "N/A", result?.Tournaments.Count ?? 0);
+
             if (result != null)
             {
-                _logger.LogInformation("Tournament series completed successfully");
+                _logger.LogInformation("Tournament series completed successfully with champion: {Champion}", result.SeriesChampion);
                 await _stateLock.WaitAsync();
                 try
                 {
@@ -442,6 +444,100 @@ public class TournamentManagementService
                     _managementState.Message = "Tournament series completed";
                     _managementState.LastUpdated = DateTime.UtcNow;
                     await BroadcastStateAsync();
+
+                    // Build complete final dashboard state with all match results and standings
+                    try
+                    {
+                        var allMatches = new List<RecentMatchDto>();
+                        var allStandings = new List<TeamStandingDto>();
+
+                        _logger.LogInformation("Building final state: {Tournaments} tournaments, {Standings} standings",
+                            result.Tournaments.Count, result.SeriesStandings.Count);
+
+                        // Collect all matches from all tournaments in the series
+                        foreach (var tournament in result.Tournaments)
+                        {
+                            _logger.LogInformation("Tournament {Id}: {Matches} matches", tournament.TournamentId, tournament.MatchResults.Count);
+                            foreach (var matchResult in tournament.MatchResults)
+                            {
+                                allMatches.Add(new RecentMatchDto
+                                {
+                                    MatchId = Guid.NewGuid().ToString(),
+                                    TournamentId = tournament.TournamentId,
+                                    TournamentName = $"{tournament.GameType} Tournament",
+                                    Bot1Name = matchResult.Bot1Name,
+                                    Bot2Name = matchResult.Bot2Name,
+                                    Outcome = matchResult.Outcome,
+                                    GameType = tournament.GameType,
+                                    CompletedAt = DateTime.UtcNow,
+                                    Bot1Score = matchResult.Bot1Score,
+                                    Bot2Score = matchResult.Bot2Score,
+                                    WinnerName = matchResult.WinnerName
+                                });
+                            }
+                        }
+
+                        // Build standings from series standings
+                        var standingsList = result.SeriesStandings
+                            .Select((standing, idx) => new TeamStandingDto
+                            {
+                                Rank = idx + 1,
+                                TeamName = standing.BotName,
+                                TotalPoints = standing.TotalSeriesScore,
+                                TournamentWins = standing.TournamentsWon,
+                                TotalWins = standing.TotalWins,
+                                TotalLosses = standing.TotalLosses,
+                                RankChange = 0
+                            })
+                            .ToList();
+
+                        // Build tournament progress showing all events completed
+                        var events = new List<EventInTournamentDto>();
+                        for (int i = 0; i < result.Config.GameTypes.Count && i < result.Tournaments.Count; i++)
+                        {
+                            var gameType = result.Config.GameTypes[i];
+                            var tournament = result.Tournaments[i];
+                            events.Add(new EventInTournamentDto
+                            {
+                                EventNumber = i + 1,
+                                GameType = gameType,
+                                Status = EventItemStatus.Completed,
+                                Champion = tournament.Champion,
+                                StartTime = tournament.StartTime,
+                                EndTime = tournament.EndTime ?? DateTime.UtcNow
+                            });
+                        }
+
+                        var tournamentProgress = new TournamentProgressDto
+                        {
+                            TournamentId = result.SeriesId,
+                            CompletedCount = result.TotalMatches,
+                            TotalCount = result.TotalMatches,
+                            CurrentEventIndex = result.Config.GameTypes.Count,
+                            Events = events
+                        };
+
+                        var finalDashboardState = new DashboardStateDto
+                        {
+                            Status = TournamentStatus.Completed,
+                            Message = $"Tournament series completed! Champion: {result.SeriesChampion}",
+                            Champion = result.SeriesChampion,
+                            TournamentProgress = tournamentProgress,
+                            OverallLeaderboard = standingsList.Count > 0 ? standingsList : null,
+                            RecentMatches = allMatches.Count > 0 ? allMatches.TakeLast(20).ToList() : new List<RecentMatchDto>(),
+                            LastUpdated = DateTime.UtcNow
+                        };
+
+                        _logger.LogInformation("Updating state with final data: {Matches} matches, {Standings} standings, {Events} events",
+                            allMatches.Count, standingsList.Count, events.Count);
+
+                        await _stateManager.UpdateStateAsync(finalDashboardState);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error building final tournament state");
+                        throw;
+                    }
                 }
                 finally
                 {

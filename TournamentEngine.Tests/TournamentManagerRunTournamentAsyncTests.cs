@@ -479,7 +479,6 @@ public class TournamentManagerRunTournamentAsyncTests
         var baseConfig = TestHelpers.CreateDefaultConfig();
         return new TournamentConfig
         {
-            Games = baseConfig.Games,
             ImportTimeout = baseConfig.ImportTimeout,
             MoveTimeout = baseConfig.MoveTimeout,
             MaxParallelMatches = maxParallelMatches,

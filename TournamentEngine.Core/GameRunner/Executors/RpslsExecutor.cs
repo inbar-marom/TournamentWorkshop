@@ -90,6 +90,7 @@ public class RpslsExecutor : IGameExecutor
             if (valid1 && valid2)
             {
                 var roundWinner = DetermineWinner(move1!, move2!);
+                
                 if (roundWinner == 1)
                 {
                     bot1Score++;

@@ -499,7 +499,25 @@ class Step13_Step15_IntegrationSimulator
 
     private string GetSampleBotCode(string teamName)
     {
+        // Create a hash-based pseudo-random strategy for each bot name
+        // This ensures each team plays a different but consistent strategy
+        int hash = Math.Abs(teamName.GetHashCode());
+        string[] rpsls = { "Rock", "Paper", "Scissors", "Lizard", "Spock" };
+        string[] penaltyMoves = { "KickLeft", "KickRight", "KickCenter", "DiveLeft", "DiveRight" };
+        string[] securityMoves = { "Scan", "Monitor", "Block", "Alert", "Decrypt" };
+        
+        // Use hash to select different moves for each team
+        string primaryMove = rpsls[hash % 5];
+        string secondaryMove = rpsls[(hash / 5) % 5];
+        string tertiaryMove = rpsls[(hash / 25) % 5];
+        string penaltyMove = penaltyMoves[hash % 5];
+        string securityMove = securityMoves[hash % 5];
+        
+        // Vary troop allocation based on team name hash
+        int[] troopAllocation = CalculateTroopAllocation(hash);
+
         return $@"
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 using TournamentEngine.Core.Common;
@@ -508,31 +526,52 @@ namespace {teamName}Bot
 {{
     public class {teamName}Bot : IBot
     {{
+        private int _moveCount = 0;
+        
         public string TeamName => ""{teamName}"";
         public GameType GameType => GameType.RPSLS;
 
         public Task<string> MakeMove(GameState gameState, CancellationToken cancellationToken)
         {{
-            return Task.FromResult(""Rock"");
+            // Vary moves based on round to create different outcomes
+            _moveCount++;
+            if (_moveCount % 3 == 0)
+                return Task.FromResult(""{tertiaryMove}"");
+            else if (_moveCount % 2 == 0)
+                return Task.FromResult(""{secondaryMove}"");
+            else
+                return Task.FromResult(""{primaryMove}"");
         }}
 
         public Task<int[]> AllocateTroops(GameState gameState, CancellationToken cancellationToken)
         {{
-            return Task.FromResult(new[] {{ 20, 20, 20, 20, 20 }});
+            return Task.FromResult(new[] {{ {troopAllocation[0]}, {troopAllocation[1]}, {troopAllocation[2]}, {troopAllocation[3]}, {troopAllocation[4]} }});
         }}
 
         public Task<string> MakePenaltyDecision(GameState gameState, CancellationToken cancellationToken)
         {{
-            return Task.FromResult(""KickLeft"");
+            return Task.FromResult(""{penaltyMove}"");
         }}
 
         public Task<string> MakeSecurityMove(GameState gameState, CancellationToken cancellationToken)
         {{
-            return Task.FromResult(""Scan"");
+            return Task.FromResult(""{securityMove}"");
         }}
     }}
 }}
 ";
+    }
+
+    private int[] CalculateTroopAllocation(int hash)
+    {
+        // Create varied troop allocations based on team hash
+        int base1 = 10 + (hash % 15);
+        int base2 = 10 + ((hash / 5) % 15);
+        int base3 = 10 + ((hash / 25) % 15);
+        int base4 = 10 + ((hash / 125) % 15);
+        int base5 = 100 - (base1 + base2 + base3 + base4);
+        
+        return new[] { base1, base2, base3, base4, Math.Max(5, base5) };
     }
 
     private string GetSampleHelperCode()

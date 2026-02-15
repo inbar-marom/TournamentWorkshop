@@ -59,7 +59,6 @@ builder.Services.AddSingleton(sp =>
 // Default tournament config for runtime services (can be extended to read from config later)
 var tournamentConfig = new TournamentConfig
 {
-    Games = new List<GameType> { GameType.RPSLS, GameType.ColonelBlotto, GameType.PenaltyKicks, GameType.SecurityGame },
     ImportTimeout = TimeSpan.FromSeconds(10),
     MoveTimeout = TimeSpan.FromSeconds(2),
     MaxParallelMatches = 1,

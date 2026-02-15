@@ -39,7 +39,6 @@ public static class TestHelpers
     {
         return new TournamentConfig
         {
-            Games = new List<GameType> { GameType.RPSLS },
             ImportTimeout = TimeSpan.FromSeconds(5),
             MoveTimeout = TimeSpan.FromSeconds(1),
             MemoryLimitMB = 512,

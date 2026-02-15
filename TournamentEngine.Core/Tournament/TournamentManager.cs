@@ -54,7 +54,7 @@ public class TournamentManager : ITournamentManager
                 GameType = gameType,
                 TotalBots = bots.Count,
                 StartedAt = DateTime.UtcNow,
-                TotalGroups = 1,
+                TotalGroups = Math.Max(1, bots.Count / 10),
                 EventNumber = 1
             };
             await _eventPublisher.PublishEventStartedAsync(startedEvent);

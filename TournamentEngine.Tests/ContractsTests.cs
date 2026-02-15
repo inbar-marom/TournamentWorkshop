@@ -146,8 +146,6 @@ public class ContractsTests
         Assert.AreEqual("tournament_log.txt", config.LogFilePath);
         Assert.AreEqual("bots", config.BotsDirectory);
         Assert.AreEqual("results.json", config.ResultsFilePath);
-        Assert.IsNotNull(config.Games);
-        Assert.AreEqual(0, config.Games.Count);
     }
 
     [TestMethod]

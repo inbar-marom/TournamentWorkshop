@@ -5,7 +5,6 @@ namespace TournamentEngine.Core.Common;
 /// </summary>
 public class TournamentConfig
 {
-    public List<GameType> Games { get; init; } = new();
     public TimeSpan ImportTimeout { get; init; } = TimeSpan.FromSeconds(5);
     public TimeSpan MoveTimeout { get; init; } = TimeSpan.FromSeconds(1);
     public int MaxParallelMatches { get; init; } = 1;
