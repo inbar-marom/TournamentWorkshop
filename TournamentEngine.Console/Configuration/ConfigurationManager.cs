@@ -101,13 +101,42 @@ public class ConfigurationManager
 
         _logger?.LogInformation("Building configuration for environment: {Environment}", environment);
 
+        var basePath = ResolveConfigBasePath();
         var builder = new ConfigurationBuilder()
-            .SetBasePath(Directory.GetCurrentDirectory())
+            .SetBasePath(basePath)
             .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
             .AddJsonFile($"appsettings.{environment}.json", optional: true, reloadOnChange: true)
             .AddEnvironmentVariables("TOURNAMENT_");
 
         return builder.Build();
+    }
+
+    private static string ResolveConfigBasePath()
+    {
+        var currentDir = Directory.GetCurrentDirectory();
+        if (File.Exists(Path.Combine(currentDir, "appsettings.json")))
+        {
+            return currentDir;
+        }
+
+        var baseDir = AppContext.BaseDirectory;
+        if (File.Exists(Path.Combine(baseDir, "appsettings.json")))
+        {
+            return baseDir;
+        }
+
+        var dir = new DirectoryInfo(currentDir);
+        while (dir != null)
+        {
+            var consoleConfig = Path.Combine(dir.FullName, "TournamentEngine.Console", "appsettings.json");
+            if (File.Exists(consoleConfig))
+            {
+                return Path.GetDirectoryName(consoleConfig) ?? dir.FullName;
+            }
+            dir = dir.Parent;
+        }
+
+        return currentDir;
     }
 
     /// <summary>

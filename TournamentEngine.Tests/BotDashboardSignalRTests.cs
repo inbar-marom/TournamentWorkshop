@@ -27,7 +27,7 @@ public class BotDashboardSignalRTests
         var mockStateLogger = new Mock<ILogger<StateManagerService>>();
         var mockStateManager = new Mock<StateManagerService>(mockStateLogger.Object);
 
-        _hub = new TournamentHub(mockStateManager.Object, _mockLogger.Object)
+        _hub = new TournamentHub(mockStateManager.Object, null, _mockLogger.Object)
         {
             Clients = _mockClients.Object
         };

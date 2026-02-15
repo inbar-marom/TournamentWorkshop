@@ -6,10 +6,11 @@ Build the Tournament Engine in C# as a console application with clean components
 
 ## Implementation Progress
 
-**Overall Status:** 15/16 steps completed, 1 partially completed
+**Overall Status:** 15/17 steps completed, 1 partially completed, 1 not started
 
 - ✅ **Completed (15):** Steps 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16
 - ⏳ **Partial (1):** Step 14
+- ❌ **Not Started (1):** Step 17
 
 ---
 
@@ -503,6 +504,19 @@ Display and manage submitted bots from Step 13 with real-time status visibility,
 ✅ Preserved existing tournament data and match feed
 ✅ Auto-collapse details drawer on series start
 ✅ Responsive design with proper spacing
+
+---
+
+### ❌ 17. Tournament Management Controls
+
+**Status:** NOT STARTED
+
+**Location:** `TournamentEngine.Dashboard/` (new management page + endpoints)
+
+**Documentation:** See [17-Step17-Management-Controls-Plan.md](17-Step17-Management-Controls-Plan.md)
+
+**Purpose:**
+Provide an operator control surface to start, pause, resume, stop, clear, and rerun tournaments once bots are submitted.
 
 ---
 

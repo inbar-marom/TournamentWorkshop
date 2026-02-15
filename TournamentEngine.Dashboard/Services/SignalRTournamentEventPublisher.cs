@@ -57,6 +57,8 @@ public class SignalRTournamentEventPublisher : ITournamentEventPublisher
     {
         _logger.LogInformation("Publishing standings update");
 
+        await _stateManager.UpdateStandingsAsync(standingsEvent);
+
         await _hubContext.Clients.Group("TournamentViewers")
             .SendAsync("StandingsUpdated", new
             {

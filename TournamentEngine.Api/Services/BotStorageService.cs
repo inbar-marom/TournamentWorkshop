@@ -14,6 +14,7 @@ public class BotStorageService
     private readonly SemaphoreSlim _semaphore;
     private readonly object _lock = new();
     private readonly Dictionary<string, BotSubmissionMetadata> _submissions = new(StringComparer.OrdinalIgnoreCase);
+    private bool _isPaused = false;
     private const long MaxFileSizeBytes = 50_000; // 50KB per file
     private const long MaxTotalSizeBytes = 200_000; // 200KB total
 
@@ -25,7 +26,80 @@ public class BotStorageService
 
         // Create storage directory if it doesn't exist
         Directory.CreateDirectory(_storageDirectory);
+        SyncSubmissionsFromDisk();
         _logger.LogInformation("BotStorageService initialized with directory: {Directory}", _storageDirectory);
+    }
+
+    private void SyncSubmissionsFromDisk()
+    {
+        try
+        {
+            var submissions = new Dictionary<string, BotSubmissionMetadata>(StringComparer.OrdinalIgnoreCase);
+            var folders = Directory.GetDirectories(_storageDirectory);
+            foreach (var folderPath in folders)
+            {
+                var folderName = Path.GetFileName(folderPath);
+                if (string.IsNullOrWhiteSpace(folderName))
+                {
+                    continue;
+                }
+
+                var versionIndex = folderName.LastIndexOf("_v", StringComparison.OrdinalIgnoreCase);
+                if (versionIndex <= 0 || versionIndex + 2 >= folderName.Length)
+                {
+                    continue;
+                }
+
+                var teamName = folderName.Substring(0, versionIndex);
+                var versionText = folderName.Substring(versionIndex + 2);
+                if (!int.TryParse(versionText, out var version))
+                {
+                    continue;
+                }
+
+                var filePaths = Directory.GetFiles(folderPath)
+                    .Select(Path.GetFileName)
+                    .Where(fileName => !string.IsNullOrWhiteSpace(fileName))
+                    .Select(fileName => fileName!)
+                    .ToList();
+
+                var totalSize = filePaths
+                    .Select(fileName => new FileInfo(Path.Combine(folderPath, fileName)).Length)
+                    .Sum();
+
+                var metadata = new BotSubmissionMetadata
+                {
+                    TeamName = teamName,
+                    FolderPath = folderPath,
+                    FilePaths = filePaths,
+                    FileCount = filePaths.Count,
+                    TotalSizeBytes = totalSize,
+                    SubmissionTime = Directory.GetCreationTimeUtc(folderPath),
+                    Version = version,
+                    SubmissionId = Guid.NewGuid().ToString()
+                };
+
+                if (submissions.TryGetValue(teamName, out var existing) && existing.Version > version)
+                {
+                    continue;
+                }
+
+                submissions[teamName] = metadata;
+            }
+
+            lock (_lock)
+            {
+                _submissions.Clear();
+                foreach (var entry in submissions)
+                {
+                    _submissions[entry.Key] = entry.Value;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to load existing bot submissions");
+        }
     }
 
     /// <summary>
@@ -33,6 +107,9 @@ public class BotStorageService
     /// </summary>
     public async Task<BotSubmissionResult> StoreBotAsync(BotSubmissionRequest request)
     {
+        if (_isPaused)
+            return new BotSubmissionResult { Success = false, Message = "Bot submissions are paused", Errors = new() { "Submissions are currently paused" } };
+
         if (request == null)
             return new BotSubmissionResult { Success = false, Message = "Request is null", Errors = new() { "Invalid request" } };
 
@@ -62,6 +139,7 @@ public class BotStorageService
     /// </summary>
     public List<BotSubmissionMetadata> GetAllSubmissions()
     {
+        SyncSubmissionsFromDisk();
         lock (_lock)
         {
             return _submissions.Values.ToList();
@@ -73,10 +151,28 @@ public class BotStorageService
     /// </summary>
     public BotSubmissionMetadata? GetSubmission(string teamName)
     {
+        SyncSubmissionsFromDisk();
         lock (_lock)
         {
             return _submissions.TryGetValue(teamName, out var submission) ? submission : null;
         }
+    }
+
+    /// <summary>
+    /// Set the pause state for bot submissions
+    /// </summary>
+    public void SetPauseState(bool paused)
+    {
+        _isPaused = paused;
+        _logger.LogInformation("Bot submission pause state set to: {Paused}", paused);
+    }
+
+    /// <summary>
+    /// Get the current pause state
+    /// </summary>
+    public bool IsPaused()
+    {
+        return _isPaused;
     }
 
     /// <summary>

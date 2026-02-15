@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using TournamentEngine.Api.Models;
 using TournamentEngine.Api.Services;
@@ -24,7 +25,7 @@ public class BotDashboardService : IDisposable
     // Cache for bot list with TTL
     private List<BotDashboardDto>? _botsCache;
     private DateTime _cacheExpirationTime = DateTime.MinValue;
-    private readonly TimeSpan _cacheDuration = TimeSpan.FromSeconds(30);
+    private readonly TimeSpan _cacheDuration = TimeSpan.FromSeconds(1);
     private readonly object _cacheLock = new();
 
     public BotDashboardService(
@@ -266,6 +267,39 @@ public class BotDashboardService : IDisposable
             _logger.LogError(ex, "Error retrieving version history for {TeamName}", teamName);
             throw;
         }
+    }
+
+    /// <summary>
+    /// Loads valid bots with compiled instances for tournament execution.
+    /// </summary>
+    public async Task<List<BotInfo>> LoadValidBotInfosAsync(CancellationToken cancellationToken = default)
+    {
+        var submissions = _storageService.GetAllSubmissions();
+        var bots = new List<BotInfo>();
+
+        foreach (var submission in submissions)
+        {
+            try
+            {
+                var botInfo = await _botLoader.LoadBotFromFolderAsync(submission.FolderPath, cancellationToken);
+                if (botInfo.IsValid)
+                {
+                    bots.Add(botInfo);
+                }
+                else
+                {
+                    _logger.LogWarning("Bot '{TeamName}' is invalid: {Errors}",
+                        botInfo.TeamName,
+                        string.Join("; ", botInfo.ValidationErrors));
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to load bot for tournament: {TeamName}", submission.TeamName);
+            }
+        }
+
+        return bots;
     }
 
     /// <summary>

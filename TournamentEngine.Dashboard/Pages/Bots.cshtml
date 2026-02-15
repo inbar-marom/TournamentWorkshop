@@ -2,84 +2,357 @@
 @model TournamentEngine.Dashboard.Pages.BotsPageModel
 @{
     ViewData["Title"] = "Bot Submissions";
-}
+}<!DOCTYPE html>
 
-<div class="container-fluid mt-4">
-    <div class="row mb-4">
-        <div class="col-md-6">
-            <h1>Bot Submission Dashboard</h1>
-        </div>
-        <div class="col-md-6 text-end">
-            <div class="btn-group" role="group">
-                <button type="button" class="btn btn-sm btn-outline-primary" id="btnList">List View</button>
-                <button type="button" class="btn btn-sm btn-outline-primary" id="btnRefresh">Refresh</button>
-            </div>
+<style>
+    :root {
+        --bg-1: #f6f3ec;
+        --bg-2: #e7efe8;
+        --ink: #1f2a2e;
+        --muted: #5b6b73;
+        --accent: #0f766e;
+        --accent-strong: #0b4f4a;
+        --accent-soft: #d7f0ea;
+        --warm: #f4b266;
+        --card: #ffffff;
+        --border: rgba(31, 42, 46, 0.12);
+        --shadow: 0 18px 45px rgba(25, 31, 35, 0.12);
+    }
+
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+
+    body {
+        font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+        background: radial-gradient(circle at top left, rgba(15, 118, 110, 0.12), transparent 50%),
+            radial-gradient(circle at 20% 40%, rgba(244, 178, 102, 0.18), transparent 45%),
+            linear-gradient(135deg, var(--bg-1), var(--bg-2));
+        color: var(--ink);
+        padding: 28px;
+        min-height: 100vh;
+    }
+
+    .page {
+        max-width: 1400px;
+        margin: 0 auto;
+        display: grid;
+        gap: 22px;
+    }
+
+    .topbar {
+        background: rgba(255, 255, 255, 0.9);
+        border: 1px solid var(--border);
+        backdrop-filter: blur(10px);
+        padding: 20px 28px;
+        border-radius: 18px;
+        box-shadow: var(--shadow);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 16px;
+        flex-wrap: wrap;
+    }
+
+    .topbar h1 {
+        font-family: "Space Grotesk", "IBM Plex Sans", sans-serif;
+        font-size: 1.9em;
+        color: var(--accent-strong);
+        letter-spacing: 0.02em;
+    }
+
+    .topbar-meta {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        flex-wrap: wrap;
+    }
+
+    .status-pill {
+        padding: 8px 14px;
+        border-radius: 999px;
+        background: var(--accent-soft);
+        color: var(--accent-strong);
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        font-size: 0.75em;
+    }
+
+    .connection {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.95em;
+        padding: 8px 12px;
+        border-radius: 999px;
+        background: rgba(244, 178, 102, 0.15);
+        color: var(--muted);
+    }
+
+    .connection.connected {
+        background: rgba(15, 118, 110, 0.15);
+        color: var(--accent-strong);
+    }
+
+    .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: currentColor;
+        display: inline-block;
+        animation: pulse 2s infinite;
+    }
+
+    .connection.connected .dot {
+        animation: none;
+    }
+
+    @@keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+
+    .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        box-shadow: var(--shadow);
+        padding: 0;
+    }
+
+    .card-header {
+        padding: 18px;
+        border-bottom: 1px solid var(--border);
+        font-weight: 600;
+    }
+
+    .card-body {
+        padding: 18px;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 16px;
+        margin: 22px 0;
+    }
+
+    .stat-card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 18px;
+        text-align: center;
+    }
+
+    .stat-card h3 {
+        font-size: 2.2em;
+        color: var(--accent);
+        margin: 8px 0 0;
+    }
+
+    .stat-card small {
+        color: var(--muted);
+        display: block;
+        margin-bottom: 8px;
+    }
+
+    .table-container {
+        overflow-x: auto;
+        border-radius: 12px;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    thead tr {
+        border-bottom: 2px solid var(--border);
+        background: rgba(255, 255, 255, 0.5);
+    }
+
+    th {
+        padding: 14px 18px;
+        text-align: left;
+        font-weight: 600;
+        color: var(--muted);
+        font-size: 0.9em;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    tbody tr {
+        border-bottom: 1px solid var(--border);
+        transition: background 0.2s;
+    }
+
+    tbody tr:hover {
+        background: rgba(15, 118, 110, 0.04);
+    }
+
+    td {
+        padding: 14px 18px;
+        vertical-align: middle;
+    }
+
+    .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        border-radius: 999px;
+        font-size: 0.85em;
+        font-weight: 600;
+        background: rgba(244, 178, 102, 0.2);
+        color: var(--warm);
+    }
+
+    .badge.valid {
+        background: rgba(15, 118, 110, 0.2);
+        color: var(--accent);
+    }
+
+    .badge.invalid {
+        background: rgba(220, 53, 69, 0.2);
+        color: #dc3545;
+    }
+
+    .filters-row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 12px;
+        margin: 20px 0;
+    }
+
+    input, select {
+        padding: 10px 14px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        font-family: inherit;
+        font-size: 0.95em;
+        transition: border-color 0.2s;
+    }
+
+    input:focus, select:focus {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.1);
+    }
+
+    .btn {
+        padding: 10px 16px;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-size: 0.95em;
+    }
+
+    .btn-primary {
+        background: var(--accent);
+        color: white;
+    }
+
+    .btn-primary:hover {
+        background: var(--accent-strong);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(15, 118, 110, 0.3);
+    }
+
+    .pagination-info {
+        text-align: center;
+        padding: 16px;
+        color: var(--muted);
+        font-size: 0.9em;
+    }
+
+    .loading {
+        text-align: center;
+        padding: 40px 20px;
+        color: var(--muted);
+    }
+
+    .spinner {
+        width: 40px;
+        height: 40px;
+        border: 4px solid var(--border);
+        border-top-color: var(--accent);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 16px;
+    }
+
+    @@keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+</style>
+
+<div class="page">
+    <!-- Top Bar -->
+    <div class="topbar">
+        <h1>🤖 Bot Submissions Dashboard</h1>
+        <div class="topbar-meta">
+            <span class="connection" id="connectionStatus">
+                <span class="dot"></span>
+                <span id="connectionText">Disconnected</span>
+            </span>
         </div>
     </div>
 
-    <!-- Stats Bar -->
-    <div class="row mb-3">
-        <div class="col-md-3">
-            <div class="card text-center">
-                <div class="card-body">
-                    <small class="text-muted">Total Bots</small>
-                    <h3 id="statsTotal">0</h3>
-                </div>
-            </div>
+    <!-- Stats Cards -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <small>Total Bots</small>
+            <h3 id="statsTotal">0</h3>
         </div>
-        <div class="col-md-3">
-            <div class="card text-center">
-                <div class="card-body">
-                    <small class="text-muted">Valid ✅</small>
-                    <h3 id="statsValid" class="text-success">0</h3>
-                </div>
-            </div>
+        <div class="stat-card">
+            <small>Valid ✅</small>
+            <h3 id="statsValid" style="color: var(--accent);">0</h3>
         </div>
-        <div class="col-md-3">
-            <div class="card text-center">
-                <div class="card-body">
-                    <small class="text-muted">Invalid ❌</small>
-                    <h3 id="statsInvalid" class="text-danger">0</h3>
-                </div>
-            </div>
+        <div class="stat-card">
+            <small>Invalid ❌</small>
+            <h3 id="statsInvalid" style="color: #dc3545;">0</h3>
         </div>
-        <div class="col-md-3">
-            <div class="card text-center">
-                <div class="card-body">
-                    <small class="text-muted">Pending ⏳</small>
-                    <h3 id="statsPending" class="text-warning">0</h3>
-                </div>
-            </div>
+        <div class="stat-card">
+            <small>Pending ⏳</small>
+            <h3 id="statsPending" style="color: var(--warm);">0</h3>
         </div>
     </div>
 
-    <!-- Search & Filter -->
-    <div class="row mb-3">
-        <div class="col-md-6">
-            <input type="text" id="searchInput" class="form-control" placeholder="Search by team name...">
-        </div>
-        <div class="col-md-3">
-            <select id="filterStatus" class="form-select">
-                <option value="">All Statuses</option>
-                <option value="Valid">Valid ✅</option>
-                <option value="Invalid">Invalid ❌</option>
-                <option value="Pending">Pending ⏳</option>
-            </select>
-        </div>
-        <div class="col-md-3">
-            <select id="sortBy" class="form-select">
-                <option value="submissiontime">Newest Submissions</option>
-                <option value="teamname">Team Name (A-Z)</option>
-                <option value="status">Status</option>
-            </select>
+    <!-- Filters -->
+    <div class="card">
+        <div class="card-header">🔍 Search & Filter</div>
+        <div class="card-body">
+            <div class="filters-row">
+                <input type="text" id="searchInput" placeholder="Search by team name...">
+                <select id="filterStatus">
+                    <option value="">All Statuses</option>
+                    <option value="Valid">Valid ✅</option>
+                    <option value="Invalid">Invalid ❌</option>
+                    <option value="Pending">Pending ⏳</option>
+                </select>
+                <select id="sortBy">
+                    <option value="submissiontime">Newest Submissions</option>
+                    <option value="teamname">Team Name (A-Z)</option>
+                    <option value="status">Status</option>
+                </select>
+                <button class="btn btn-primary" id="btnRefresh">🔄 Refresh</button>
+                <button class="btn btn-warning" id="btnPauseResume" style="background: #f4b266;">⏸️ Pause</button>
+            </div>
         </div>
     </div>
 
     <!-- Bots Table -->
     <div class="card">
-        <div class="table-responsive">
-            <table class="table table-hover mb-0">
-                <thead class="table-light">
+        <div class="card-header">📊 Bot List</div>
+        <div class="table-container" style="max-height: 600px; overflow-y: auto;">
+            <table>
+                <thead>
                     <tr>
                         <th>Team Name</th>
                         <th>Submission Time</th>
@@ -91,11 +364,9 @@
                     </tr>
                 </thead>
                 <tbody id="botsTableBody">
-                    <tr>
-                        <td colspan="7" class="text-center text-muted py-4">
-                            <div class="spinner-border spinner-border-sm" role="status">
-                                <span class="visually-hidden">Loading...</span>
-                            </div>
+                    <tr id="loadingRow">
+                        <td colspan="7" class="loading">
+                            <div class="spinner"></div>
                             Loading bots...
                         </td>
                     </tr>
@@ -104,190 +375,323 @@
         </div>
     </div>
 
-    <!-- Detail Modal -->
-    <div class="modal fade" id="detailModal" tabindex="-1">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Bot Details: <span id="detailTeamName"></span></h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <small class="text-muted">Status</small>
-                            <p><span id="detailStatus" class="badge"></span></p>
-                        </div>
-                        <div class="col-md-6">
-                            <small class="text-muted">Submission Time</small>
-                            <p id="detailSubmissionTime"></p>
-                        </div>
-                    </div>
+    <!-- Pagination -->
+    <div class="pagination-info" id="paginationInfo" style="display: none;">
+        Showing <span id="showingStart">0</span>-<span id="showingEnd">0</span> of <span id="totalBots">0</span> bots
+    </div>
 
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <small class="text-muted">Files</small>
-                            <p id="detailFileCount"></p>
-                        </div>
-                        <div class="col-md-6">
-                            <small class="text-muted">Total Size</small>
-                            <p id="detailSize"></p>
-                        </div>
+    <!-- Bot Storage Info Panel (Hidden) -->
+    <details style="margin-top: 24px; padding: 16px; background: #f9f7f3; border: 1px solid var(--border); border-radius: 8px;">
+        <summary style="cursor: pointer; font-weight: 600; color: var(--ink);">
+            ℹ️ Bot Storage Configuration
+        </summary>
+        <div style="margin-top: 12px; font-size: 0.9em; color: var(--muted); font-family: 'Courier New', monospace; line-height: 1.6;">
+            <p><strong>Expected Bot Folder:</strong></p>
+            <code style="display: block; background: white; padding: 8px; border-radius: 4px; margin: 8px 0; color: var(--ink);">
+                /TournamentEngine.Dashboard/bots/
+            </code>
+            <p><strong>Folder Structure Format:</strong></p>
+            <code style="display: block; background: white; padding: 8px; border-radius: 4px; margin: 8px 0; color: var(--ink);">
+                TeamName_v1/<br/>
+                &nbsp;&nbsp;├── TeamName.cs<br/>
+                TeamName_v2/<br/>
+                &nbsp;&nbsp;├── TeamName.cs<br/>
+                (version suffix required: _v1, _v2, etc.)
+            </code>
+            <p><strong>Submission Instructions:</strong></p>
+            <ul style="margin: 8px 0; padding-left: 20px;">
+                <li>Upload bot code files via the dashboard</li>
+                <li>Submissions are automatically stored with version suffix</li>
+                <li>Each new submission increments the version number</li>
+                <li>Only the latest version is used in tournaments</li>
+            </ul>
+            <p><strong>Current Bots Directory:</strong> <code style="background: white; padding: 2px 6px; border-radius: 3px;">./bots</code> (from appsettings.json)</p>
+        </div>
+    </details>
+</div>
+
+<!-- Detail Modal -->
+<div class="modal fade" id="detailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Bot Details: <span id="detailTeamName"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <small class="text-muted">Status</small>
+                        <p><span id="detailStatus" class="badge"></span></p>
                     </div>
-
-                    <h6>Files</h6>
-                    <ul id="detailFilesList" class="list-group mb-3">
-                    </ul>
-
-                    <div id="detailErrors" class="alert alert-danger d-none" role="alert">
-                        <strong>Compilation Errors:</strong>
-                        <pre id="detailErrorsText"></pre>
+                    <div class="col-md-6">
+                        <small class="text-muted">Submission Time</small>
+                        <p id="detailSubmissionTime"></p>
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <button type="button" class="btn btn-primary" id="btnValidate">Re-Validate</button>
-                    <button type="button" class="btn btn-danger" id="btnDelete">Delete</button>
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <small class="text-muted">Files</small>
+                        <p id="detailFileCount"></p>
+                    </div>
+                    <div class="col-md-6">
+                        <small class="text-muted">Total Size</small>
+                        <p id="detailSize"></p>
+                    </div>
                 </div>
+                <h6>Files</h6>
+                <ul id="detailFilesList" class="list-group mb-3"></ul>
+                <div id="detailErrors" class="alert alert-danger d-none">
+                    <strong>Compilation Errors:</strong>
+                    <pre id="detailErrorsText"></pre>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="btnValidate">Re-Validate</button>
             </div>
         </div>
     </div>
 </div>
 
-<style>
-    :root {
-        --primary-color: #0d6efd;
-        --success-color: #198754;
-        --danger-color: #dc3545;
-        --warning-color: #ffc107;
-    }
-
-    body {
-        background-color: #f8f9fa;
-    }
-
-    .card {
-        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
-        border: none;
-    }
-
-    .table-hover tbody tr:hover {
-        background-color: rgba(13, 110, 253, 0.05);
-    }
-
-    .badge {
-        font-size: 0.875rem;
-        padding: 0.5rem 0.75rem;
-    }
-
-    .badge.valid {
-        background-color: var(--success-color);
-    }
-
-    .badge.invalid {
-        background-color: var(--danger-color);
-    }
-
-    .badge.pending {
-        background-color: var(--warning-color);
-        color: #000;
-    }
-
-    .modal-header {
-        border-bottom: 1px solid #dee2e6;
-    }
-
-    .spinner-border-sm {
-        width: 1.5rem;
-        height: 1.5rem;
-        border-width: 0.25em;
-    }
-</style>
-
+@Html.Raw("<script src='https://unpkg.com/%40microsoft/signalr@7.0.5/dist/browser/signalr.min.js?v=20260215'></script>")
 <script>
 let detailModal;
 let currentBotTeamName;
+let allBots = [];
+let knownBotKeys = new Set();
+let currentPage = 0;
+const botsPerPage = 20;
 
+let connection;
+let connectionReady = false;
+if (!window.signalR) {
+    console.error('SignalR script not loaded!');
+} else {
+    console.log('SignalR script loaded:', window.signalR);
+}
+
+// Initialize after DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
-    detailModal = new bootstrap.Modal(document.getElementById('detailModal'));
-    loadBots();
-    
-    // Event listeners
+    // Initialize Bootstrap Modal
+    if (window.bootstrap && window.bootstrap.Modal) {
+        detailModal = new bootstrap.Modal(document.getElementById('detailModal'));
+    }
+
+    // Setup event listeners for controls
     document.getElementById('btnRefresh').addEventListener('click', loadBots);
-    document.getElementById('searchInput').addEventListener('input', filterBots);
-    document.getElementById('filterStatus').addEventListener('change', filterBots);
-    document.getElementById('sortBy').addEventListener('change', sortBots);
+    document.getElementById('searchInput').addEventListener('input', applyFilters);
+    document.getElementById('filterStatus').addEventListener('change', applyFilters);
+    document.getElementById('sortBy').addEventListener('change', applyFilters);
+    
+    // Pause/Resume button
+    document.getElementById('btnPauseResume').addEventListener('click', function() {
+        const btn = this;
+        const endpoint = pausePolling ? '/api/bots/pause' : '/api/bots/resume';
+        fetch(endpoint, { method: 'POST' })
+            .then(response => {
+                if (response.ok) {
+                    pausePolling = !pausePolling; // Toggle the pausePolling state
+                    if (pausePolling) {
+                        btn.textContent = '▶️ Resume';
+                        btn.style.background = '#4CAF50';
+                    } else {
+                        btn.textContent = '⏸️ Pause';
+                        btn.style.background = '#f4b266';
+                    }
+                } else {
+                    console.error('Failed to update pause state');
+                }
+            })
+            .catch(err => console.error('Error updating pause state:', err));
+    });
     document.getElementById('btnValidate').addEventListener('click', validateBot);
     document.getElementById('btnDelete').addEventListener('click', deleteBot);
+
+    // Load initial data
+    loadBots();
+
+    // Setup SignalR Connection
+    setupSignalRConnection();
 });
+
+function setupSignalRConnection() {
+    // SignalR Connection
+    connection = new signalR.HubConnectionBuilder()
+        .withUrl('/tournamentHub')
+        .withAutomaticReconnect()
+        .build();
+
+    connection.on('BotSubmitted', () => { console.log('SignalR: BotSubmitted'); if (connectionReady) loadBots(); });
+    connection.on('BotValidated', () => { console.log('SignalR: BotValidated'); if (connectionReady) loadBots(); });
+    connection.on('BotDeleted', () => { console.log('SignalR: BotDeleted'); if (connectionReady) loadBots(); });
+    connection.on('BotListUpdated', () => { console.log('SignalR: BotListUpdated'); if (connectionReady) loadBots(); });
+
+    connection.onreconnecting((err) => {
+        console.warn('SignalR: reconnecting', err);
+        connectionReady = false;
+        updateConnectionStatus(false);
+    });
+    connection.onreconnected((connId) => {
+        console.log('SignalR: reconnected', connId);
+        connectionReady = true;
+        updateConnectionStatus(true);
+        loadBots();
+    });
+    connection.onclose((err) => {
+        console.warn('SignalR: closed', err);
+        connectionReady = false;
+        updateConnectionStatus(false);
+    });
+
+    connection.start()
+        .then(() => {
+            connectionReady = true;
+            updateConnectionStatus(true);
+            console.log('SignalR: connection started');
+        })
+        .catch(err => {
+            console.error('SignalR connection error:', err);
+            updateConnectionStatus(false);
+            // Retry after delay
+            setTimeout(() => {
+                if (!connectionReady) {
+                    setupSignalRConnection();
+                }
+            }, 5000);
+        });
+}
+
+function updateConnectionStatus(connected) {
+    try {
+        const status = document.getElementById('connectionStatus');
+        const text = document.getElementById('connectionText');
+        if (status && text) {
+            if (connected) {
+                status.classList.add('connected');
+                text.textContent = 'Connected';
+            } else {
+                status.classList.remove('connected');
+                text.textContent = 'Disconnected';
+            }
+        }
+    } catch (e) {
+        console.error('Error updating connection status:', e);
+    }
+}
 
 async function loadBots() {
     try {
         const response = await fetch('/api/dashboard/bots/');
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const result = await response.json();
         
-        if (result.success) {
-            displayBots(result.data);
-            updateStats(result.data);
+        if (result && result.success) {
+            const newBots = (result.data || []).filter(bot => {
+                const key = bot.teamName + '_v' + bot.version;
+                return !knownBotKeys.has(key);
+            });
+            if (newBots.length > 0) {
+                // Add new bots to the top
+                allBots = [...newBots, ...allBots];
+                // Update known keys
+                newBots.forEach(bot => knownBotKeys.add(bot.teamName + '_v' + bot.version));
+                updateStats(allBots);
+                applyFilters();
+            }
         }
     } catch (error) {
         console.error('Error loading bots:', error);
-        showError('Failed to load bots');
+        showError(`Failed to load bots`);
     }
 }
 
-function displayBots(bots) {
-    const tbody = document.getElementById('botsTableBody');
+function applyFilters() {
+    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+    const filterStatus = document.getElementById('filterStatus').value;
+    const sortBy = document.getElementById('sortBy').value;
     
-    if (bots.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">No bots found</td></tr>';
+    let filtered = allBots.filter(bot => {
+        const matchSearch = bot.teamName.toLowerCase().includes(searchTerm);
+        const matchStatus = !filterStatus || normalizeStatus(bot.status) === filterStatus;
+        return matchSearch && matchStatus;
+    });
+    
+    // Sort
+    if (sortBy === 'teamname') {
+        filtered.sort((a, b) => a.teamName.localeCompare(b.teamName));
+    } else if (sortBy === 'status') {
+        filtered.sort((a, b) => normalizeStatus(a.status).localeCompare(normalizeStatus(b.status)));
+    } else {
+        filtered.sort((a, b) => new Date(b.submissionTime) - new Date(a.submissionTime));
+    }
+    
+    currentPage = 0;
+    displayBotsPaginated(filtered);
+}
+
+function displayBotsPaginated(bots) {
+    const tbody = document.getElementById('botsTableBody');
+    const loadingRow = document.getElementById('loadingRow');
+    if (loadingRow) loadingRow.remove();
+    const pageSize = botsPerPage;
+    const startIdx = currentPage * pageSize;
+    const endIdx = Math.min(startIdx + pageSize, bots.length);
+    const pageBots = bots.slice(startIdx, endIdx);
+    if (pageBots.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 20px; color: var(--muted);">No bots found</td></tr>';
+        document.getElementById('paginationInfo').style.display = 'none';
         return;
     }
-
-    tbody.innerHTML = bots.map(bot => `
-        <tr style="cursor: pointer;" onclick="showBotDetail('${bot.teamName}')">
+    tbody.innerHTML = pageBots.map(bot => `
+        <tr style="cursor: pointer;" onclick="showBotDetail('${escapeHtml(bot.teamName)}')">
             <td><strong>${escapeHtml(bot.teamName)}</strong></td>
             <td><small>${new Date(bot.submissionTime).toLocaleString()}</small></td>
             <td>${getStatusBadge(bot.status)}</td>
             <td>${bot.fileCount}</td>
             <td>${formatBytes(bot.totalSizeBytes)}</td>
             <td>v${bot.version}</td>
-            <td>
-                <button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); showBotDetail('${bot.teamName}')">
-                    View
-                </button>
-            </td>
+            <td><button class="btn btn-primary" style="font-size: 0.8em;" onclick="event.stopPropagation(); showBotDetail('${escapeHtml(bot.teamName)}')">View</button></td>
         </tr>
     `).join('');
+    
+    document.getElementById('paginationInfo').style.display = 'block';
+    document.getElementById('showingStart').textContent = startIdx + 1;
+    document.getElementById('showingEnd').textContent = endIdx;
+    document.getElementById('totalBots').textContent = bots.length;
 }
 
 function updateStats(bots) {
+    const normalized = bots.map(bot => normalizeStatus(bot.status));
     document.getElementById('statsTotal').textContent = bots.length;
-    document.getElementById('statsValid').textContent = bots.filter(b => b.status === 'Valid').length;
-    document.getElementById('statsInvalid').textContent = bots.filter(b => b.status === 'Invalid').length;
-    document.getElementById('statsPending').textContent = bots.filter(b => b.status !== 'Valid' && b.status !== 'Invalid').length;
+    document.getElementById('statsValid').textContent = normalized.filter(s => s === 'Valid').length;
+    document.getElementById('statsInvalid').textContent = normalized.filter(s => s === 'Invalid').length;
+    document.getElementById('statsPending').textContent = normalized.filter(s => s !== 'Valid' && s !== 'Invalid').length;
 }
 
 function getStatusBadge(status) {
-    const statusLower = status.toLowerCase();
-    const icons = {
-        'valid': '✅',
-        'invalid': '❌',
-        'pending': '⏳'
-    };
-    const icon = icons[statusLower] || '❓';
-    return `<span class="badge ${statusLower}">${icon} ${status}</span>`;
+    const normalized = normalizeStatus(status);
+    const icons = { 'Valid': '✅', 'Invalid': '❌', 'Pending': '⏳' };
+    const icon = icons[normalized] || '❓';
+    return `<span class="badge" style="background: ${normalized === 'Valid' ? 'rgba(15, 118, 110, 0.2)' : 'rgba(220, 53, 69, 0.2)'}; color: ${normalized === 'Valid' ? 'var(--accent)' : '#dc3545'};">${icon} ${normalized}</span>`;
+}
+
+function normalizeStatus(status) {
+    if (typeof status === 'number') {
+        const statuses = ['Valid', 'Invalid', 'Pending', 'ValidationInProgress'];
+        return statuses[status] || 'Pending';
+    }
+    return String(status || 'Pending');
 }
 
 async function showBotDetail(teamName) {
     try {
         const response = await fetch(`/api/dashboard/bots/${encodeURIComponent(teamName)}`);
         const result = await response.json();
-        
         if (result.success) {
             currentBotTeamName = teamName;
             populateDetailModal(result.data);
-            detailModal.show();
+            if (detailModal) detailModal.show();
         }
     } catch (error) {
         console.error('Error loading bot details:', error);
@@ -298,19 +702,18 @@ async function showBotDetail(teamName) {
 function populateDetailModal(bot) {
     document.getElementById('detailTeamName').textContent = bot.teamName;
     document.getElementById('detailStatus').innerHTML = getStatusBadge(bot.status);
-    document.getElementById('detailStatus').className = '';
     document.getElementById('detailSubmissionTime').textContent = new Date(bot.submissionTime).toLocaleString();
     document.getElementById('detailFileCount').textContent = bot.fileCount;
     document.getElementById('detailSize').textContent = formatBytes(bot.totalSizeBytes);
     
     const filesList = document.getElementById('detailFilesList');
     filesList.innerHTML = (bot.fileNames || []).map(file => `
-        <li class="list-group-item d-flex justify-content-between align-items-center">
+        <li style="padding: 10px 14px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between;">
             <span>${escapeHtml(file)}</span>
-            <small class="text-muted">.cs</small>
+            <small style="color: var(--muted);">.cs</small>
         </li>
     `).join('');
-
+    
     const errorsDiv = document.getElementById('detailErrors');
     if (bot.compilationError) {
         errorsDiv.classList.remove('d-none');
@@ -322,60 +725,30 @@ function populateDetailModal(bot) {
 
 async function validateBot() {
     try {
-        const response = await fetch(`/api/dashboard/bots/${encodeURIComponent(currentBotTeamName)}/validate`, {
-            method: 'POST'
-        });
+        const response = await fetch(`/api/dashboard/bots/${encodeURIComponent(currentBotTeamName)}/validate`, { method: 'POST' });
         const result = await response.json();
-        
         if (result.success) {
-            showSuccess('Bot validation triggered successfully');
+            showSuccess('Bot validation triggered');
             detailModal.hide();
             loadBots();
         }
     } catch (error) {
-        console.error('Error validating bot:', error);
         showError('Failed to validate bot');
     }
 }
 
 async function deleteBot() {
-    if (!confirm('Are you sure you want to delete this bot?')) return;
-    
+    if (!confirm('Delete this bot?')) return;
     try {
-        const response = await fetch(`/api/bots/${encodeURIComponent(currentBotTeamName)}`, {
-            method: 'DELETE'
-        });
-        
+        const response = await fetch(`/api/bots/${encodeURIComponent(currentBotTeamName)}`, { method: 'DELETE' });
         if (response.ok) {
-            showSuccess('Bot deleted successfully');
+            showSuccess('Bot deleted');
             detailModal.hide();
             loadBots();
         }
     } catch (error) {
-        console.error('Error deleting bot:', error);
         showError('Failed to delete bot');
     }
-}
-
-function filterBots() {
-    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
-    const filterStatus = document.getElementById('filterStatus').value;
-    const rows = document.querySelectorAll('#botsTableBody tr');
-    
-    rows.forEach(row => {
-        const teamName = row.querySelector('td')?.textContent.toLowerCase() || '';
-        const status = row.querySelector('.badge')?.textContent || '';
-        
-        const matchSearch = teamName.includes(searchTerm);
-        const matchStatus = !filterStatus || status.includes(filterStatus);
-        
-        row.style.display = (matchSearch && matchStatus) ? '' : 'none';
-    });
-}
-
-function sortBots() {
-    // Simple client-side sort - in production, would reload from API
-    loadBots();
 }
 
 function formatBytes(bytes) {
@@ -393,55 +766,53 @@ function escapeHtml(text) {
 }
 
 function showError(message) {
-    const alert = document.createElement('div');
-    alert.className = 'alert alert-danger alert-dismissible fade show';
-    alert.innerHTML = `
-        ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    `;
-    document.querySelector('.container-fluid').insertBefore(alert, document.querySelector('.row').nextSibling);
+    console.error(message);
 }
 
 function showSuccess(message) {
-    const alert = document.createElement('div');
-    alert.className = 'alert alert-success alert-dismissible fade show';
-    alert.innerHTML = `
-        ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    `;
-    document.querySelector('.container-fluid').insertBefore(alert, document.querySelector('.row').nextSibling);
-    setTimeout(() => alert.remove(), 3000);
+    console.log(message);
 }
 
-// SignalR real-time updates
-const connection = new signalR.HubConnectionBuilder()
-    .withUrl('/tournamentHub')
-    .withAutomaticReconnect()
-    .build();
+// --- Live polling for new bots ---
+let pollingBots = false;
+let pausePolling = false;
+function startBotsPolling() {
+    if (pollingBots) return;
+    pollingBots = true;
+    setInterval(async () => {
+        try {
+            const response = await fetch('/api/dashboard/bots/');
+            if (!response.ok) return;
+            const result = await response.json();
+            if (result && result.success) {
+                const newList = result.data || [];
+                // Only update if not paused and there are new bots
+                if (!pausePolling && newList.length > allBots.length) {
+                    // Find new bots by key
+                    const newKeys = new Set(newList.map(bot => bot.teamName + '_v' + bot.version));
+                    const oldKeys = new Set(allBots.map(bot => bot.teamName + '_v' + bot.version));
+                    const trulyNew = newList.filter(bot => !oldKeys.has(bot.teamName + '_v' + bot.version));
+                    if (trulyNew.length > 0) {
+                        allBots = [...trulyNew, ...allBots];
+                        knownBotKeys = new Set(allBots.map(bot => bot.teamName + '_v' + bot.version));
+                        updateStats(allBots);
+                        applyFilters();
+                    }
+                }
+            }
+        } catch {}
+    }, 1000);
+}
 
-connection.on('BotSubmitted', (bot) => {
-    console.log('Bot submitted:', bot);
-    loadBots();
+// Remove Delete button from modal
+function removeDeleteButton() {
+    const btn = document.getElementById('btnDelete');
+    if (btn) btn.style.display = 'none';
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // ...existing code...
+    startBotsPolling();
+    removeDeleteButton();
 });
-
-connection.on('BotValidated', (bot) => {
-    console.log('Bot validated:', bot);
-    loadBots();
-});
-
-connection.on('BotDeleted', (teamName) => {
-    console.log('Bot deleted:', teamName);
-    loadBots();
-});
-
-connection.on('BotListUpdated', (bots) => {
-    console.log('Bot list updated');
-    loadBots();
-});
-
-connection.on('ValidationProgress', (payload) => {
-    console.log('Validation progress:', payload);
-});
-
-connection.start().catch(err => console.error('SignalR connection error:', err));
 </script>

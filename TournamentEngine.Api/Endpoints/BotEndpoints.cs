@@ -4,6 +4,7 @@ using Models;
 using Services;
 using Microsoft.AspNetCore.Builder;
 using System.Text.RegularExpressions;
+using System.Linq;
 
 /// <summary>
 /// API endpoints for bot submission, listing, and management
@@ -27,6 +28,15 @@ public static class BotEndpoints
 
         group.MapDelete("/{teamName}", DeleteBot)
             .WithName("DeleteBot");
+
+        group.MapPost("/pause", PauseSubmissions)
+            .WithName("PauseSubmissions");
+
+        group.MapPost("/resume", ResumeSubmissions)
+            .WithName("ResumeSubmissions");
+
+        group.MapGet("/pause-status", GetPauseStatus)
+            .WithName("GetPauseStatus");
     }
 
     /// <summary>
@@ -160,8 +170,7 @@ public static class BotEndpoints
         var successCount = 0;
         var failureCount = 0;
 
-        // Submit each bot
-        foreach (var botRequest in batchRequest.Bots)
+        var tasks = batchRequest.Bots.Select(async botRequest =>
         {
             // Basic validation
             if (string.IsNullOrWhiteSpace(botRequest.TeamName) || botRequest.Files == null || botRequest.Files.Count == 0)
@@ -174,7 +183,7 @@ public static class BotEndpoints
                     Message = "Invalid submission",
                     Errors = new() { "Team name and files are required" }
                 });
-                continue;
+                return;
             }
 
             // Attempt to store
@@ -187,7 +196,9 @@ public static class BotEndpoints
             responses.Add(result);
             logger.LogInformation("Batch submission processed for team {TeamName}: Success={Success}",
                 botRequest.TeamName, result.Success);
-        }
+        });
+
+        await Task.WhenAll(tasks);
 
         return Results.Ok(new BatchSubmissionResponse
         {
@@ -246,5 +257,25 @@ public static class BotEndpoints
             return false;
 
         return Regex.IsMatch(teamName, @"^[a-zA-Z0-9_-]+$");
+    }
+
+    private static IResult PauseSubmissions(BotStorageService botStorage, ILogger<Program> logger)
+    {
+        botStorage.SetPauseState(true);
+        logger.LogInformation("Bot submissions have been paused.");
+        return Results.Ok(new { success = true, message = "Bot submissions paused." });
+    }
+
+    private static IResult ResumeSubmissions(BotStorageService botStorage, ILogger<Program> logger)
+    {
+        botStorage.SetPauseState(false);
+        logger.LogInformation("Bot submissions have been resumed.");
+        return Results.Ok(new { success = true, message = "Bot submissions resumed." });
+    }
+
+    private static IResult GetPauseStatus(BotStorageService botStorage)
+    {
+        var isPaused = botStorage.IsPaused();
+        return Results.Ok(new { success = true, isPaused });
     }
 }

@@ -2,6 +2,8 @@ namespace TournamentEngine.Console;
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -22,6 +24,13 @@ class Program
     static async Task Main(string[] args)
     {
         System.Console.WriteLine("=== Tournament Engine Console ===\n");
+
+        if (args.Any(arg => string.Equals(arg, "--run-bot-dashboard-integration", StringComparison.OrdinalIgnoreCase)))
+        {
+            var exitCode = await RunBotDashboardIntegrationAsync(args);
+            Environment.ExitCode = exitCode;
+            return;
+        }
         
         // Setup dependency injection
         var services = new ServiceCollection();
@@ -178,6 +187,93 @@ class Program
             
             logger.LogInformation("Tournament Engine shutdown complete");
         }
+    }
+
+    private static async Task<int> RunBotDashboardIntegrationAsync(string[] args)
+    {
+        var integrationBaseUrl = GetArgValue(args, "--integration-base-url");
+        var apiBaseUrl = GetArgValue(args, "--integration-api-base-url") ?? integrationBaseUrl ?? "http://localhost:5000";
+        var dashboardBaseUrl = GetArgValue(args, "--integration-dashboard-base-url") ?? integrationBaseUrl ?? "http://localhost:5214";
+        var repoRoot = FindRepositoryRoot();
+        if (repoRoot == null)
+        {
+            System.Console.WriteLine("Could not locate repository root (TournamentEngine.sln).");
+            return 1;
+        }
+
+        var projectPath = Path.Combine(repoRoot, "TournamentEngine.Dashboard.Simulator", "TournamentEngine.Dashboard.Simulator.csproj");
+        if (!File.Exists(projectPath))
+        {
+            System.Console.WriteLine($"Integration simulator project not found at: {projectPath}");
+            return 1;
+        }
+
+        var arguments = $"run --project \"{projectPath}\" -- --no-wait --api-base-url \"{apiBaseUrl}\" --dashboard-base-url \"{dashboardBaseUrl}\"";
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = "dotnet",
+            Arguments = arguments,
+            WorkingDirectory = repoRoot,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false
+        };
+
+        using var process = new Process { StartInfo = startInfo };
+        process.OutputDataReceived += (_, eventArgs) =>
+        {
+            if (eventArgs.Data != null)
+            {
+                System.Console.WriteLine(eventArgs.Data);
+            }
+        };
+        process.ErrorDataReceived += (_, eventArgs) =>
+        {
+            if (eventArgs.Data != null)
+            {
+                System.Console.WriteLine(eventArgs.Data);
+            }
+        };
+
+        process.Start();
+        process.BeginOutputReadLine();
+        process.BeginErrorReadLine();
+        await process.WaitForExitAsync();
+        return process.ExitCode;
+    }
+
+    private static string? GetArgValue(string[] args, string key)
+    {
+        for (var i = 0; i < args.Length; i++)
+        {
+            var arg = args[i];
+            if (arg.StartsWith(key + "=", StringComparison.OrdinalIgnoreCase))
+            {
+                return arg.Substring(key.Length + 1);
+            }
+
+            if (string.Equals(arg, key, StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
+            {
+                return args[i + 1];
+            }
+        }
+
+        return null;
+    }
+
+    private static string? FindRepositoryRoot()
+    {
+        var directory = new DirectoryInfo(Directory.GetCurrentDirectory());
+        while (directory != null)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "TournamentEngine.sln")))
+            {
+                return directory.FullName;
+            }
+            directory = directory.Parent;
+        }
+
+        return null;
     }
     
     /// <summary>

@@ -42,10 +42,11 @@ public class ServiceManager
         {
             _logger.LogInformation("Starting Dashboard service on port {Port}...", _config.TournamentEngine.DashboardPort);
 
+            var dashboardPort = _config.TournamentEngine?.DashboardPort ?? 5000;
             var processStartInfo = new ProcessStartInfo
             {
                 FileName = "dotnet",
-                Arguments = "run --project TournamentEngine.Dashboard --nologo",
+                Arguments = $"run --project TournamentEngine.Dashboard --nologo --urls \"http://localhost:{dashboardPort}\"",
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,

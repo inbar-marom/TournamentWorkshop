@@ -702,6 +702,7 @@ public class GroupStageTournamentEngine : ITournamentEngine
         if (!_groupStandings.TryGetValue(matchResult.Bot1Name, out var bot1Standing) ||
             !_groupStandings.TryGetValue(matchResult.Bot2Name, out var bot2Standing))
         {
+            Console.WriteLine($"Error: Match result contains unknown bot names: {matchResult.Bot1Name}, {matchResult.Bot2Name}");
             throw new ArgumentException("Match result contains unknown bot names", nameof(matchResult));
         }
 

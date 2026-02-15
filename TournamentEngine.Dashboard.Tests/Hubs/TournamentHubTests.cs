@@ -32,7 +32,7 @@ public class TournamentHubTests
         _mockClients.Setup(x => x.All).Returns(_mockClientProxy.Object);
 
         var hubLogger = Mock.Of<ILogger<TournamentHub>>();
-        _hub = new TournamentHub(_mockStateManager.Object, hubLogger)
+        _hub = new TournamentHub(_mockStateManager.Object, null, hubLogger)
         {
             Clients = _mockClients.Object,
             Context = _mockContext.Object,

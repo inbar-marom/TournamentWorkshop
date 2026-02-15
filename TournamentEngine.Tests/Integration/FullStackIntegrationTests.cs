@@ -10,14 +10,17 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using TournamentEngine.Core.Common;
 using TournamentEngine.Core.Common.Dashboard;
 using TournamentEngine.Core.GameRunner;
 using TournamentEngine.Core.Scoring;
 using TournamentEngine.Core.Tournament;
+using TournamentEngine.Core.BotLoader;
 using TournamentEngine.Dashboard.Hubs;
 using TournamentEngine.Dashboard.Services;
+using TournamentEngine.Api.Services;
 using TournamentEngine.Tests.Helpers;
 
 /// <summary>
@@ -75,6 +78,18 @@ public class FullStackIntegrationTests
             });
         });
 
+        // Register bot services for management
+        var botsDir = Path.Combine(Path.GetTempPath(), "test-bots");
+        Directory.CreateDirectory(botsDir);
+        builder.Services.AddSingleton(sp =>
+            new BotStorageService(botsDir, sp.GetRequiredService<ILogger<BotStorageService>>()));
+        builder.Services.AddSingleton<IBotLoader>(sp => new BotLoader());
+        builder.Services.AddScoped(sp =>
+            new BotDashboardService(
+                sp.GetRequiredService<BotStorageService>(),
+                sp.GetRequiredService<IBotLoader>(),
+                sp.GetRequiredService<ILogger<BotDashboardService>>()));
+
         // Register dashboard services
         builder.Services.AddSingleton<StateManagerService>();
         builder.Services.AddSingleton<SignalRTournamentEventPublisher>();
@@ -92,6 +107,7 @@ public class FullStackIntegrationTests
         builder.Services.AddSingleton<ShareService>();
         builder.Services.AddSingleton<NotificationPreferencesService>();
         builder.Services.AddSingleton<ResponsiveLayoutService>();
+        builder.Services.AddScoped<TournamentManagementService>();
 
         builder.WebHost.UseUrls(DashboardUrl);
 

@@ -12,11 +12,16 @@ using TournamentEngine.Core.Common.Dashboard;
 public class TournamentHub : Hub
 {
     private readonly StateManagerService? _stateManager;
+    private readonly TournamentManagementService? _managementService;
     private readonly ILogger<TournamentHub> _logger;
 
-    public TournamentHub(StateManagerService stateManager, ILogger<TournamentHub> logger)
+    public TournamentHub(
+        StateManagerService stateManager, 
+        TournamentManagementService? managementService,
+        ILogger<TournamentHub> logger)
     {
         _stateManager = stateManager;
+        _managementService = managementService;
         _logger = logger;
     }
 
@@ -30,11 +35,18 @@ public class TournamentHub : Hub
         // Add client to the viewers group
         await Groups.AddToGroupAsync(Context.ConnectionId, "TournamentViewers");
         
-        // Send current state immediately to new client (if available)
+        // Send current tournament state to new client
         if (_stateManager != null)
         {
             var currentState = await _stateManager.GetCurrentStateAsync();
             await Clients.Caller.SendAsync("CurrentState", currentState);
+        }
+
+        // Send current management state to new client
+        if (_managementService != null)
+        {
+            var managementState = await _managementService.GetStateAsync();
+            await Clients.Caller.SendAsync("ManagementStateChanged", managementState);
         }
         
         await base.OnConnectedAsync();
@@ -379,4 +391,166 @@ public class TournamentHub : Hub
     }
 
     #endregion
+
+    /// <summary>
+    /// Gets current management state and bot readiness (callable by clients).
+    /// </summary>
+    public async Task GetManagementState()
+    {
+        if (_managementService != null)
+        {
+            var state = await _managementService.GetStateAsync();
+            var (ready, message, botCount) = await _managementService.CheckBotsReadyAsync();
+            
+            await Clients.Caller.SendAsync("ManagementStateResponse", new
+            {
+                state,
+                readiness = new { ready, message, botCount }
+            });
+        }
+    }
+
+    /// <summary>
+    /// Start a new tournament (called by clients via SignalR).
+    /// </summary>
+    public async Task StartTournament()
+    {
+        if (_managementService == null)
+        {
+            await Clients.Caller.SendAsync("Error", "Management service not available");
+            return;
+        }
+
+        _logger.LogInformation("Client requested tournament start");
+        var result = await _managementService.StartAsync();
+        
+        if (!result.IsSuccess)
+        {
+            await Clients.Caller.SendAsync("Error", result.Message);
+        }
+        else
+        {
+            await Clients.All.SendAsync("TournamentStarted");
+        }
+    }
+
+    /// <summary>
+    /// Pause the current tournament (called by clients via SignalR).
+    /// </summary>
+    public async Task PauseTournament()
+    {
+        if (_managementService == null)
+        {
+            await Clients.Caller.SendAsync("Error", "Management service not available");
+            return;
+        }
+
+        _logger.LogInformation("Client requested tournament pause");
+        var result = await _managementService.PauseAsync();
+        
+        if (!result.IsSuccess)
+        {
+            await Clients.Caller.SendAsync("Error", result.Message);
+        }
+        else
+        {
+            await Clients.All.SendAsync("TournamentPaused");
+        }
+    }
+
+    /// <summary>
+    /// Resume a paused tournament (called by clients via SignalR).
+    /// </summary>
+    public async Task ResumeTournament()
+    {
+        if (_managementService == null)
+        {
+            await Clients.Caller.SendAsync("Error", "Management service not available");
+            return;
+        }
+
+        _logger.LogInformation("Client requested tournament resume");
+        var result = await _managementService.ResumeAsync();
+        
+        if (!result.IsSuccess)
+        {
+            await Clients.Caller.SendAsync("Error", result.Message);
+        }
+        else
+        {
+            await Clients.All.SendAsync("TournamentResumed");
+        }
+    }
+
+    /// <summary>
+    /// Stop the current tournament (called by clients via SignalR).
+    /// </summary>
+    public async Task StopTournament()
+    {
+        if (_managementService == null)
+        {
+            await Clients.Caller.SendAsync("Error", "Management service not available");
+            return;
+        }
+
+        _logger.LogInformation("Client requested tournament stop");
+        var result = await _managementService.StopAsync();
+        
+        if (!result.IsSuccess)
+        {
+            await Clients.Caller.SendAsync("Error", result.Message);
+        }
+        else
+        {
+            await Clients.All.SendAsync("TournamentStopped");
+        }
+    }
+
+    /// <summary>
+    /// Clear all bot submissions and reset state (called by clients via SignalR).
+    /// </summary>
+    public async Task ClearSubmissions()
+    {
+        if (_managementService == null)
+        {
+            await Clients.Caller.SendAsync("Error", "Management service not available");
+            return;
+        }
+
+        _logger.LogInformation("Client requested clear submissions");
+        var result = await _managementService.ClearSubmissionsAsync();
+        
+        if (!result.IsSuccess)
+        {
+            await Clients.Caller.SendAsync("Error", result.Message);
+        }
+        else
+        {
+            await Clients.All.SendAsync("SubmissionsCleared");
+        }
+    }
+
+    /// <summary>
+    /// Rerun the last tournament (called by clients via SignalR).
+    /// </summary>
+    public async Task RerunTournament()
+    {
+        if (_managementService == null)
+        {
+            await Clients.Caller.SendAsync("Error", "Management service not available");
+            return;
+        }
+
+        _logger.LogInformation("Client requested tournament rerun");
+        var result = await _managementService.RerunAsync();
+        
+        if (!result.IsSuccess)
+        {
+            await Clients.Caller.SendAsync("Error", result.Message);
+        }
+        else
+        {
+            await Clients.All.SendAsync("TournamentRerun");
+        }
+    }
 }

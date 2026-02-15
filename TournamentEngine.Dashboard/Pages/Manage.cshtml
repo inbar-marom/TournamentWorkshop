@@ -1,0 +1,614 @@
+@page
+@model TournamentEngine.Dashboard.Pages.ManageModel
+@{
+    ViewData["Title"] = "Tournament Management";
+}<!DOCTYPE html>
+
+<style>
+    :root {
+        --bg-1: #f6f3ec;
+        --bg-2: #e7efe8;
+        --ink: #1f2a2e;
+        --muted: #5b6b73;
+        --accent: #0f766e;
+        --accent-strong: #0b4f4a;
+        --accent-soft: #d7f0ea;
+        --warm: #f4b266;
+        --card: #ffffff;
+        --border: rgba(31, 42, 46, 0.12);
+        --shadow: 0 18px 45px rgba(25, 31, 35, 0.12);
+    }
+
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+
+    body {
+        font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+        background: radial-gradient(circle at top left, rgba(15, 118, 110, 0.12), transparent 50%),
+            radial-gradient(circle at 20% 40%, rgba(244, 178, 102, 0.18), transparent 45%),
+            linear-gradient(135deg, var(--bg-1), var(--bg-2));
+        color: var(--ink);
+        padding: 28px;
+        min-height: 100vh;
+    }
+
+    .page {
+        max-width: 1400px;
+        margin: 0 auto;
+        display: grid;
+        gap: 22px;
+    }
+
+    .topbar {
+        background: rgba(255, 255, 255, 0.9);
+        border: 1px solid var(--border);
+        backdrop-filter: blur(10px);
+        padding: 20px 28px;
+        border-radius: 18px;
+        box-shadow: var(--shadow);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 16px;
+        flex-wrap: wrap;
+    }
+
+    .topbar h1 {
+        font-family: "Space Grotesk", "IBM Plex Sans", sans-serif;
+        font-size: 1.9em;
+        color: var(--accent-strong);
+        letter-spacing: 0.02em;
+    }
+
+    .topbar-meta {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        flex-wrap: wrap;
+    }
+
+    .connection {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.95em;
+        padding: 8px 12px;
+        border-radius: 999px;
+        background: rgba(244, 178, 102, 0.15);
+        color: var(--muted);
+    }
+
+    .connection.connected {
+        background: rgba(15, 118, 110, 0.15);
+        color: var(--accent-strong);
+    }
+
+    .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: currentColor;
+        display: inline-block;
+        animation: pulse 2s infinite;
+    }
+
+    .connection.connected .dot {
+        animation: none;
+    }
+
+    @@keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+
+    .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        box-shadow: var(--shadow);
+        padding: 0;
+    }
+
+    .card-header {
+        padding: 18px;
+        border-bottom: 1px solid var(--border);
+        font-weight: 600;
+    }
+
+    .card-body {
+        padding: 18px;
+    }
+
+    .info-row {
+        display: grid;
+        gap: 16px;
+        margin-bottom: 16px;
+    }
+
+    .info-item {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .info-item label {
+        font-size: 0.9em;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        font-weight: 600;
+    }
+
+    .info-item p {
+        font-size: 1.1em;
+        color: var(--ink);
+    }
+
+    .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 14px;
+        border-radius: 999px;
+        font-size: 0.85em;
+        font-weight: 600;
+        width: fit-content;
+        background: rgba(244, 178, 102, 0.2);
+        color: var(--warm);
+    }
+
+    .badge.success {
+        background: rgba(15, 118, 110, 0.2);
+        color: var(--accent);
+    }
+
+    .badge.danger {
+        background: rgba(220, 53, 69, 0.2);
+        color: #dc3545;
+    }
+
+    .badge.primary {
+        background: rgba(13, 110, 253, 0.2);
+        color: #0d6efd;
+    }
+
+    .badge.warning {
+        background: rgba(244, 178, 102, 0.2);
+        color: var(--warm);
+    }
+
+    .buttons-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 12px;
+    }
+
+    .btn {
+        padding: 14px 20px;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-size: 0.95em;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        white-space: nowrap;
+    }
+
+    .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .btn-success {
+        background: var(--accent);
+        color: white;
+    }
+
+    .btn-success:hover:not(:disabled) {
+        background: var(--accent-strong);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(15, 118, 110, 0.3);
+    }
+
+    .btn-warning {
+        background: var(--warm);
+        color: #000;
+    }
+
+    .btn-warning:hover:not(:disabled) {
+        background: #f09533;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(244, 178, 102, 0.3);
+    }
+
+    .btn-danger {
+        background: #dc3545;
+        color: white;
+    }
+
+    .btn-danger:hover:not(:disabled) {
+        background: #c82333;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+    }
+
+    .btn-info {
+        background: #0dcaf0;
+        color: #000;
+    }
+
+    .btn-info:hover:not(:disabled) {
+        background: #0abde3;
+        transform: translateY(-2px);
+    }
+
+    .alert {
+        padding: 16px 18px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        margin-bottom: 12px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .alert.success {
+        background: rgba(15, 118, 110, 0.1);
+        border-color: var(--accent-soft);
+        color: var(--accent-strong);
+    }
+
+    .alert.danger {
+        background: rgba(220, 53, 69, 0.1);
+        border-color: #fee2e2;
+        color: #991b1b;
+    }
+
+    .grid-2 {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 20px;
+    }
+</style>
+
+<div class="page">
+    <!-- Top Bar -->
+    <div class="topbar">
+        <h1>🎮 Tournament Management</h1>
+        <div class="topbar-meta">
+            <span class="connection" id="connectionStatus">
+                <span class="dot"></span>
+                <span id="connectionText">Disconnected</span>
+            </span>
+        </div>
+    </div>
+
+    <!-- Status Cards -->
+    <div class="grid-2">
+        <div class="card">
+            <div class="card-header">📊 Tournament Status</div>
+            <div class="card-body">
+                <div class="info-row">
+                    <div class="info-item">
+                        <label>Current State</label>
+                        <div id="statusBadge"><span class="badge">Loading...</span></div>
+                    </div>
+                    <div class="info-item">
+                        <label>Status Message</label>
+                        <p id="statusMessage">Connecting...</p>
+                    </div>
+                    <div class="info-item">
+                        <label>Last Action</label>
+                        <p id="lastAction">-</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">🤖 Bot Readiness</div>
+            <div class="card-body">
+                <div class="info-row">
+                    <div class="info-item">
+                        <label>Status</label>
+                        <div id="botsReadyBadge"><span class="badge">Checking...</span></div>
+                    </div>
+                    <div class="info-item">
+                        <label>Bot Count</label>
+                        <p id="botCount">-</p>
+                    </div>
+                    <div class="info-item">
+                        <label>Message</label>
+                        <p id="readinessMessage">Connecting...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Control Buttons -->
+    <div class="card">
+        <div class="card-header">⚙️ Tournament Controls</div>
+        <div class="card-body">
+            <div class="buttons-grid">
+                <button id="btnStart" class="btn btn-success" disabled title="Start tournament with valid bots">
+                    ▶️ Start Tournament
+                </button>
+                <button id="btnPause" class="btn btn-warning" disabled title="Pause running tournament">
+                    ⏸️ Pause
+                </button>
+                <button id="btnResume" class="btn btn-info" disabled title="Resume paused tournament">
+                    ▶️ Resume
+                </button>
+                <button id="btnStop" class="btn btn-danger" disabled title="Stop tournament">
+                    ⏹️ Stop
+                </button>
+                <button id="btnClear" class="btn btn-warning" disabled title="Clear all bot submissions">
+                    🗑️ Clear Submissions
+                </button>
+                <button id="btnRerun" class="btn btn-success" disabled title="Reset tournament to start a new one">
+                    🔄 Reset Tournament
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alerts -->
+    <div id="alertContainer"></div>
+</div>
+
+@Html.Raw("<script src='https://unpkg.com/%40microsoft/signalr@7.0.5/dist/browser/signalr.min.js?v=20260215'></script>")
+<script>
+let hubConnection;
+let currentState = null;
+let botsReady = false;
+
+// Initialize SignalR connection
+async function initializeSignalR() {
+    if (!window.signalR) {
+        console.error('SignalR script not loaded!');
+    } else {
+        console.log('SignalR script loaded:', window.signalR);
+    }
+    hubConnection = new signalR.HubConnectionBuilder()
+        .withUrl("/tournamentHub")
+        .withAutomaticReconnect()
+        .build();
+
+    hubConnection.on("ManagementStateChanged", (state) => {
+        console.log('SignalR: ManagementStateChanged', state);
+        currentState = state;
+        updateUI();
+    });
+
+    hubConnection.onreconnected((connId) => {
+        console.log('SignalR: reconnected', connId);
+        updateConnectionStatus(true);
+        fetchInitialState();
+    });
+    hubConnection.onreconnecting((err) => {
+        console.warn('SignalR: reconnecting', err);
+        updateConnectionStatus(false);
+    });
+    hubConnection.onclose((err) => {
+        console.warn('SignalR: closed', err);
+        updateConnectionStatus(false);
+    });
+
+    try {
+        await hubConnection.start();
+        updateConnectionStatus(true);
+        console.log('SignalR: connection started');
+        fetchInitialState();
+        startBotReadinessPolling();
+    } catch (err) {
+        console.error("SignalR error:", err);
+        updateConnectionStatus(false);
+        setTimeout(initializeSignalR, 5000);
+    }
+}
+
+let pollingReadiness = false;
+function startBotReadinessPolling() {
+    if (pollingReadiness) return;
+    pollingReadiness = true;
+    setInterval(async () => {
+        try {
+            // Fetch both status and readiness to update UI completely
+            const statusResponse = await fetch("/api/manage/status");
+            if (statusResponse.ok) {
+                currentState = await statusResponse.json();
+            }
+            
+            const readinessResponse = await fetch("/api/manage/readiness");
+            if (readinessResponse.ok) {
+                const readiness = await readinessResponse.json();
+                botsReady = readiness.ready;
+                const readyBadge = readiness.ready ? "success" : "danger";
+                const readyText = readiness.ready ? "Ready ✅" : "Not Ready ❌";
+                document.getElementById("botsReadyBadge").innerHTML = `<span class="badge ${readyBadge}">${readyText}</span>`;
+                document.getElementById("botCount").textContent = readiness.botCount || "0";
+                document.getElementById("readinessMessage").textContent = readiness.message || "-";
+            }
+            
+            // Update all UI elements based on fresh state
+            updateUI();
+        } catch (err) {
+            console.error("Error polling bot readiness:", err);
+        }
+    }, 1000);
+}
+
+function updateConnectionStatus(connected) {
+    try {
+        const status = document.getElementById('connectionStatus');
+        const text = document.getElementById('connectionText');
+        const dot = status?.querySelector('.dot');
+        
+        if (status && text) {
+            if (connected) {
+                status.classList.add('connected');
+                text.textContent = 'Connected';
+                if (dot) dot.style.background = 'var(--accent)';
+            } else {
+                status.classList.remove('connected');
+                text.textContent = 'Disconnected';
+                if (dot) dot.style.background = '#999';
+            }
+        }
+    } catch (e) {
+        console.error('Error updating connection status:', e);
+    }
+}
+
+async function fetchInitialState() {
+    try {
+        const response = await fetch("/api/manage/status");
+        if (response.ok) {
+            currentState = await response.json();
+            await fetchBotReadiness();
+            updateUI();
+        }
+    } catch (err) {
+        console.error("Error fetching initial state:", err);
+    }
+}
+
+async function fetchBotReadiness() {
+    try {
+        const response = await fetch("/api/manage/readiness");
+        if (response.ok) {
+            const readiness = await response.json();
+            botsReady = readiness.ready;
+            const readyBadge = readiness.ready ? "success" : "danger";
+            const readyText = readiness.ready ? "Ready ✅" : "Not Ready ❌";
+            document.getElementById("botsReadyBadge").innerHTML = `<span class="badge ${readyBadge}">${readyText}</span>`;
+            document.getElementById("botCount").textContent = readiness.botCount || "0";
+            document.getElementById("readinessMessage").textContent = readiness.message || "-";
+        }
+    } catch (err) {
+        console.error("Error fetching bot readiness:", err);
+    }
+}
+
+function updateUI() {
+    if (!currentState) return;
+
+    const statusBadge = getStatusBadge(currentState.status);
+    document.getElementById("statusBadge").innerHTML = `<span class="badge ${statusBadge.class}">${statusBadge.text}</span>`;
+    document.getElementById("statusMessage").textContent = currentState.message || "-";
+    document.getElementById("lastAction").textContent = currentState.lastAction ? `${currentState.lastAction} (${new Date(currentState.lastActionAt).toLocaleTimeString()})` : "-";
+
+    updateButtonStates(currentState.status);
+}
+
+function updateButtonStates(status) {
+    const buttons = {
+        btnStart: document.getElementById("btnStart"),
+        btnPause: document.getElementById("btnPause"),
+        btnResume: document.getElementById("btnResume"),
+        btnStop: document.getElementById("btnStop"),
+        btnClear: document.getElementById("btnClear"),
+        btnRerun: document.getElementById("btnRerun")
+    };
+
+    Object.values(buttons).forEach(btn => btn.disabled = true);
+
+    const statusStr = String(status).toLowerCase();
+
+    switch (statusStr) {
+        case "notstarted":
+        case "0":
+            buttons.btnStart.disabled = !botsReady;
+            buttons.btnClear.disabled = false;
+            break;
+        case "running":
+        case "1":
+            buttons.btnPause.disabled = false;
+            buttons.btnStop.disabled = false;
+            break;
+        case "paused":
+        case "2":
+            buttons.btnResume.disabled = false;
+            buttons.btnStop.disabled = false;
+            break;
+        case "stopped":
+        case "3":
+        case "completed":
+        case "4":
+            buttons.btnClear.disabled = false;
+            buttons.btnStart.disabled = !botsReady;
+            buttons.btnRerun.disabled = !botsReady;
+            break;
+        default:
+            buttons.btnStart.disabled = !botsReady;
+            buttons.btnClear.disabled = false;
+    }
+}
+
+function getStatusBadge(status) {
+    const badges = {
+        "notstarted": { class: "warning", text: "Not Started" },
+        "running": { class: "success", text: "Running" },
+        "paused": { class: "warning", text: "Paused" },
+        "stopped": { class: "danger", text: "Stopped" },
+        "completed": { class: "primary", text: "Completed" },
+        "error": { class: "danger", text: "Error" },
+        "0": { class: "warning", text: "Not Started" },
+        "1": { class: "success", text: "Running" },
+        "2": { class: "warning", text: "Paused" },
+        "3": { class: "danger", text: "Stopped" },
+        "4": { class: "primary", text: "Completed" },
+        "5": { class: "danger", text: "Error" }
+    };
+    
+    const statusStr = String(status).toLowerCase();
+    return badges[statusStr] || { class: "warning", text: "Unknown" };
+}
+
+async function makeRequest(endpoint) {
+    try {
+        const response = await fetch(`/api/manage/${endpoint}`, { method: "POST" });
+        const data = await response.json();
+
+        if (response.ok) {
+            showAlert("success", data.message || `${endpoint} successful`);
+        } else {
+            showAlert("danger", data.error || `${endpoint} failed`);
+        }
+    } catch (error) {
+        showAlert("danger", `Error: ${error.message}`);
+    } finally {
+        setTimeout(fetchInitialState, 500);
+    }
+}
+
+function showAlert(type, message) {
+    const alertContainer = document.getElementById("alertContainer");
+    const alert = document.createElement("div");
+    alert.className = `alert ${type}`;
+    alert.innerHTML = `<span>${message}</span><button onclick="this.parentElement.remove()" style="background: none; border: none; cursor: pointer; font-size: 1.2em;">×</button>`;
+    alertContainer.appendChild(alert);
+
+    setTimeout(() => alert.remove(), 5000);
+}
+
+// Button click handlers
+document.getElementById("btnStart").addEventListener("click", () => makeRequest("start"));
+document.getElementById("btnPause").addEventListener("click", () => makeRequest("pause"));
+document.getElementById("btnResume").addEventListener("click", () => makeRequest("resume"));
+document.getElementById("btnStop").addEventListener("click", () => makeRequest("stop"));
+document.getElementById("btnClear").addEventListener("click", () => makeRequest("clear"));
+document.getElementById("btnRerun").addEventListener("click", () => makeRequest("clear")); // Only clear, not start
+
+document.addEventListener("DOMContentLoaded", () => {
+    initializeSignalR();
+});
+</script>

@@ -2,6 +2,7 @@ namespace TournamentEngine.Core.GameRunner.Executors;
 
 using Common;
 using System.Linq;
+using System.IO;
 
 /// <summary>
 /// Executor for Rock-Paper-Scissors-Lizard-Spock game
@@ -143,6 +144,19 @@ public class RpslsExecutor : IGameExecutor
         matchLog.Add($"Final Score: {bot1.TeamName} {bot1Score} - {bot2Score} {bot2.TeamName}");
         matchLog.Add($"Duration: {endTime - startTime}");
         
+        // Log bot moves and errors
+        var logFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "test-output.txt");
+        try
+        {
+            // Write match log to file
+            await File.AppendAllLinesAsync(logFilePath, matchLog);
+            Console.WriteLine($"Match log written to: {logFilePath}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error writing match log to file: {ex.Message}");
+        }
+
         return new MatchResult
         {
             Bot1Name = bot1.TeamName,

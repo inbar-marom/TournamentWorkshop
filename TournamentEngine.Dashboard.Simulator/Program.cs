@@ -4,16 +4,32 @@ using System.Net.Http;
 using System.Text.Json;
 using System.Threading.Tasks;
 
-await RunIntegrationSimulation();
+var options = IntegrationSimulatorOptions.Parse(args);
+await RunIntegrationSimulation(options);
 
-async Task RunIntegrationSimulation()
+async Task RunIntegrationSimulation(IntegrationSimulatorOptions options)
 {
-    Console.WriteLine("═══════════════════════════════════════════════════════════════════");
-    Console.WriteLine("  Step 13 (Remote Bot API) + Step 15 (Bot Dashboard) Integration");
-    Console.WriteLine("═══════════════════════════════════════════════════════════════════\n");
-
-    var simulator = new Step13_Step15_IntegrationSimulator();
-    await simulator.RunIntegrationTests();
+    var simulator = new Step13_Step15_IntegrationSimulator(options.ApiBaseUrl, options.DashboardBaseUrl);
+    
+    if (options.BulkSubmit100)
+    {
+        Console.WriteLine("🤖 Bot Submission Simulator - Bulk Submit Mode");
+        Console.WriteLine("═══════════════════════════════════════════════════════════════════\n");
+        await simulator.SubmitBulk100BotsAsync();
+    }
+    else
+    {
+        Console.WriteLine("═══════════════════════════════════════════════════════════════════");
+        Console.WriteLine("  Step 13 (Remote Bot API) + Step 15 (Bot Dashboard) Integration");
+        Console.WriteLine("═══════════════════════════════════════════════════════════════════\n");
+        await simulator.RunIntegrationTests(options.NoWait);
+    }
+    
+    if (!options.NoWait)
+    {
+        Console.WriteLine("\nPress any key to exit...");
+        Console.ReadKey();
+    }
 }
 
 /// <summary>
@@ -23,15 +39,17 @@ async Task RunIntegrationSimulation()
 class Step13_Step15_IntegrationSimulator
 {
     private readonly HttpClient _httpClient;
-    private readonly string _baseUrl;
+    private readonly string _apiBaseUrl;
+    private readonly string _dashboardBaseUrl;
 
-    public Step13_Step15_IntegrationSimulator(string baseUrl = "http://localhost:5000")
+    public Step13_Step15_IntegrationSimulator(string apiBaseUrl, string dashboardBaseUrl)
     {
-        _baseUrl = baseUrl;
+        _apiBaseUrl = apiBaseUrl;
+        _dashboardBaseUrl = dashboardBaseUrl;
         _httpClient = new HttpClient();
     }
 
-    internal async Task RunIntegrationTests()
+    internal async Task RunIntegrationTests(bool noWait)
     {
         try
         {
@@ -103,8 +121,11 @@ class Step13_Step15_IntegrationSimulator
         }
         finally
         {
-            Console.WriteLine("\nPress any key to exit...");
-            Console.ReadKey();
+            if (!noWait)
+            {
+                Console.WriteLine("\nPress any key to exit...");
+                Console.ReadKey();
+            }
         }
     }
 
@@ -129,8 +150,8 @@ class Step13_Step15_IntegrationSimulator
             var json = JsonSerializer.Serialize(request);
             var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
 
-            LogInfo($"  Submitting bot for team: {teamName}");
-            var response = await _httpClient.PostAsync($"{_baseUrl}/api/bots/submit", content);
+            var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5)); // Set a 5-second timeout
+            var response = await _httpClient.PostAsync($"{_apiBaseUrl}/api/bots/submit", content, cts.Token);
 
             if (response.IsSuccessStatusCode)
             {
@@ -207,7 +228,7 @@ class Step13_Step15_IntegrationSimulator
             var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
 
             LogInfo($"  Submitting batch of 2 bots via Step 13");
-            var response = await _httpClient.PostAsync($"{_baseUrl}/api/bots/submit-batch", content);
+            var response = await _httpClient.PostAsync($"{_apiBaseUrl}/api/bots/submit-batch", content);
 
             if (response.IsSuccessStatusCode)
             {
@@ -245,7 +266,7 @@ class Step13_Step15_IntegrationSimulator
         try
         {
             LogInfo($"  Fetching list of all submitted bots from Step 13");
-            var response = await _httpClient.GetAsync($"{_baseUrl}/api/bots/list");
+            var response = await _httpClient.GetAsync($"{_apiBaseUrl}/api/bots/list");
 
             if (response.IsSuccessStatusCode)
             {
@@ -284,7 +305,7 @@ class Step13_Step15_IntegrationSimulator
         try
         {
             LogInfo($"  Retrieving bot details from Step 15 Dashboard: {teamName}");
-            var response = await _httpClient.GetAsync($"{_baseUrl}/api/dashboard/bots/{teamName}");
+            var response = await _httpClient.GetAsync($"{_dashboardBaseUrl}/api/dashboard/bots/{teamName}");
 
             if (response.IsSuccessStatusCode)
             {
@@ -321,7 +342,7 @@ class Step13_Step15_IntegrationSimulator
         try
         {
             LogInfo($"  Validating bot via Step 15 Dashboard: {teamName}");
-            var response = await _httpClient.PostAsync($"{_baseUrl}/api/dashboard/bots/{teamName}/validate", 
+            var response = await _httpClient.PostAsync($"{_dashboardBaseUrl}/api/dashboard/bots/{teamName}/validate", 
                 new StringContent("", System.Text.Encoding.UTF8, "application/json"));
 
             if (response.IsSuccessStatusCode)
@@ -352,7 +373,7 @@ class Step13_Step15_IntegrationSimulator
         try
         {
             LogInfo($"  Deleting bot via Step 13 API: {teamName}");
-            var response = await _httpClient.DeleteAsync($"{_baseUrl}/api/bots/{teamName}");
+            var response = await _httpClient.DeleteAsync($"{_apiBaseUrl}/api/bots/{teamName}");
 
             if (response.IsSuccessStatusCode)
             {
@@ -387,7 +408,7 @@ class Step13_Step15_IntegrationSimulator
         try
         {
             LogInfo($"  Fetching complete bot list from Step 15 Dashboard");
-            var response = await _httpClient.GetAsync($"{_baseUrl}/api/dashboard/bots");
+            var response = await _httpClient.GetAsync($"{_dashboardBaseUrl}/api/dashboard/bots");
 
             if (response.IsSuccessStatusCode)
             {
@@ -424,12 +445,12 @@ class Step13_Step15_IntegrationSimulator
             LogInfo($"  Verifying Step 13 and Step 15 are consistent");
             
             // Get bot list from Step 13
-            var step13Response = await _httpClient.GetAsync($"{_baseUrl}/api/bots/list");
+            var step13Response = await _httpClient.GetAsync($"{_apiBaseUrl}/api/bots/list");
             var step13Bots = step13Response.IsSuccessStatusCode ? 
                 await GetBotCountFromResponse(await step13Response.Content.ReadAsStringAsync(), "bots") : 0;
 
             // Get bot list from Step 15
-            var step15Response = await _httpClient.GetAsync($"{_baseUrl}/api/dashboard/bots");
+            var step15Response = await _httpClient.GetAsync($"{_dashboardBaseUrl}/api/dashboard/bots");
             var step15Bots = step15Response.IsSuccessStatusCode ? 
                 await GetBotCountFromResponse(await step15Response.Content.ReadAsStringAsync(), "data") : 0;
 
@@ -479,22 +500,36 @@ class Step13_Step15_IntegrationSimulator
     private string GetSampleBotCode(string teamName)
     {
         return $@"
+using System.Threading;
+using System.Threading.Tasks;
 using TournamentEngine.Core.Common;
-using System;
 
 namespace {teamName}Bot
 {{
     public class {teamName}Bot : IBot
     {{
-        public GameMove GetMove(BotGameState state)
+        public string TeamName => ""{teamName}"";
+        public GameType GameType => GameType.RPSLS;
+
+        public Task<string> MakeMove(GameState gameState, CancellationToken cancellationToken)
         {{
-            var random = new Random((int)DateTime.Now.Ticks);
-            return (GameMove)(random.Next(0, 5));
+            return Task.FromResult(""Rock"");
         }}
 
-        public string GetBotName() => ""{teamName} Bot v1.0"";
-        public string GetAuthor() => ""{teamName} Team"";
-        public string GetDescription() => ""Bot for Step 13/Step 15 integration test"";
+        public Task<int[]> AllocateTroops(GameState gameState, CancellationToken cancellationToken)
+        {{
+            return Task.FromResult(new[] {{ 20, 20, 20, 20, 20 }});
+        }}
+
+        public Task<string> MakePenaltyDecision(GameState gameState, CancellationToken cancellationToken)
+        {{
+            return Task.FromResult(""KickLeft"");
+        }}
+
+        public Task<string> MakeSecurityMove(GameState gameState, CancellationToken cancellationToken)
+        {{
+            return Task.FromResult(""Scan"");
+        }}
     }}
 }}
 ";
@@ -514,6 +549,90 @@ namespace BotHelpers
     }
 }
 ";
+    }
+
+    internal async Task<bool> SubmitBulk100BotsAsync()
+    {
+        try
+        {
+            LogInfo("BULK SUBMISSION: Submitting 100 bots with unique names at 0.2 second intervals");
+            LogInfo("═══════════════════════════════════════════════════════════════════\n");
+
+            int successCount = 0;
+            int failureCount = 0;
+            var startTime = DateTime.Now;
+            
+            // Generate unique team names
+            string[] teamNamePrefixes = {
+                "Alpha", "Bravo", "Charlie", "Delta", "Echo", "Foxtrot", "Golf", "Hotel", "India", "Juliet",
+                "Kilo", "Lima", "Mike", "November", "Oscar", "Papa", "Quebec", "Romeo", "Sierra", "Tango",
+                "Uniform", "Victor", "Whiskey", "Xray", "Yankee", "Zulu", "Apex", "Blaze", "Crystal", "Dragon",
+                "Eagle", "Falcon", "Galaxy", "Horizon", "Inferno", "Jaguar", "Knight", "Legend", "Maxima", "Nova",
+                "Omega", "Phoenix", "Quest", "Rocket", "Shadow", "Titan", "Ultra", "Valor", "Warrior", "Xenon",
+                "Yacht", "Zenith", "Aurora", "Bolt", "Comet", "Dust", "Ember", "Flux", "Gamma", "Hunter",
+                "Ionics", "Juno", "Kronos", "Lunar", "Magus", "Nautilus", "Orbit", "Prism", "Quantum", "Radiant",
+                "Storm", "Tempest", "Umber", "Vortex", "Wildfire", "Xenial", "Yonder", "Zealot", "Arcane", "Beacon",
+                "Celestial", "Drift", "Ethereal", "Frontier", "Genesis", "Haven", "Illumina", "Javelin", "Kinetic", "Lumina",
+                "Nebula", "Oblivion", "Pioneer", "Quasar", "Ranger", "Stellar", "Twilight", "Utopia", "Voyager", "Warden"
+            };
+
+            // Ensure the teamNamePrefixes array has at least 100 elements
+            if (teamNamePrefixes.Length < 100)
+            {
+                throw new InvalidOperationException("The teamNamePrefixes array must contain at least 100 elements.");
+            }
+
+            // Generate unique team names once
+            var teamNames = new List<string>();
+            for (int i = 0; i < 100; i++)
+            {
+                teamNames.Add($"{teamNamePrefixes[i]}_Team_{i + 1:D3}");
+            }
+
+            foreach (var teamName in teamNames)
+            {
+                bool success = await SubmitBotViaAPI(teamName, GetSampleBotCode(teamName));
+
+                if (success)
+                {
+                    successCount++;
+                    Console.Write(".");
+                }
+                else
+                {
+                    failureCount++;
+                    Console.Write("x");
+                }
+
+                // Print progress every 10 bots
+                if ((successCount + failureCount) % 10 == 0)
+                {
+                    var elapsed = DateTime.Now - startTime;
+                    Console.WriteLine($" {successCount + failureCount}/100 ({successCount} succeeded, {failureCount} failed) - {elapsed.TotalSeconds:F1}s");
+                }
+
+                // Wait 0.2 seconds before next submission
+                if (successCount + failureCount < 100)
+                {
+                    await Task.Delay(200);
+                }
+            }
+
+            var totalTime = DateTime.Now - startTime;
+            Console.WriteLine();
+            LogSuccess($"\n✓ Bulk submission complete!");
+            LogSuccess($"  Total: 100 bots");
+            LogSuccess($"  Succeeded: {successCount}");
+            if (failureCount > 0) LogWarning($"  Failed: {failureCount}");
+            LogSuccess($"  Time elapsed: {totalTime.TotalSeconds:F1} seconds");
+
+            return failureCount == 0;
+        }
+        catch (Exception ex)
+        {
+            LogError($"Bulk submission failed: {ex.Message}");
+            return false;
+        }
     }
 
     private void LogInfo(string message)
@@ -555,5 +674,78 @@ namespace BotHelpers
             Console.WriteLine($"❌ {testName} - FAILED\n");
         }
         Console.ResetColor();
+    }
+}
+
+class IntegrationSimulatorOptions
+{
+    public string ApiBaseUrl { get; private set; } = "http://localhost:5000";
+    public string DashboardBaseUrl { get; private set; } = "http://localhost:5214";
+    public bool NoWait { get; private set; }
+    public bool BulkSubmit100 { get; private set; }
+
+    public static IntegrationSimulatorOptions Parse(string[] args)
+    {
+        var options = new IntegrationSimulatorOptions();
+
+        for (var i = 0; i < args.Length; i++)
+        {
+            var arg = args[i];
+            if (string.Equals(arg, "--no-wait", StringComparison.OrdinalIgnoreCase))
+            {
+                options.NoWait = true;
+                continue;
+            }
+
+            if (string.Equals(arg, "--bulk-submit-100", StringComparison.OrdinalIgnoreCase))
+            {
+                options.BulkSubmit100 = true;
+                continue;
+            }
+
+            if (arg.StartsWith("--base-url=", StringComparison.OrdinalIgnoreCase))
+            {
+                var baseUrl = arg.Substring("--base-url=".Length);
+                options.ApiBaseUrl = baseUrl;
+                options.DashboardBaseUrl = baseUrl;
+                continue;
+            }
+
+            if (string.Equals(arg, "--base-url", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
+            {
+                var baseUrl = args[i + 1];
+                options.ApiBaseUrl = baseUrl;
+                options.DashboardBaseUrl = baseUrl;
+                i++;
+                continue;
+            }
+
+            if (arg.StartsWith("--api-base-url=", StringComparison.OrdinalIgnoreCase))
+            {
+                options.ApiBaseUrl = arg.Substring("--api-base-url=".Length);
+                continue;
+            }
+
+            if (string.Equals(arg, "--api-base-url", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
+            {
+                options.ApiBaseUrl = args[i + 1];
+                i++;
+                continue;
+            }
+
+            if (arg.StartsWith("--dashboard-base-url=", StringComparison.OrdinalIgnoreCase))
+            {
+                options.DashboardBaseUrl = arg.Substring("--dashboard-base-url=".Length);
+                continue;
+            }
+
+            if (string.Equals(arg, "--dashboard-base-url", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
+            {
+                options.DashboardBaseUrl = args[i + 1];
+                i++;
+            }
+        }
+
+        return options;
     }
 }

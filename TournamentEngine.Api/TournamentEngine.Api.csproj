@@ -16,4 +16,9 @@
     <ProjectReference Include="..\TournamentEngine.Core\TournamentEngine.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Remove="bots\**\*.cs" />
+    <None Include="bots\**\*" />
+  </ItemGroup>
+
 </Project>
