@@ -560,15 +560,15 @@ namespace {teamName}Bot
             if (_leftBias)
             {{
                 // Left-biased strategy
-                if (roll < 0.50) return Task.FromResult("Left");
-                if (roll < 0.75) return Task.FromResult("Center");
-                return Task.FromResult("Right");
+                if (roll < 0.50) return Task.FromResult(""Left"");
+                if (roll < 0.75) return Task.FromResult(""Center"");
+                return Task.FromResult(""Right"");
             }}
 
             // Right-biased strategy  
-            if (roll < 0.20) return Task.FromResult("Left");
-            if (roll < 0.45) return Task.FromResult("Center");
-            return Task.FromResult("Right");
+            if (roll < 0.20) return Task.FromResult(""Left"");
+            if (roll < 0.45) return Task.FromResult(""Center"");
+            return Task.FromResult(""Right"");
         }}
 
         public Task<string> MakeSecurityMove(GameState gameState, CancellationToken cancellationToken)
