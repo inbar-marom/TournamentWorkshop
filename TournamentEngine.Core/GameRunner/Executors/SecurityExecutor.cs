@@ -34,10 +34,13 @@ public class SecurityExecutor : IGameExecutor
         matchLog.Add($"Max Rounds: {MaxRounds}");
         matchLog.Add("");
 
+        // Track round history for bots
+        var roundHistory = new List<RoundHistory>();
+
         // Execute rounds (simplified scoring)
         for (int round = 1; round <= MaxRounds; round++)
         {
-            var gameState = CreateGameState(round, MaxRounds);
+            var gameState = CreateGameState(round, MaxRounds, roundHistory);
             
             var (move1, error1) = await GetBotMoveWithTimeout(bot1, gameState, config.MoveTimeout, cancellationToken);
             var (move2, error2) = await GetBotMoveWithTimeout(bot2, gameState, config.MoveTimeout, cancellationToken);
@@ -76,33 +79,54 @@ public class SecurityExecutor : IGameExecutor
             }
             
             // Simplified scoring: Attack beats Defend
+            string roundResult;
             if (valid1 && valid2)
             {
                 if (move1 == "Attack" && move2 == "Defend")
                 {
                     bot1Score++;
                     matchLog.Add($"Round {round}: {bot1.TeamName} (Attack) beats {bot2.TeamName} (Defend) - Score: {bot1Score}-{bot2Score}");
+                    roundResult = "Win";
                 }
                 else if (move2 == "Attack" && move1 == "Defend")
                 {
                     bot2Score++;
                     matchLog.Add($"Round {round}: {bot2.TeamName} (Attack) beats {bot1.TeamName} (Defend) - Score: {bot1Score}-{bot2Score}");
+                    roundResult = "Loss";
                 }
                 else
                 {
                     matchLog.Add($"Round {round}: No score ({move1} vs {move2}) - Score: {bot1Score}-{bot2Score}");
+                    roundResult = "Draw";
                 }
             }
             else if (valid1 && !valid2)
             {
                 bot1Score++;
                 matchLog.Add($"Round {round}: {bot1.TeamName} scores by default - Score: {bot1Score}-{bot2Score}");
+                roundResult = "Win";
             }
             else if (!valid1 && valid2)
             {
                 bot2Score++;
                 matchLog.Add($"Round {round}: {bot2.TeamName} scores by default - Score: {bot1Score}-{bot2Score}");
+                roundResult = "Loss";
             }
+            else
+            {
+                // Both invalid
+                roundResult = "Draw";
+            }
+            
+            // Record round history
+            roundHistory.Add(new RoundHistory
+            {
+                Round = round,
+                MyMove = move1 ?? "ERROR",
+                OpponentMove = move2 ?? "ERROR",
+                Result = roundResult,
+                Role = null  // No roles in Security Game
+            });
         }
         
         var outcome = DetermineOutcome(bot1Score, bot2Score, bot1Errors, bot2Errors);
@@ -133,7 +157,7 @@ public class SecurityExecutor : IGameExecutor
         };
     }
 
-    private static GameState CreateGameState(int currentRound, int maxRounds)
+    private static GameState CreateGameState(int currentRound, int maxRounds, List<RoundHistory> roundHistory)
     {
         return new GameState
         {
@@ -145,7 +169,8 @@ public class SecurityExecutor : IGameExecutor
             CurrentRound = currentRound,
             MaxRounds = maxRounds,
             IsGameOver = false,
-            Winner = null
+            Winner = null,
+            RoundHistory = new List<RoundHistory>(roundHistory)
         };
     }
 

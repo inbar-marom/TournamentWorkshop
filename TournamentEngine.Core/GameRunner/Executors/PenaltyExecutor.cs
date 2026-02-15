@@ -40,11 +40,15 @@ public class PenaltyExecutor : IGameExecutor
         matchLog.Add($"Max Rounds: {MaxRounds}");
         matchLog.Add("");
 
+        // Track round history for each bot separately (they have different roles)
+        var shooterHistory = new List<RoundHistory>();
+        var goalkeeperHistory = new List<RoundHistory>();
+
         // Execute rounds with assigned roles
         for (int round = 1; round <= MaxRounds; round++)
         {
-            var shooterGameState = CreateGameState(round, MaxRounds, "Shooter");
-            var goalkeeperGameState = CreateGameState(round, MaxRounds, "Goalkeeper");
+            var shooterGameState = CreateGameState(round, MaxRounds, "Shooter", shooterHistory);
+            var goalkeeperGameState = CreateGameState(round, MaxRounds, "Goalkeeper", goalkeeperHistory);
             
             var (shooterDecision, shooterError) = await GetBotDecisionWithTimeout(shooterBot, shooterGameState, config.MoveTimeout, cancellationToken);
             var (goalkeeperDecision, goalkeeperError) = await GetBotDecisionWithTimeout(goalkeeperBot, goalkeeperGameState, config.MoveTimeout, cancellationToken);
@@ -83,6 +87,7 @@ public class PenaltyExecutor : IGameExecutor
             }
             
             // Penalty kicks scoring: shooter scores 1 if different, goalkeeper scores 2 if same
+            string shooterResult, goalkeeperResult;
             if (validShooter && validGoalkeeper)
             {
                 if (shooterDecision != goalkeeperDecision)
@@ -90,24 +95,57 @@ public class PenaltyExecutor : IGameExecutor
                     // Shooter scores
                     if (bot1IsShooter) bot1Score++; else bot2Score++;
                     matchLog.Add($"Round {round}: GOAL! {shooterBot.TeamName} (Shooter: {shooterDecision}) vs {goalkeeperBot.TeamName} (Goalkeeper: {goalkeeperDecision}) - Score: {bot1Score}-{bot2Score}");
+                    shooterResult = "Win";
+                    goalkeeperResult = "Loss";
                 }
                 else
                 {
                     // Goalkeeper scores
                     if (bot1IsShooter) bot2Score += 2; else bot1Score += 2;
                     matchLog.Add($"Round {round}: SAVE! {goalkeeperBot.TeamName} blocks {shooterBot.TeamName} (both chose {shooterDecision}) - Score: {bot1Score}-{bot2Score}");
+                    shooterResult = "Loss";
+                    goalkeeperResult = "Win";
                 }
             }
             else if (validShooter && !validGoalkeeper)
             {
                 if (bot1IsShooter) bot1Score++; else bot2Score++;
                 matchLog.Add($"Round {round}: {shooterBot.TeamName} scores by default - Score: {bot1Score}-{bot2Score}");
+                shooterResult = "Win";
+                goalkeeperResult = "Loss";
             }
             else if (!validShooter && validGoalkeeper)
             {
                 if (bot1IsShooter) bot2Score++; else bot1Score++;
                 matchLog.Add($"Round {round}: {goalkeeperBot.TeamName} scores by default - Score: {bot1Score}-{bot2Score}");
+                shooterResult = "Loss";
+                goalkeeperResult = "Win";
             }
+            else
+            {
+                // Both invalid
+                shooterResult = "Draw";
+                goalkeeperResult = "Draw";
+            }
+            
+            // Record round history from each bot's perspective
+            shooterHistory.Add(new RoundHistory
+            {
+                Round = round,
+                MyMove = shooterDecision ?? "ERROR",
+                OpponentMove = goalkeeperDecision ?? "ERROR",
+                Result = shooterResult,
+                Role = "Shooter"
+            });
+            
+            goalkeeperHistory.Add(new RoundHistory
+            {
+                Round = round,
+                MyMove = goalkeeperDecision ?? "ERROR",
+                OpponentMove = shooterDecision ?? "ERROR",
+                Result = goalkeeperResult,
+                Role = "Goalkeeper"
+            });
         }
         
         var outcome = DetermineOutcome(bot1Score, bot2Score, bot1Errors, bot2Errors);
@@ -138,7 +176,7 @@ public class PenaltyExecutor : IGameExecutor
         };
     }
 
-    private static GameState CreateGameState(int currentRound = 1, int maxRounds = MaxRounds, string role = "Shooter")
+    private static GameState CreateGameState(int currentRound = 1, int maxRounds = MaxRounds, string role = "Shooter", List<RoundHistory>? roundHistory = null)
     {
         return new GameState
         {
@@ -151,7 +189,8 @@ public class PenaltyExecutor : IGameExecutor
             CurrentRound = currentRound,
             MaxRounds = maxRounds,
             IsGameOver = false,
-            Winner = null
+            Winner = null,
+            RoundHistory = roundHistory != null ? new List<RoundHistory>(roundHistory) : new List<RoundHistory>()
         };
     }
 

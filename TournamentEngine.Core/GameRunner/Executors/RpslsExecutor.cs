@@ -41,10 +41,13 @@ public class RpslsExecutor : IGameExecutor
         matchLog.Add($"Max Rounds: {maxRounds}");
         matchLog.Add("");
 
+        // Track round history for bots
+        var roundHistory = new List<RoundHistory>();
+
         // Execute rounds
         for (int round = 1; round <= maxRounds; round++)
         {
-            var gameState = CreateGameState(round, maxRounds, bot1Score, bot2Score);
+            var gameState = CreateGameState(round, maxRounds, bot1Score, bot2Score, roundHistory);
             
             // Get moves from both bots with timeout
             var (move1, error1) = await GetBotMoveWithTimeout(bot1, gameState, config.MoveTimeout, cancellationToken);
@@ -85,7 +88,8 @@ public class RpslsExecutor : IGameExecutor
                 matchLog.Add($"Round {round}: {bot2.TeamName} - {invalidError}");
             }
             
-            // Determine round winner
+            // Determine round winner and record result
+            string roundResult;
             if (valid1 && valid2)
             {
                 var roundWinner = DetermineWinner(move1!, move2!);
@@ -94,26 +98,31 @@ public class RpslsExecutor : IGameExecutor
                 {
                     bot1Score++;
                     matchLog.Add($"Round {round}: {bot1.TeamName} ({move1}) beats {bot2.TeamName} ({move2}) - Score: {bot1Score}-{bot2Score}");
+                    roundResult = "Win";
                 }
                 else if (roundWinner == 2)
                 {
                     bot2Score++;
                     matchLog.Add($"Round {round}: {bot2.TeamName} ({move2}) beats {bot1.TeamName} ({move1}) - Score: {bot1Score}-{bot2Score}");
+                    roundResult = "Loss";
                 }
                 else
                 {
                     matchLog.Add($"Round {round}: Draw - {move1} vs {move2} - Score: {bot1Score}-{bot2Score}");
+                    roundResult = "Draw";
                 }
             }
             else if (valid1 && !valid2)
             {
                 bot1Score++;
                 matchLog.Add($"Round {round}: {bot1.TeamName} wins by default (opponent error) - Score: {bot1Score}-{bot2Score}");
+                roundResult = "Win";
             }
             else if (!valid1 && valid2)
             {
                 bot2Score++;
                 matchLog.Add($"Round {round}: {bot2.TeamName} wins by default (opponent error) - Score: {bot1Score}-{bot2Score}");
+                roundResult = "Loss";
             }
             else
             {
@@ -123,13 +132,25 @@ public class RpslsExecutor : IGameExecutor
                 {
                     bot1Score++;
                     matchLog.Add($"Round {round}: Both errors - {bot1.TeamName} wins (random) - Score: {bot1Score}-{bot2Score}");
+                    roundResult = "Win";
                 }
                 else
                 {
                     bot2Score++;
                     matchLog.Add($"Round {round}: Both errors - {bot2.TeamName} wins (random) - Score: {bot1Score}-{bot2Score}");
+                    roundResult = "Loss";
                 }
             }
+            
+            // Record round history for both bots
+            roundHistory.Add(new RoundHistory
+            {
+                Round = round,
+                MyMove = move1 ?? "ERROR",
+                OpponentMove = move2 ?? "ERROR",
+                Result = roundResult,
+                Role = null  // RPSLS has no roles
+            });
         }
         
         // Determine final outcome
@@ -161,7 +182,7 @@ public class RpslsExecutor : IGameExecutor
         };
     }
 
-    private static GameState CreateGameState(int currentRound, int maxRounds, int bot1Score, int bot2Score)
+    private static GameState CreateGameState(int currentRound, int maxRounds, int bot1Score, int bot2Score, List<RoundHistory> roundHistory)
     {
         return new GameState
         {
@@ -175,7 +196,8 @@ public class RpslsExecutor : IGameExecutor
             CurrentRound = currentRound,
             MaxRounds = maxRounds,
             IsGameOver = false,
-            Winner = null
+            Winner = null,
+            RoundHistory = new List<RoundHistory>(roundHistory)  // Copy to avoid mutation
         };
     }
 
