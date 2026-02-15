@@ -14,6 +14,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using TournamentEngine.Core.Common;
 using TournamentEngine.Core.Common.Dashboard;
+using TournamentEngine.Core.Events;
 using TournamentEngine.Core.GameRunner;
 using TournamentEngine.Core.Scoring;
 using TournamentEngine.Core.Tournament;
@@ -48,9 +49,6 @@ public class FullStackIntegrationTests
     public async Task Setup()
     {
         _baseConfig = IntegrationTestHelpers.CreateConfig();
-        _gameRunner = new GameRunner(_baseConfig);
-        _scoringSystem = new ScoringSystem();
-        _engine = new GroupStageTournamentEngine(_gameRunner, _scoringSystem);
 
         // Build REAL Dashboard server (same as Dashboard/Program.cs)
         var builder = WebApplication.CreateBuilder();
@@ -90,9 +88,18 @@ public class FullStackIntegrationTests
                 sp.GetRequiredService<IBotLoader>(),
                 sp.GetRequiredService<ILogger<BotDashboardService>>()));
 
+        // Register tournament services (required by TournamentManagementService)
+        builder.Services.AddSingleton(_baseConfig);
+        builder.Services.AddSingleton<IGameRunner, GameRunner>();
+        builder.Services.AddSingleton<IScoringSystem, ScoringSystem>();
+        builder.Services.AddSingleton<ITournamentEngine, GroupStageTournamentEngine>();
+        builder.Services.AddSingleton<ITournamentManager, TournamentManager>();
+        builder.Services.AddSingleton<TournamentSeriesManager>();
+
         // Register dashboard services
         builder.Services.AddSingleton<StateManagerService>();
         builder.Services.AddSingleton<SignalRTournamentEventPublisher>();
+        builder.Services.AddSingleton<ITournamentEventPublisher, SignalRTournamentEventPublisher>();
         builder.Services.AddSingleton<LeaderboardService>();
         builder.Services.AddSingleton<MatchFeedService>();
         builder.Services.AddSingleton<TournamentStatusService>();
@@ -107,7 +114,7 @@ public class FullStackIntegrationTests
         builder.Services.AddSingleton<ShareService>();
         builder.Services.AddSingleton<NotificationPreferencesService>();
         builder.Services.AddSingleton<ResponsiveLayoutService>();
-        builder.Services.AddScoped<TournamentManagementService>();
+        builder.Services.AddSingleton<TournamentManagementService>();
 
         builder.WebHost.UseUrls(DashboardUrl);
 
@@ -122,13 +129,18 @@ public class FullStackIntegrationTests
         // Start the dashboard
         await _dashboardApp.StartAsync();
 
-        //Get the real StateManagerService from the dashboard
+        // Get all services from the dashboard's DI container (use same instances as Hub)
+        _gameRunner = _dashboardApp.Services.GetRequiredService<IGameRunner>() as GameRunner
+            ?? throw new InvalidOperationException("GameRunner not available");
+        _scoringSystem = _dashboardApp.Services.GetRequiredService<IScoringSystem>() as ScoringSystem
+            ?? throw new InvalidOperationException("ScoringSystem not available");
+        _engine = _dashboardApp.Services.GetRequiredService<ITournamentEngine>() as GroupStageTournamentEngine
+            ?? throw new InvalidOperationException("TournamentEngine not available");
+        _tournamentManager = _dashboardApp.Services.GetRequiredService<ITournamentManager>() as TournamentManager
+            ?? throw new InvalidOperationException("TournamentManager not available");
+        _seriesManager = _dashboardApp.Services.GetRequiredService<TournamentSeriesManager>();
         _stateManager = _dashboardApp.Services.GetRequiredService<StateManagerService>();
         _eventPublisher = _dashboardApp.Services.GetRequiredService<SignalRTournamentEventPublisher>();
-
-        // Create TournamentManager with real-time event publisher
-        _tournamentManager = new TournamentManager(_engine, _gameRunner, _eventPublisher);
-        _seriesManager = new TournamentSeriesManager(_tournamentManager, _scoringSystem, _eventPublisher);
 
         // Connect SignalR client to real dashboard
         _hubConnection = new HubConnectionBuilder()
