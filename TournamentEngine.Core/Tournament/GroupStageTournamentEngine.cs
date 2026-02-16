@@ -76,7 +76,7 @@ public class GroupStageTournamentEngine : ITournamentEngine
             Log($"Tournament initialized with {bots.Count} bots for {gameType}");
 
             var botAdapters = CreateBotAdapters(bots, gameType);
-            _currentGroups = CreateInitialGroups(botAdapters);
+            _currentGroups = CreateInitialGroups(botAdapters, config);
             _groupStandings = BuildStandingsIndex(_currentGroups);
             var allMatches = GenerateAllGroupMatches(_currentGroups);
             _pendingMatches = new Queue<(IBot bot1, IBot bot2)>(allMatches);
@@ -578,42 +578,65 @@ public class GroupStageTournamentEngine : ITournamentEngine
 
     internal List<Group> CreateInitialGroups(List<IBot> bots)
     {
+        // Backward compatibility: call new method with default config
+        return CreateInitialGroups(bots, new TournamentConfig());
+    }
+    
+    internal List<Group> CreateInitialGroups(List<IBot> bots, TournamentConfig config)
+    {
         if (bots == null || bots.Count == 0)
             throw new ArgumentException("Bots list cannot be null or empty", nameof(bots));
+        if (config == null)
+            throw new ArgumentNullException(nameof(config));
 
-        var groupCount = Math.Max(1, bots.Count / 10);
+        // Shuffle bots for random distribution
         var shuffledBots = new List<IBot>(bots);
         ShuffleInPlace(shuffledBots);
 
-        var groups = new List<Group>(groupCount);
+        // Calculate how many bots per group (handle non-even splits)
+        int groupCount = Math.Min(config.GroupCount, bots.Count); // Don't create more groups than bots
+        int botsPerGroup = (int)Math.Ceiling((double)bots.Count / groupCount);
+        
+        var groups = new List<Group>();
+        
         for (int i = 0; i < groupCount; i++)
         {
-            groups.Add(new Group
+            // Calculate bots for this group
+            int startIndex = i * botsPerGroup;
+            int count = Math.Min(botsPerGroup, bots.Count - startIndex);
+            
+            if (count <= 0)
+                break; // No more bots to assign
+            
+            var groupBots = shuffledBots.Skip(startIndex).Take(count).ToList();
+            
+            var group = new Group
             {
                 GroupId = $"Group-{i + 1}",
-                Bots = new List<IBot>(),
+                Bots = groupBots,
                 Standings = new Dictionary<string, GroupStanding>(),
                 IsComplete = false
-            });
-        }
-
-        for (int i = 0; i < shuffledBots.Count; i++)
-        {
-            var groupIndex = i % groupCount;
-            var group = groups[groupIndex];
-            var bot = shuffledBots[i];
-            group.Bots.Add(bot);
-            group.Standings[bot.TeamName] = new GroupStanding
-            {
-                BotName = bot.TeamName,
-                Points = 0,
-                Wins = 0,
-                Losses = 0,
-                Draws = 0,
-                GoalDifferential = 0
             };
+            
+            // Initialize standings for each bot
+            foreach (var bot in groupBots)
+            {
+                group.Standings[bot.TeamName] = new GroupStanding
+                {
+                    BotName = bot.TeamName,
+                    Points = 0,
+                    Wins = 0,
+                    Losses = 0,
+                    Draws = 0,
+                    GoalDifferential = 0
+                };
+            }
+            
+            groups.Add(group);
         }
-
+        
+        Log($"Created {groups.Count} groups with {string.Join(", ", groups.Select(g => g.Bots.Count))} bots each");
+        
         return groups;
     }
 
