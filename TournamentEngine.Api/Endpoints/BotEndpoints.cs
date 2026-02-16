@@ -312,7 +312,8 @@ public static class BotEndpoints
         "System.Threading",
         "System.IO",
         "System.Text.RegularExpressions",
-        "System.Diagnostics"
+        "System.Diagnostics",
+        "TournamentEngine.Core.Common"
     };
 
     /// <summary>
@@ -464,16 +465,18 @@ public static class BotEndpoints
         
         if (singleSemicolons.Count > 0)
         {
-            // Allow single semicolons in specific contexts (using directives, for loops)
-            var validSingleSemicolonContexts = new[]
-            {
-                @"using\s+[^;]+;",           // using directives
-                @"for\s*\([^;]*;[^;]*;[^)]*\)", // for loop
-                @"namespace\s+[^;]+;"        // namespace (rare but valid)
-            };
-
-            var validSingleSemiCount = validSingleSemicolonContexts
-                .Sum(pattern => Regex.Matches(code, pattern).Count);
+            // Count valid single semicolons in specific contexts
+            var validSingleSemiCount = 0;
+            
+            // Using directives - each using has 1 semicolon
+            validSingleSemiCount += Regex.Matches(code, @"using\s+[^;]+;").Count;
+            
+            // For loops - each for loop has 2 semicolons
+            var forLoopMatches = Regex.Matches(code, @"for\s*\([^;]*;[^;]*;[^)]*\)");
+            validSingleSemiCount += forLoopMatches.Count * 2;
+            
+            // Namespace declarations - each namespace has 1 semicolon  
+            validSingleSemiCount += Regex.Matches(code, @"namespace\s+[^;]+;").Count;
 
             // Check if there are single semicolons outside valid contexts
             if (singleSemicolons.Count > validSingleSemiCount)
@@ -515,7 +518,9 @@ public static class BotEndpoints
         {
             var namespaceName = match.Groups[1].Value;
             
-            if (!ApprovedNamespaces.Any(approved => namespaceName.StartsWith(approved)))
+            // Only exact matches are allowed - no hierarchical namespace approval
+            // This prevents System.Net.Http from being approved just because "System" is approved
+            if (!ApprovedNamespaces.Contains(namespaceName))
             {
                 errors.Add($"File {file.FileName} uses unapproved namespace: {namespaceName}. Only approved .NET libraries are allowed: {string.Join(", ", ApprovedNamespaces)}");
             }
