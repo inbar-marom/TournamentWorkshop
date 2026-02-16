@@ -122,7 +122,7 @@ builder.Services.AddSingleton<SeriesDashboardViewService>();
 // Default to HTTP only (no HTTPS certificate required)
 if (string.IsNullOrWhiteSpace(builder.Configuration["ASPNETCORE_URLS"]))
 {
-    builder.WebHost.UseUrls("http://0.0.0.0:5000");
+    builder.WebHost.UseUrls("http://0.0.0.0:8080");
 }
 
 var app = builder.Build();
@@ -141,10 +141,11 @@ app.MapHub<TournamentHub>("/tournamentHub");
 app.MapBotDashboardEndpoints();
 app.MapManagementEndpoints();
 app.MapBotEndpoints();  // Import API endpoints for bot submission
+app.MapResourceEndpoints();  // Import resource download endpoints
 Console.WriteLine("🎮 Tournament Dashboard Service started");
-Console.WriteLine("📡 SignalR Hub: http://localhost:5000/tournamentHub");
-Console.WriteLine("🌐 API: http://localhost:5000/api");
-Console.WriteLine("💻 Access from remote: http://<your-ip>:5000");
+Console.WriteLine("📡 SignalR Hub: http://localhost:8080/tournamentHub");
+Console.WriteLine("🌐 API: http://localhost:8080/api");
+Console.WriteLine("💻 Access from remote: http://<your-ip>:8080");
 
 app.Run();
 

@@ -21,4 +21,10 @@
     <None Include="bots\**\*" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="templates\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
 </Project>
