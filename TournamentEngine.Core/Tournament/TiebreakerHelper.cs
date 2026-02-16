@@ -71,4 +71,84 @@ public static class TiebreakerHelper
         // Only return if there's actually a tie (2+ bots)
         return topScorers.Count >= 2 ? topScorers : new List<string>();
     }
+
+    /// <summary>
+    /// Selects the top N scorers from aggregate standings.
+    /// If there's a tie at the cutoff position, includes all tied bots.
+    /// </summary>
+    /// <param name="standings">Dictionary mapping bot names to their scores</param>
+    /// <param name="topN">Number of top scorers to select</param>
+    /// <returns>List of bot names for top scorers (may be more than topN if tied)</returns>
+    public static List<string> SelectTopScorers(Dictionary<string, int> standings, int topN)
+    {
+        if (standings == null || standings.Count == 0 || topN <= 0)
+        {
+            return new List<string>();
+        }
+
+        // Sort by score descending
+        var sorted = standings
+            .OrderByDescending(kvp => kvp.Value)
+            .ToList();
+
+        // If requesting more than available, return all
+        if (topN >= sorted.Count)
+        {
+            return sorted.Select(kvp => kvp.Key).ToList();
+        }
+
+        // Get the score of the Nth bot (cutoff score)
+        var cutoffScore = sorted[topN - 1].Value;
+
+        // Include all bots with score >= cutoff (handles ties)
+        var topScorers = sorted
+            .Where(kvp => kvp.Value >= cutoffScore)
+            .Select(kvp => kvp.Key)
+            .ToList();
+
+        return topScorers;
+    }
+
+    /// <summary>
+    /// Ranks all bots by their scores in descending order.
+    /// </summary>
+    /// <param name="standings">Dictionary mapping bot names to their scores</param>
+    /// <returns>Ranked list of (BotName, Score) tuples</returns>
+    public static List<(string BotName, int Score)> RankByScore(Dictionary<string, int> standings)
+    {
+        if (standings == null || standings.Count == 0)
+        {
+            return new List<(string, int)>();
+        }
+
+        return standings
+            .OrderByDescending(kvp => kvp.Value)
+            .Select(kvp => (kvp.Key, kvp.Value))
+            .ToList();
+    }
+
+    /// <summary>
+    /// Determines the champion from aggregate scores.
+    /// Returns null if there's a tie for first place (requiring tiebreaker).
+    /// </summary>
+    /// <param name="standings">Dictionary mapping bot names to their scores</param>
+    /// <returns>Champion bot name, or null if tied</returns>
+    public static string? DetermineChampion(Dictionary<string, int> standings)
+    {
+        if (standings == null || standings.Count == 0)
+        {
+            return null;
+        }
+
+        var maxScore = standings.Values.Max();
+        var topScorers = standings.Where(kvp => kvp.Value == maxScore).ToList();
+
+        // If multiple bots tied for first, need tiebreaker
+        if (topScorers.Count > 1)
+        {
+            return null;
+        }
+
+        return topScorers.First().Key;
+    }
 }
