@@ -593,22 +593,24 @@ public class GroupStageTournamentEngine : ITournamentEngine
         var shuffledBots = new List<IBot>(bots);
         ShuffleInPlace(shuffledBots);
 
-        // Calculate how many bots per group (handle non-even splits)
+        // Calculate group distribution (handle non-even splits evenly)
         int groupCount = Math.Min(config.GroupCount, bots.Count); // Don't create more groups than bots
-        int botsPerGroup = (int)Math.Ceiling((double)bots.Count / groupCount);
+        int baseBotsPerGroup = bots.Count / groupCount;
+        int remainder = bots.Count % groupCount;
         
         var groups = new List<Group>();
+        int currentIndex = 0;
         
         for (int i = 0; i < groupCount; i++)
         {
-            // Calculate bots for this group
-            int startIndex = i * botsPerGroup;
-            int count = Math.Min(botsPerGroup, bots.Count - startIndex);
+            // First 'remainder' groups get one extra bot
+            int botsForThisGroup = baseBotsPerGroup + (i < remainder ? 1 : 0);
             
-            if (count <= 0)
+            if (currentIndex >= bots.Count)
                 break; // No more bots to assign
             
-            var groupBots = shuffledBots.Skip(startIndex).Take(count).ToList();
+            var groupBots = shuffledBots.Skip(currentIndex).Take(botsForThisGroup).ToList();
+            currentIndex += botsForThisGroup;
             
             var group = new Group
             {

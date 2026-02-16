@@ -1,39 +1,26 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using TournamentEngine.Core.Common;
 using TournamentEngine.Core.Tournament;
+using TournamentEngine.Core.Scoring;
+using TournamentEngine.Tests.Helpers;
 
 namespace TournamentEngine.Tests.Tournament;
 
 [TestClass]
 public class GroupAssignmentTests
 {
-    private List<BotInfo> CreateTestBots(int count)
-    {
-        var bots = new List<BotInfo>();
-        for (int i = 0; i < count; i++)
-        {
-            bots.Add(new BotInfo
-            {
-                TeamName = $"Bot{i + 1}",
-                FolderPath = $"/bots/bot{i + 1}",
-                IsValid = true
-            });
-        }
-        return bots;
-    }
-
     [TestMethod]
     public void CreateGroups_100Bots_Creates10EqualGroups()
     {
         // Arrange
-        var bots = CreateTestBots(100);
+        var bots = TestHelpers.CreateDummyBots(100, GameType.RPSLS);
         var config = new TournamentConfig { GroupCount = 10 };
-        var engine = new GroupStageTournamentEngine(null, null);
+        var engine = new GroupStageTournamentEngine(new MockGameRunner(), new ScoringSystem());
         
         // Act
         var groups = engine.CreateInitialGroups(bots, config);
         
-        //Assert
+        // Assert
         Assert.AreEqual(10, groups.Count);
         Assert.IsTrue(groups.All(g => g.Bots.Count == 10));
     }
@@ -42,9 +29,9 @@ public class GroupAssignmentTests
     public void CreateGroups_75Bots_HandlesNonEvenSplit()
     {
         // Arrange
-        var bots = CreateTestBots(75);
+        var bots = TestHelpers.CreateDummyBots(75, GameType.RPSLS);
         var config = new TournamentConfig { GroupCount = 10 };
-        var engine = new GroupStageTournamentEngine(null, null);
+        var engine = new GroupStageTournamentEngine(new MockGameRunner(), new ScoringSystem());
         
         // Act
         var groups = engine.CreateInitialGroups(bots, config);
@@ -62,14 +49,14 @@ public class GroupAssignmentTests
     public void CreateGroups_MultipleRuns_ProducesRandomDistribution()
     {
         // Arrange
-        var bots = CreateTestBots(30);
         var config = new TournamentConfig { GroupCount = 10 };
-        var engine = new GroupStageTournamentEngine(null, null);
+        var engine = new GroupStageTournamentEngine(new MockGameRunner(), new ScoringSystem());
         
         // Act - Run 5 times
         var assignments = new List<Dictionary<string, string>>();
         for (int i = 0; i < 5; i++)
         {
+            var bots = TestHelpers.CreateDummyBots(30, GameType.RPSLS);
             var groups = engine.CreateInitialGroups(bots, config);
             var assignment = new Dictionary<string, string>();
             
@@ -85,9 +72,9 @@ public class GroupAssignmentTests
         
         // Assert - At least one bot should be in different groups across runs
         bool foundDifference = false;
-        var firstBot = bots[0].TeamName;
+        var firstBotName = "Team1";
         
-        var groupsForFirstBot = assignments.Select(a => a[firstBot]).Distinct().ToList();
+        var groupsForFirstBot = assignments.Select(a => a[firstBotName]).Distinct().ToList();
         foundDifference = groupsForFirstBot.Count > 1;
         
         Assert.IsTrue(foundDifference, "Group assignment should be randomized");
@@ -97,9 +84,9 @@ public class GroupAssignmentTests
     public void CreateGroups_AllBotsAssigned_NoDuplicates()
     {
         // Arrange
-        var bots = CreateTestBots(50);
+        var bots = TestHelpers.CreateDummyBots(50, GameType.RPSLS);
         var config = new TournamentConfig { GroupCount = 10 };
-        var engine = new GroupStageTournamentEngine(null, null);
+        var engine = new GroupStageTournamentEngine(new MockGameRunner(), new ScoringSystem());
         
         // Act
         var groups = engine.CreateInitialGroups(bots, config);
@@ -116,9 +103,9 @@ public class GroupAssignmentTests
     public void CreateGroups_LessBotsThanGroups_CreatesFewerGroups()
     {
         // Arrange
-        var bots = CreateTestBots(5);
+        var bots = TestHelpers.CreateDummyBots(5, GameType.RPSLS);
         var config = new TournamentConfig { GroupCount = 10 };
-        var engine = new GroupStageTournamentEngine(null, null);
+        var engine = new GroupStageTournamentEngine(new MockGameRunner(), new ScoringSystem());
         
         // Act
         var groups = engine.CreateInitialGroups(bots, config);
