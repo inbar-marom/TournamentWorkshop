@@ -16,7 +16,7 @@ public class BotStorageService
     private readonly Dictionary<string, BotSubmissionMetadata> _submissions = new(StringComparer.OrdinalIgnoreCase);
     private bool _isPaused = false;
     private const long MaxFileSizeBytes = 50_000; // 50KB per file
-    private const long MaxTotalSizeBytes = 200_000; // 200KB total
+    private const long MaxTotalSizeBytes = 500_000; // 500KB total (aligned with API endpoint)
 
     public BotStorageService(string storageDirectory, ILogger<BotStorageService> logger)
     {
@@ -219,66 +219,106 @@ public class BotStorageService
     {
         var submissionId = Guid.NewGuid().ToString();
         
-        // Determine version
+        // Determine version and folder path INSIDE lock (fast operation)
+        string folderPath;
+        string? oldFolderPath = null;
+        int newVersion;
+        
         lock (_lock)
         {
             _submissions.TryGetValue(request.TeamName, out var existing);
-            var newVersion = (existing?.Version ?? 0) + 1;
+            newVersion = (existing?.Version ?? 0) + 1;
+            oldFolderPath = existing?.FolderPath;
             
-            // Delete old version if exists
-            if (existing != null && Directory.Exists(existing.FolderPath))
+            var folderName = $"{request.TeamName}_v{newVersion}";
+            folderPath = Path.Combine(_storageDirectory, folderName);
+        }
+        
+        // Perform file I/O OUTSIDE lock to prevent blocking other submissions
+        try
+        {
+            // Delete old version if exists (with retry logic)
+            if (oldFolderPath != null && Directory.Exists(oldFolderPath))
             {
-                try
+                for (int retry = 0; retry < 3; retry++)
                 {
-                    Directory.Delete(existing.FolderPath, recursive: true);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Failed to delete old version folder: {FolderPath}", existing.FolderPath);
+                    try
+                    {
+                        Directory.Delete(oldFolderPath, recursive: true);
+                        break;
+                    }
+                    catch (IOException) when (retry < 2)
+                    {
+                        await Task.Delay(50); // Brief delay before retry
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to delete old version folder: {FolderPath}", oldFolderPath);
+                        break;
+                    }
                 }
             }
 
-            var folderName = $"{request.TeamName}_v{newVersion}";
-            var folderPath = Path.Combine(_storageDirectory, folderName);
+            // Create new folder (with retry logic for concurrency)
+            for (int retry = 0; retry < 3; retry++)
+            {
+                try
+                {
+                    Directory.CreateDirectory(folderPath);
+                    break;
+                }
+                catch (IOException) when (retry < 2)
+                {
+                    await Task.Delay(50);
+                }
+            }
 
-            // Create folder
-            Directory.CreateDirectory(folderPath);
-
-            // Write files synchronously to avoid async in lock
+            // Write files
             long totalSize = 0;
             var filePaths = new List<string>();
 
             foreach (var file in request.Files)
             {
-                try
+                var filePath = Path.Combine(folderPath, file.FileName);
+                var fileContent = System.Text.Encoding.UTF8.GetBytes(file.Code);
+                
+                // Write with retry logic
+                for (int retry = 0; retry < 3; retry++)
                 {
-                    var filePath = Path.Combine(folderPath, file.FileName);
-                    var fileContent = System.Text.Encoding.UTF8.GetBytes(file.Code);
-                    System.IO.File.WriteAllBytes(filePath, fileContent);
-                    filePaths.Add(file.FileName);
-                    totalSize += fileContent.Length;
-                    _logger.LogDebug("Wrote file {FileName} for team {TeamName}", file.FileName, request.TeamName);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Failed to write file {FileName} for team {TeamName}", file.FileName, request.TeamName);
-                    throw;
+                    try
+                    {
+                        await System.IO.File.WriteAllBytesAsync(filePath, fileContent);
+                        filePaths.Add(file.FileName);
+                        totalSize += fileContent.Length;
+                        _logger.LogDebug("Wrote file {FileName} for team {TeamName}", file.FileName, request.TeamName);
+                        break;
+                    }
+                    catch (IOException) when (retry < 2)
+                    {
+                        _logger.LogWarning("Retry {Retry} writing file {FileName}", retry + 1, file.FileName);
+                        await Task.Delay(50);
+                    }
                 }
             }
 
-            var metadata = new BotSubmissionMetadata
+            // Update metadata dictionary INSIDE lock (fast operation)
+            lock (_lock)
             {
-                TeamName = request.TeamName,
-                FolderPath = folderPath,
-                FilePaths = filePaths,
-                FileCount = request.Files.Count,
-                TotalSizeBytes = totalSize,
-                SubmissionTime = DateTime.UtcNow,
-                Version = newVersion,
-                SubmissionId = submissionId
-            };
+                var metadata = new BotSubmissionMetadata
+                {
+                    TeamName = request.TeamName,
+                    FolderPath = folderPath,
+                    FilePaths = filePaths,
+                    FileCount = request.Files.Count,
+                    TotalSizeBytes = totalSize,
+                    SubmissionTime = DateTime.UtcNow,
+                    Version = newVersion,
+                    SubmissionId = submissionId
+                };
 
-            _submissions[request.TeamName] = metadata;
+                _submissions[request.TeamName] = metadata;
+            }
+            
             _logger.LogInformation("Bot stored for team {TeamName} (v{Version}): {FolderPath}", 
                 request.TeamName, newVersion, folderPath);
 
@@ -289,6 +329,22 @@ public class BotStorageService
                 SubmissionId = submissionId,
                 Message = $"Bot submitted successfully (v{newVersion})"
             };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to store bot for team {TeamName}", request.TeamName);
+            
+            // Clean up partial folder if it exists
+            try
+            {
+                if (Directory.Exists(folderPath))
+                {
+                    Directory.Delete(folderPath, recursive: true);
+                }
+            }
+            catch { /* Ignore cleanup errors */ }
+            
+            throw;
         }
     }
 
@@ -328,7 +384,7 @@ public class BotStorageService
         }
 
         if (totalSize > MaxTotalSizeBytes)
-            errors.Add($"Total submission size {totalSize} bytes exceeds maximum of {MaxTotalSizeBytes} bytes");
+            errors.Add($"Total submission size {totalSize} bytes exceeds maximum of {MaxTotalSizeBytes / 1024}KB");
 
         return errors;
     }

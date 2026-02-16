@@ -193,15 +193,16 @@ public class BotStorageServiceTests
     [TestMethod]
     public async Task SubmitBot_TotalSizeExceedsLimit_ReturnsFail()
     {
-        // Arrange - Total 250KB (exceeds 200KB limit)
-        var code = new string('a', 125_000);
+        // Arrange - Total 600KB (exceeds 500KB limit)
+        var code = new string('a', 200_000);
         var request = new BotSubmissionRequest
         {
             TeamName = "TeamTooLarge",
             Files = new List<BotFile>
             {
                 new() { FileName = "File1.cs", Code = code },
-                new() { FileName = "File2.cs", Code = code }
+                new() { FileName = "File2.cs", Code = code },
+                new() { FileName = "File3.cs", Code = code }
             }
         };
 

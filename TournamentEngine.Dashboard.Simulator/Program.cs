@@ -177,10 +177,15 @@ class Step13_Step15_IntegrationSimulator
                 return false;
             }
         }
-        catch (HttpRequestException)
+        catch (TaskCanceledException ex)
         {
-            LogWarning($"  Step 13 API not available - simulating successful submission");
-            return true;
+            LogError($"  Request timed out after 5 seconds: {ex.Message}");
+            return false;
+        }
+        catch (HttpRequestException ex)
+        {
+            LogError($"  Step 13 API connection failed: {ex.Message}");
+            return false;
         }
         catch (Exception ex)
         {
