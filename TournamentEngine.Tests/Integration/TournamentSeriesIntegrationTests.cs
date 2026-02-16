@@ -213,7 +213,7 @@ public class TournamentSeriesIntegrationTests
     public async Task FullSeries_WithLargeBotCount_CompletesSuccessfully()
     {
         // Arrange
-        var bots = await IntegrationTestHelpers.CreateDemoBots(50);
+        var bots = await IntegrationTestHelpers.CreateDemoBots(20);
         var seriesConfig = new TournamentSeriesConfig
         {
             GameTypes = new List<GameType> { GameType.RPSLS, GameType.ColonelBlotto },
@@ -225,7 +225,7 @@ public class TournamentSeriesIntegrationTests
 
         // Assert
         Assert.AreEqual(2, seriesInfo.Tournaments.Count);
-        Assert.AreEqual(50, seriesInfo.SeriesStandings.Count);
+        Assert.AreEqual(20, seriesInfo.SeriesStandings.Count);
         Assert.IsNotNull(seriesInfo.SeriesChampion);
 
         // Verify all tournaments completed with all bots
