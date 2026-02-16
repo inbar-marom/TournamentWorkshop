@@ -90,23 +90,34 @@ public class TournamentManager : ITournamentManager
                 continue;
             }
 
-            // Execute all matches in the current batch
+            // Execute all matches in the current batch/stage
+            // THREAD SAFETY: All matches within a stage can run in parallel
+            // The engine's RecordMatchResult() is thread-safe (uses lock)
+            // We wait for ALL matches to complete before advancing to next stage
             if (config.MaxParallelMatches > 1)
             {
-                // Parallel execution with degree-of-parallelism cap
-                using var semaphore = new SemaphoreSlim(config.MaxParallelMatches);
+                // Parallel execution with optional throttle
+                // MaxParallelMatches = int.MaxValue means unlimited parallelization within stage
+                // MaxParallelMatches = N means at most N concurrent matches
+                var throttleLimit = config.MaxParallelMatches == int.MaxValue 
+                    ? matches.Count 
+                    : config.MaxParallelMatches;
+                    
+                using var semaphore = new SemaphoreSlim(throttleLimit);
                 var tasks = new List<Task<MatchResult>>(matches.Count);
 
+                // Launch all matches in parallel (throttled by semaphore)
                 foreach (var (bot1, bot2) in matches)
                 {
                     tasks.Add(ExecuteMatchWithThrottleAsync(
                         semaphore, bot1, bot2, gameType, cancellationToken));
                 }
 
-                // Wait for all matches to complete (preserves original order)
+                // STAGE SYNCHRONIZATION: Wait for ALL matches in this stage to complete
+                // This ensures we don't advance to the next stage until all current matches finish
                 var results = await Task.WhenAll(tasks);
 
-                // Record results in original match order
+                // Record all results (thread-safe, but done sequentially after all matches complete)
                 foreach (var result in results)
                 {
                     _engine.RecordMatchResult(result);
@@ -134,7 +145,7 @@ public class TournamentManager : ITournamentManager
             }
             else
             {
-                // Sequential execution (default) - deterministic order
+                // Sequential execution (MaxParallelMatches = 1) - deterministic order
                 foreach (var (bot1, bot2) in matches)
                 {
                     cancellationToken.ThrowIfCancellationRequested();

@@ -7,6 +7,18 @@ public class TournamentConfig
 {
     public TimeSpan ImportTimeout { get; init; } = TimeSpan.FromSeconds(5);
     public TimeSpan MoveTimeout { get; init; } = TimeSpan.FromSeconds(1);
+    
+    /// <summary>
+    /// Maximum number of matches to run concurrently within a single stage.
+    /// - 1 = Sequential execution (slowest, deterministic order)
+    /// - N = At most N matches run concurrently (balanced)
+    /// - int.MaxValue = Unlimited parallel execution within stage (fastest)
+    /// 
+    /// THREAD SAFETY GUARANTEES:
+    /// - All matches within a stage complete before advancing to next stage
+    /// - Shared data (standings, rankings) protected by locks
+    /// - Stage boundaries always synchronized (group stage → finals → tiebreaker)
+    /// </summary>
     public int MaxParallelMatches { get; init; } = 1;
     public int MemoryLimitMB { get; init; } = 512;
     public int MaxRoundsRPSLS { get; init; } = 50;
