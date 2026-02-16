@@ -310,6 +310,7 @@ public static class BotEndpoints
         "System.Text",
         "System.Numerics",
         "System.Threading",
+        "System.Threading.Tasks",
         "System.IO",
         "System.Text.RegularExpressions",
         "System.Diagnostics",
