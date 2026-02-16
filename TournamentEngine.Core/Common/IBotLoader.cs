@@ -12,10 +12,12 @@ public interface IBotLoader
     /// Each bot handles all game types through a single IBot implementation.
     /// </summary>
     /// <param name="directory">Directory containing team folders with bot source files</param>
+    /// <param name="config">Tournament configuration (optional, required for memory monitoring)</param>
     /// <param name="cancellationToken">Cancellation token for timeout handling</param>
     /// <returns>List of bot information (both valid and invalid bots)</returns>
     Task<List<BotInfo>> LoadBotsFromDirectoryAsync(
         string directory,
+        TournamentConfig? config = null,
         CancellationToken cancellationToken = default);
     
     /// <summary>
@@ -24,10 +26,25 @@ public interface IBotLoader
     /// Bot must implement IBot interface and handle all game types.
     /// </summary>
     /// <param name="teamFolder">Path to team folder containing bot source files</param>
+    /// <param name="config">Tournament configuration (optional, required for memory monitoring)</param>
     /// <param name="cancellationToken">Cancellation token for timeout handling</param>
     /// <returns>Bot information with populated BotInstance if valid</returns>
     Task<BotInfo> LoadBotFromFolderAsync(
         string teamFolder,
+        TournamentConfig? config = null,
+        CancellationToken cancellationToken = default);
+    
+    /// <summary>
+    /// Reloads all bots from their original folder paths.
+    /// This resets memory tracking counters and creates fresh bot instances.
+    /// </summary>
+    /// <param name="existingBots">List of BotInfo instances to reload</param>
+    /// <param name="config">Tournament configuration (optional, required for memory monitoring)</param>
+    /// <param name="cancellationToken">Cancellation token for timeout handling</param>
+    /// <returns>List of reloaded BotInfo instances</returns>
+    Task<List<BotInfo>> ReloadAllBotsAsync(
+        List<BotInfo> existingBots,
+        TournamentConfig? config = null,
         CancellationToken cancellationToken = default);
     
     /// <summary>

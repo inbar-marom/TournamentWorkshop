@@ -779,7 +779,7 @@ internal sealed class BotInfoAdapter : IBot
 
         TeamName = botInfo.TeamName;
         GameType = gameType;
-        _botInstance = botInfo.BotInstance;
+        _botInstance = botInfo.GetExecutableBot();
     }
 
     public Task<string> MakeMove(GameState gameState, CancellationToken cancellationToken)

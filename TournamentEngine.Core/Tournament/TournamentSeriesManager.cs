@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using TournamentEngine.Core.Common;
 using TournamentEngine.Core.Common.Dashboard;
 using TournamentEngine.Core.Events;
+using TournamentEngine.Core.BotLoader;
 
 /// <summary>
 /// Orchestrates multiple tournaments in a series.
@@ -32,15 +33,18 @@ public class TournamentSeriesManager
     private readonly ITournamentManager _tournamentManager;
     private readonly IScoringSystem _scoringSystem;
     private readonly ITournamentEventPublisher? _eventPublisher;
+    private readonly IBotLoader? _botLoader;
 
     public TournamentSeriesManager(
         ITournamentManager tournamentManager,
         IScoringSystem scoringSystem,
-        ITournamentEventPublisher? eventPublisher = null)
+        ITournamentEventPublisher? eventPublisher = null,
+        IBotLoader? botLoader = null)
     {
         _tournamentManager = tournamentManager ?? throw new ArgumentNullException(nameof(tournamentManager));
         _scoringSystem = scoringSystem ?? throw new ArgumentNullException(nameof(scoringSystem));
         _eventPublisher = eventPublisher;
+        _botLoader = botLoader;
     }
 
     public async Task<TournamentSeriesInfo> RunSeriesAsync(
@@ -108,6 +112,13 @@ public class TournamentSeriesManager
                 bots, gameType, config.BaseConfig, cancellationToken);
 
             seriesInfo.Tournaments.Add(tournamentInfo);
+
+            // Reload bots between events to reset memory tracking
+            // Skip reload after the last event
+            if (i + 1 < config.GameTypes.Count && _botLoader != null)
+            {
+                bots = await _botLoader.ReloadAllBotsAsync(bots, config.BaseConfig, cancellationToken);
+            }
 
             if (_eventPublisher != null)
             {

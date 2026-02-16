@@ -29,7 +29,15 @@ public class BotDashboardEndpointsTests
         _mockBotLoader = new Mock<IBotLoader>();
         
         _storageService = new BotStorageService(_testDirectory, _mockStorageLogger.Object);
-        _dashboardService = new BotDashboardService(_storageService, _mockBotLoader.Object, _mockDashboardLogger.Object);
+        
+        // Create test tournament config
+        var testConfig = new TournamentConfig
+        {
+            MemoryLimitMB = 512,
+            MoveTimeout = TimeSpan.FromSeconds(5)
+        };
+        
+        _dashboardService = new BotDashboardService(_storageService, _mockBotLoader.Object, _mockDashboardLogger.Object, testConfig);
     }
 
     [TestCleanup]
@@ -128,7 +136,7 @@ public class BotDashboardEndpointsTests
         await _storageService!.StoreBotAsync(submission);
 
         _mockBotLoader!
-            .Setup(b => b.LoadBotFromFolderAsync(It.IsAny<string>(), default))
+            .Setup(b => b.LoadBotFromFolderAsync(It.IsAny<string>(), It.IsAny<TournamentConfig>(), default))
             .ReturnsAsync(new BotInfo { TeamName = "ValidateTeam" });
 
         // Act
@@ -137,7 +145,7 @@ public class BotDashboardEndpointsTests
         // Assert
         Assert.IsNotNull(result);
         _mockBotLoader.Verify(
-            b => b.LoadBotFromFolderAsync(It.IsAny<string>(), default),
+            b => b.LoadBotFromFolderAsync(It.IsAny<string>(), It.IsAny<TournamentConfig>(), default),
             Times.Once,
             "BotLoader should be called exactly once"
         );
@@ -159,7 +167,7 @@ public class BotDashboardEndpointsTests
         await _storageService!.StoreBotAsync(submission);
 
         _mockBotLoader!
-            .Setup(b => b.LoadBotFromFolderAsync(It.IsAny<string>(), default))
+            .Setup(b => b.LoadBotFromFolderAsync(It.IsAny<string>(), It.IsAny<TournamentConfig>(), default))
             .Throws(new InvalidOperationException("Compilation failed"));
 
         // Act & Assert - Method should rethrow the exception

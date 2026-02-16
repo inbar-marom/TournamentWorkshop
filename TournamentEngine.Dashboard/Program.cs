@@ -59,17 +59,12 @@ builder.Services.AddSingleton(sp =>
     new BotStorageService(resolvedBotsDir, sp.GetRequiredService<ILogger<BotStorageService>>()));
 builder.Services.AddSingleton<IBotLoader>(sp =>
     new BotLoader());
-builder.Services.AddSingleton(sp =>
-    new BotDashboardService(
-        sp.GetRequiredService<BotStorageService>(),
-        sp.GetRequiredService<IBotLoader>(),
-        sp.GetRequiredService<ILogger<BotDashboardService>>()));
 
 // Default tournament config for runtime services (can be extended to read from config later)
 var tournamentConfig = new TournamentConfig
 {
     ImportTimeout = TimeSpan.FromSeconds(10),
-    MoveTimeout = TimeSpan.FromSeconds(2),
+    MoveTimeout = TimeSpan.FromMilliseconds(500), //0.5 seconds for faster feedback in dashboard
     MaxParallelMatches = 1,
     MemoryLimitMB = 512,
     MaxRoundsRPSLS = 50,
@@ -78,6 +73,13 @@ var tournamentConfig = new TournamentConfig
     ResultsFilePath = Path.Combine(builder.Environment.ContentRootPath, "results", "results.json")
 };
 builder.Services.AddSingleton(tournamentConfig);
+
+builder.Services.AddSingleton(sp =>
+    new BotDashboardService(
+        sp.GetRequiredService<BotStorageService>(),
+        sp.GetRequiredService<IBotLoader>(),
+        sp.GetRequiredService<ILogger<BotDashboardService>>(),
+        tournamentConfig));
 
 // Register dashboard services
 builder.Services.AddSingleton<StateManagerService>();
@@ -95,7 +97,12 @@ builder.Services.AddSingleton<IGameRunner, GameRunner>();
 builder.Services.AddSingleton<IScoringSystem, ScoringSystem>();
 builder.Services.AddSingleton<ITournamentEngine, GroupStageTournamentEngine>();
 builder.Services.AddSingleton<ITournamentManager, TournamentManager>();
-builder.Services.AddSingleton<TournamentSeriesManager>();
+builder.Services.AddSingleton<TournamentSeriesManager>(sp =>
+    new TournamentSeriesManager(
+        sp.GetRequiredService<ITournamentManager>(),
+        sp.GetRequiredService<IScoringSystem>(),
+        sp.GetRequiredService<ITournamentEventPublisher>(),
+        sp.GetRequiredService<IBotLoader>()));
 
 // Register Phase 5 services
 builder.Services.AddSingleton<GroupStandingsGridService>();

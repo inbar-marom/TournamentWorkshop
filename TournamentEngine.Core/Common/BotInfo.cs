@@ -44,4 +44,31 @@ public class BotInfo
     /// Populated by IBotLoader during bot loading phase.
     /// </summary>
     public IBot? BotInstance { get; init; }
+    
+    /// <summary>
+    /// Memory-monitored wrapper around BotInstance that tracks cumulative memory usage.
+    /// Use this for actual bot execution to enforce memory limits.
+    /// Null if bot is not wrapped (for backward compatibility or if validation failed).
+    /// </summary>
+    public BotLoader.MemoryMonitoredBot? MonitoredInstance { get; init; }
+    
+    /// <summary>
+    /// Gets the cumulative memory usage in bytes since last bot reload.
+    /// Returns 0 if bot is not memory-monitored.
+    /// </summary>
+    public long CumulativeMemoryBytes => MonitoredInstance?.CumulativeMemoryUsage ?? 0;
+    
+    /// <summary>
+    /// Resets the cumulative memory tracking to zero.
+    /// Called automatically when bots are reloaded between events.
+    /// </summary>
+    public void ResetMemoryTracking()
+    {
+        MonitoredInstance?.ResetMemoryTracking();
+    }
+    
+    /// <summary>
+    /// Gets the bot instance to use for execution (monitored if available, otherwise raw instance).
+    /// </summary>
+    public IBot? GetExecutableBot() => MonitoredInstance ?? BotInstance;
 }

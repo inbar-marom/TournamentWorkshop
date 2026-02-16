@@ -21,6 +21,7 @@ public class BotDashboardService : IDisposable
     private readonly BotStorageService _storageService;
     private readonly IBotLoader _botLoader;
     private readonly ILogger<BotDashboardService> _logger;
+    private readonly TournamentConfig _config;
     
     // Cache for bot list with TTL
     private List<BotDashboardDto>? _botsCache;
@@ -31,11 +32,13 @@ public class BotDashboardService : IDisposable
     public BotDashboardService(
         BotStorageService storageService,
         IBotLoader botLoader,
-        ILogger<BotDashboardService> logger)
+        ILogger<BotDashboardService> logger,
+        TournamentConfig config)
     {
         _storageService = storageService ?? throw new ArgumentNullException(nameof(storageService));
         _botLoader = botLoader ?? throw new ArgumentNullException(nameof(botLoader));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _config = config ?? throw new ArgumentNullException(nameof(config));
     }
 
     /// <summary>
@@ -178,7 +181,7 @@ public class BotDashboardService : IDisposable
             }
 
             // Run validation using BotLoader
-            var botInfo = await _botLoader.LoadBotFromFolderAsync(submission.FolderPath);
+            var botInfo = await _botLoader.LoadBotFromFolderAsync(submission.FolderPath, _config);
 
             // Clear cache to force refresh
             lock (_cacheLock)
@@ -281,7 +284,7 @@ public class BotDashboardService : IDisposable
         {
             try
             {
-                var botInfo = await _botLoader.LoadBotFromFolderAsync(submission.FolderPath, cancellationToken);
+                var botInfo = await _botLoader.LoadBotFromFolderAsync(submission.FolderPath, _config, cancellationToken);
                 if (botInfo.IsValid)
                 {
                     bots.Add(botInfo);
@@ -325,7 +328,7 @@ public class BotDashboardService : IDisposable
         try
         {
             // Load bot info for validation status
-            var botInfo = await _botLoader.LoadBotFromFolderAsync(submission.FolderPath);
+            var botInfo = await _botLoader.LoadBotFromFolderAsync(submission.FolderPath, _config);
 
             var dto = new BotDashboardDto
             {

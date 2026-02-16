@@ -82,11 +82,20 @@ public class FullStackIntegrationTests
         builder.Services.AddSingleton(sp =>
             new BotStorageService(botsDir, sp.GetRequiredService<ILogger<BotStorageService>>()));
         builder.Services.AddSingleton<IBotLoader>(sp => new BotLoader());
+        
+        // Create tournament config for bot services
+        var botServiceConfig = new TournamentConfig
+        {
+            MemoryLimitMB = 512,
+            MoveTimeout = TimeSpan.FromSeconds(5)
+        };
+        
         builder.Services.AddScoped(sp =>
             new BotDashboardService(
                 sp.GetRequiredService<BotStorageService>(),
                 sp.GetRequiredService<IBotLoader>(),
-                sp.GetRequiredService<ILogger<BotDashboardService>>()));
+                sp.GetRequiredService<ILogger<BotDashboardService>>(),
+                botServiceConfig));
 
         // Register tournament services (required by TournamentManagementService)
         builder.Services.AddSingleton(_baseConfig);
@@ -94,7 +103,12 @@ public class FullStackIntegrationTests
         builder.Services.AddSingleton<IScoringSystem, ScoringSystem>();
         builder.Services.AddSingleton<ITournamentEngine, GroupStageTournamentEngine>();
         builder.Services.AddSingleton<ITournamentManager, TournamentManager>();
-        builder.Services.AddSingleton<TournamentSeriesManager>();
+        builder.Services.AddSingleton<TournamentSeriesManager>(sp =>
+            new TournamentSeriesManager(
+                sp.GetRequiredService<ITournamentManager>(),
+                sp.GetRequiredService<IScoringSystem>(),
+                sp.GetRequiredService<ITournamentEventPublisher>(),
+                sp.GetRequiredService<IBotLoader>()));
 
         // Register dashboard services
         builder.Services.AddSingleton<StateManagerService>();

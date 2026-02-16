@@ -30,7 +30,7 @@ public class BotLoader : IBotLoader
     {
         _maxDegreeOfParallelism = maxDegreeOfParallelism;
     }
-    public async Task<List<BotInfo>> LoadBotsFromDirectoryAsync(string directory, CancellationToken cancellationToken = default)
+    public async Task<List<BotInfo>> LoadBotsFromDirectoryAsync(string directory, TournamentConfig? config = null, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -64,14 +64,14 @@ public class BotLoader : IBotLoader
             {
                 try
                 {
-                    var botInfo = await LoadBotFromFolderAsync(teamFolder, ct);
+                    var botInfo = await LoadBotFromFolderAsync(teamFolder, config, ct);
                     results.Add(botInfo);
                 }
                 catch (Exception ex)
                 {
                     // If loading fails catastrophically, create a BotInfo with error
                     var folderName = Path.GetFileName(teamFolder);
-                    var teamName = Regex.Replace(folderName, @"_v\d+$", "");
+                    var teamName = Regex.Replace(folderName, @"_v\\d+$", "");
                     
                     results.Add(new BotInfo
                     {
@@ -97,7 +97,7 @@ public class BotLoader : IBotLoader
         }
     }
 
-    public async Task<BotInfo> LoadBotFromFolderAsync(string teamFolder, CancellationToken cancellationToken = default)
+    public async Task<BotInfo> LoadBotFromFolderAsync(string teamFolder, TournamentConfig? config = null, CancellationToken cancellationToken = default)
     {
         var errors = new List<string>();
         
@@ -265,12 +265,21 @@ public class BotLoader : IBotLoader
                 };
             }
 
-            // 9. Return successful BotInfo
+            // 9. Wrap bot in memory monitor if config provided
+            MemoryMonitoredBot? monitoredBot = null;
+            if (config != null)
+            {
+                var memoryLimitBytes = config.MemoryLimitMB * 1024L * 1024L;
+                monitoredBot = new MemoryMonitoredBot(botInstance, memoryLimitBytes);
+            }
+
+            // 10. Return successful BotInfo
             return new BotInfo
             {
                 TeamName = teamName,
                 FolderPath = teamFolder,
                 BotInstance = botInstance,
+                MonitoredInstance = monitoredBot,
                 IsValid = true,
                 ValidationErrors = new List<string>()
             };
@@ -354,5 +363,32 @@ public class BotLoader : IBotLoader
         refs.Add(MetadataReference.CreateFromFile(typeof(IBot).Assembly.Location));
 
         return refs;
+    }
+
+    /// <summary>
+    /// Reloads all bots from their original folder paths.
+    /// This resets memory tracking counters and creates fresh bot instances.
+    /// </summary>
+    /// <param name="existingBots">List of BotInfo instances to reload</param>
+    /// <param name="config">Tournament configuration containing memory limits</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>List of reloaded BotInfo instances</returns>
+    public async Task<List<BotInfo>> ReloadAllBotsAsync(List<BotInfo> existingBots, TournamentConfig? config = null, CancellationToken cancellationToken = default)
+    {
+        var reloadedBots = new List<BotInfo>();
+
+        foreach (var bot in existingBots)
+        {
+            // Reload bot from its original folder
+            var reloadedBot = await LoadBotFromFolderAsync(bot.FolderPath, config, cancellationToken);
+            reloadedBots.Add(reloadedBot);
+        }
+
+        // Force garbage collection to reclaim memory from old bot instances
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+
+        return reloadedBots;
     }
 }

@@ -67,7 +67,9 @@ class Program
             
             if (!string.IsNullOrEmpty(tournamentConfig.TournamentEngine?.BotsDirectory))
             {
-                bots = await botLoader.LoadBotsFromDirectoryAsync(tournamentConfig.TournamentEngine.BotsDirectory, cts.Token);
+                // Create TournamentConfig for memory monitoring
+                var engineConfig = configManager.CreateTournamentConfig();
+                bots = await botLoader.LoadBotsFromDirectoryAsync(tournamentConfig.TournamentEngine.BotsDirectory, engineConfig, cts.Token);
                 var validBots = bots.Where(b => b.IsValid).ToList();
                 botCount = validBots.Count;
                 
@@ -383,7 +385,12 @@ class Program
         });
         
         services.AddSingleton<ITournamentManager, TournamentManager>();
-        services.AddSingleton<TournamentSeriesManager>();
+        services.AddSingleton<TournamentSeriesManager>(sp =>
+            new TournamentSeriesManager(
+                sp.GetRequiredService<ITournamentManager>(),
+                sp.GetRequiredService<IScoringSystem>(),
+                null, // No event publisher in console
+                sp.GetRequiredService<IBotLoader>()));
         
         // Add application services
         services.AddSingleton<ServiceManager>();

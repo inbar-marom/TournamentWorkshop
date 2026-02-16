@@ -28,7 +28,30 @@ public class BotDashboardServiceTests
         
         var storageLogger = new Mock<ILogger<BotStorageService>>();
         _storageService = new BotStorageService(_testDirectory, storageLogger.Object);
-        _dashboardService = new BotDashboardService(_storageService, _mockBotLoader.Object, _mockLogger.Object);
+        
+        // Create test tournament config
+        var testConfig = new TournamentConfig
+        {
+            MemoryLimitMB = 512,
+            MoveTimeout = TimeSpan.FromSeconds(5)
+        };
+        
+        // Setup default mock for LoadBotFromFolderAsync that extracts team name from folder path
+        _mockBotLoader.Setup(b => b.LoadBotFromFolderAsync(It.IsAny<string>(), It.IsAny<TournamentConfig>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string folderPath, TournamentConfig? config, CancellationToken ct) =>
+            {
+                // Extract team name from folder path (e.g., "C:/.../Team1_v1" -> "Team1")
+                var folderName = Path.GetFileName(folderPath);
+                var teamName = System.Text.RegularExpressions.Regex.Replace(folderName, @"_v\d+$", "");
+                return new BotInfo
+                {
+                    TeamName = teamName,
+                    IsValid = true,
+                    ValidationErrors = new List<string>()
+                };
+            });
+        
+        _dashboardService = new BotDashboardService(_storageService, _mockBotLoader.Object, _mockLogger.Object, testConfig);
     }
 
     [TestCleanup]
@@ -76,6 +99,7 @@ public class BotDashboardServiceTests
         };
 
         await _storageService!.StoreBotAsync(submission1);
+        await Task.Delay(10); // Ensure different timestamps
         await _storageService!.StoreBotAsync(submission2);
 
         // Act
@@ -316,7 +340,7 @@ public class BotDashboardServiceTests
         await _storageService!.StoreBotAsync(submission);
 
         _mockBotLoader!
-            .Setup(b => b.LoadBotFromFolderAsync(It.IsAny<string>(), default))
+            .Setup(b => b.LoadBotFromFolderAsync(It.IsAny<string>(), It.IsAny<TournamentConfig>(), default))
             .ReturnsAsync(new BotInfo { TeamName = "ValidTeam" });
 
         // Act
@@ -324,7 +348,7 @@ public class BotDashboardServiceTests
 
         // Assert
         Assert.IsNotNull(result);
-        _mockBotLoader.Verify(b => b.LoadBotFromFolderAsync(It.IsAny<string>(), default), Times.Once);
+        _mockBotLoader.Verify(b => b.LoadBotFromFolderAsync(It.IsAny<string>(), It.IsAny<TournamentConfig>(), default), Times.Once);
     }
 
     [TestMethod]
