@@ -578,8 +578,10 @@ public class GroupStageTournamentEngine : ITournamentEngine
 
     internal List<Group> CreateInitialGroups(List<IBot> bots)
     {
-        // Backward compatibility: call new method with default config
-        return CreateInitialGroups(bots, new TournamentConfig());
+        // Backward compatibility: use old dynamic behavior (bots.Count / 10)
+        var dynamicGroupCount = Math.Max(1, bots.Count / 10);
+        var config = new TournamentConfig { GroupCount = dynamicGroupCount };
+        return CreateInitialGroups(bots, config);
     }
     
     internal List<Group> CreateInitialGroups(List<IBot> bots, TournamentConfig config)
@@ -593,48 +595,38 @@ public class GroupStageTournamentEngine : ITournamentEngine
         var shuffledBots = new List<IBot>(bots);
         ShuffleInPlace(shuffledBots);
 
-        // Calculate group distribution (handle non-even splits evenly)
-        int groupCount = Math.Min(config.GroupCount, bots.Count); // Don't create more groups than bots
-        int baseBotsPerGroup = bots.Count / groupCount;
-        int remainder = bots.Count % groupCount;
+        // Calculate group count (don't create more groups than bots)
+        int groupCount = Math.Min(config.GroupCount, bots.Count);
         
+        // Create empty groups
         var groups = new List<Group>();
-        int currentIndex = 0;
-        
         for (int i = 0; i < groupCount; i++)
         {
-            // First 'remainder' groups get one extra bot
-            int botsForThisGroup = baseBotsPerGroup + (i < remainder ? 1 : 0);
-            
-            if (currentIndex >= bots.Count)
-                break; // No more bots to assign
-            
-            var groupBots = shuffledBots.Skip(currentIndex).Take(botsForThisGroup).ToList();
-            currentIndex += botsForThisGroup;
-            
-            var group = new Group
+            groups.Add(new Group
             {
                 GroupId = $"Group-{i + 1}",
-                Bots = groupBots,
+                Bots = new List<IBot>(),
                 Standings = new Dictionary<string, GroupStanding>(),
                 IsComplete = false
-            };
-            
-            // Initialize standings for each bot
-            foreach (var bot in groupBots)
+            });
+        }
+        
+        // Distribute bots round-robin style (matches old algorithm exactly)
+        for (int i = 0; i < shuffledBots.Count; i++)
+        {
+            var groupIndex = i % groupCount;
+            var group = groups[groupIndex];
+            var bot = shuffledBots[i];
+            group.Bots.Add(bot);
+            group.Standings[bot.TeamName] = new GroupStanding
             {
-                group.Standings[bot.TeamName] = new GroupStanding
-                {
-                    BotName = bot.TeamName,
-                    Points = 0,
-                    Wins = 0,
-                    Losses = 0,
-                    Draws = 0,
-                    GoalDifferential = 0
-                };
-            }
-            
-            groups.Add(group);
+                BotName = bot.TeamName,
+                Points = 0,
+                Wins = 0,
+                Losses = 0,
+                Draws = 0,
+                GoalDifferential = 0
+            };
         }
         
         Log($"Created {groups.Count} groups with {string.Join(", ", groups.Select(g => g.Bots.Count))} bots each");
