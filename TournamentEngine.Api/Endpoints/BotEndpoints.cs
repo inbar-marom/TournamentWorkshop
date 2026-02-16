@@ -446,7 +446,7 @@ public static class BotEndpoints
 
     /// <summary>
     /// Validate C# file for approved libraries and .NET 8.0 compatibility
-    /// Enforces: approved namespaces, no dangerous APIs, no unsafe code, double semicolons, proper structure
+    /// Enforces: approved namespaces, no dangerous APIs, no unsafe code, double forward slashes at end of lines, proper structure
     /// </summary>
     private static void ValidateCSharpFile(BotFile file, List<string> errors, List<string> warnings)
     {
@@ -458,32 +458,37 @@ public static class BotEndpoints
             warnings.Add($"File {file.FileName} appears to be C# but has no class definitions");
         }
 
-        // CODING RULE: Check for double semicolons (required pattern)
-        // Note: This validates that statements end with ;; instead of single ;
-        // Count total semicolons
-        var singleSemicolonPattern = @"(?<!;);(?!;)"; // Single semicolon not preceded or followed by another semicolon
-        var singleSemicolons = Regex.Matches(code, singleSemicolonPattern);
+        // CODING RULE: Check for double forward slashes at end of lines (required pattern)
+        // Note: This validates that statements end with ; // (semicolon space double-slash)
+        // Look for lines ending with semicolon but NOT followed by space and //
+        var lines = code.Split('\n');
+        var invalidLines = 0;
         
-        if (singleSemicolons.Count > 0)
+        foreach (var line in lines)
         {
-            // Count valid single semicolons in specific contexts
-            var validSingleSemiCount = 0;
+            var trimmed = line.TrimEnd('\r', '\n', ' ', '\t');
             
-            // Using directives - each using has 1 semicolon
-            validSingleSemiCount += Regex.Matches(code, @"using\s+[^;]+;").Count;
-            
-            // For loops - each for loop has 2 semicolons
-            var forLoopMatches = Regex.Matches(code, @"for\s*\([^;]*;[^;]*;[^)]*\)");
-            validSingleSemiCount += forLoopMatches.Count * 2;
-            
-            // Namespace declarations - each namespace has 1 semicolon  
-            validSingleSemiCount += Regex.Matches(code, @"namespace\s+[^;]+;").Count;
-
-            // Check if there are single semicolons outside valid contexts
-            if (singleSemicolons.Count > validSingleSemiCount)
+            // Skip empty lines, using directives, namespace declarations, braces, and for loop headers
+            if (string.IsNullOrWhiteSpace(trimmed) ||
+                trimmed.TrimStart().StartsWith("using ") ||
+                trimmed.TrimStart().StartsWith("namespace ") ||
+                trimmed.Contains("for (") ||
+                trimmed.Trim() == "{" ||
+                trimmed.Trim() == "}")
             {
-                errors.Add($"File {file.FileName} violates double semicolon rule. All statements must end with ';;' (except using directives and for loops)");
+                continue;
             }
+            
+            // If line ends with semicolon, it must be followed by space and //
+            if (trimmed.EndsWith(";") && !trimmed.EndsWith("; //"))
+            {
+                invalidLines++;
+            }
+        }
+        
+        if (invalidLines > 0)
+        {
+            errors.Add($"File {file.FileName} violates double forward slash rule. All statement lines must end with '; //' (except using directives, namespace declarations, and for loops)");
         }
 
         // Check for unsafe code blocks (not allowed)

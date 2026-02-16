@@ -523,82 +523,82 @@ namespace {teamName}Bot
 {{
     public class {teamName}Bot : IBot
     {{
-        private int _moveCount = 0;;
-        private readonly Random _rng = new Random(Guid.NewGuid().GetHashCode() ^ ""{teamName}"".GetHashCode());;
-        private static readonly string[] _rpslsMoves = new[] {{ ""Rock"", ""Paper"", ""Scissors"", ""Lizard"", ""Spock"" }};;
-        private readonly bool _attackBias = {(attackBias ? "true" : "false")};;
-        private readonly bool _leftBias = {(leftBias ? "true" : "false")};;
-        private readonly int _rpslsBias = {rpslsBias};;
+        private int _moveCount = 0; //
+        private readonly Random _rng = new Random(Guid.NewGuid().GetHashCode() ^ ""{teamName}"".GetHashCode()); //
+        private static readonly string[] _rpslsMoves = new[] {{ ""Rock"", ""Paper"", ""Scissors"", ""Lizard"", ""Spock"" }}; //
+        private readonly bool _attackBias = {(attackBias ? "true" : "false")}; //
+        private readonly bool _leftBias = {(leftBias ? "true" : "false")}; //
+        private readonly int _rpslsBias = {rpslsBias}; //
         
-        public string TeamName => ""{teamName}"";;
-        public GameType GameType => GameType.RPSLS;;
+        public string TeamName => ""{teamName}""; //
+        public GameType GameType => GameType.RPSLS; //
 
         public Task<string> MakeMove(GameState gameState, CancellationToken cancellationToken)
         {{
             // Randomized RPSLS with team-specific bias
-            _moveCount++;;
-            var roll = _rng.NextDouble();;
+            _moveCount++; //
+            var roll = _rng.NextDouble(); //
 
             if (roll < 0.45)
             {{
-                return Task.FromResult(_rpslsMoves[_rpslsBias]);;
+                return Task.FromResult(_rpslsMoves[_rpslsBias]); //
             }}
 
             if (roll < 0.80)
             {{
-                var altIndex = (_rpslsBias + (_moveCount % 4) + 1) % _rpslsMoves.Length;;
-                return Task.FromResult(_rpslsMoves[altIndex]);;
+                var altIndex = (_rpslsBias + (_moveCount % 4) + 1) % _rpslsMoves.Length; //
+                return Task.FromResult(_rpslsMoves[altIndex]); //
             }}
 
-            return Task.FromResult(_rpslsMoves[_rng.Next(_rpslsMoves.Length)]);;
+            return Task.FromResult(_rpslsMoves[_rng.Next(_rpslsMoves.Length)]); //
         }}
 
         public Task<int[]> AllocateTroops(GameState gameState, CancellationToken cancellationToken)
         {{
-            return Task.FromResult(CreateRandomAllocation());;
+            return Task.FromResult(CreateRandomAllocation()); //
         }}
 
         public Task<string> MakePenaltyDecision(GameState gameState, CancellationToken cancellationToken)
         {{
             // Penalty Kicks: Left, Center, or Right
-            var roll = _rng.NextDouble();;
+            var roll = _rng.NextDouble(); //
             if (_leftBias)
             {{
                 // Left-biased strategy
-                if (roll < 0.50) return Task.FromResult(""Left"");;
-                if (roll < 0.75) return Task.FromResult(""Center"");;
-                return Task.FromResult(""Right"");;
+                if (roll < 0.50) return Task.FromResult(""Left""); //
+                if (roll < 0.75) return Task.FromResult(""Center""); //
+                return Task.FromResult(""Right""); //
             }}
 
             // Right-biased strategy  
-            if (roll < 0.20) return Task.FromResult(""Left"");;
-            if (roll < 0.45) return Task.FromResult(""Center"");;
-            return Task.FromResult(""Right"");;
+            if (roll < 0.20) return Task.FromResult(""Left""); //
+            if (roll < 0.45) return Task.FromResult(""Center""); //
+            return Task.FromResult(""Right""); //
         }}
 
         public Task<string> MakeSecurityMove(GameState gameState, CancellationToken cancellationToken)
         {{
             // Security Game: Check role and respond accordingly
-            var role = gameState.State.TryGetValue(""Role"", out var r) ? r?.ToString() : ""Attacker"";;
+            var role = gameState.State.TryGetValue(""Role"", out var r) ? r?.ToString() : ""Attacker""; //
             
             if (role == ""Attacker"")
             {{
                 // Choose target index (0, 1, or 2)
                 // Higher value targets are more attractive but may be more defended
-                var roll = _rng.NextDouble();;
+                var roll = _rng.NextDouble(); //
                 if (_attackBias)
                 {{
                     // Aggressive: favor high-value targets
-                    if (roll < 0.15) return Task.FromResult(""0"");;  // Target 0 (value 10)
-                    if (roll < 0.40) return Task.FromResult(""1"");;  // Target 1 (value 20)
-                    return Task.FromResult(""2"");;                   // Target 2 (value 30)
+                    if (roll < 0.15) return Task.FromResult(""0""); //  // Target 0 (value 10)
+                    if (roll < 0.40) return Task.FromResult(""1""); //  // Target 1 (value 20)
+                    return Task.FromResult(""2""); //                   // Target 2 (value 30)
                 }}
                 else
                 {{
                     // Balanced approach
-                    if (roll < 0.30) return Task.FromResult(""0"");;
-                    if (roll < 0.65) return Task.FromResult(""1"");;
-                    return Task.FromResult(""2"");;
+                    if (roll < 0.30) return Task.FromResult(""0""); //
+                    if (roll < 0.65) return Task.FromResult(""1""); //
+                    return Task.FromResult(""2""); //
                 }}
             }}
             else // Defender
@@ -608,55 +608,55 @@ namespace {teamName}Bot
                 if (_leftBias)
                 {{
                     // Protect high-value targets heavily
-                    return Task.FromResult(""2,8,20"");;  // Heavy defense on target 2
+                    return Task.FromResult(""2,8,20""); //  // Heavy defense on target 2
                 }}
                 else if (_attackBias)
                 {{
                     // Balanced defense
-                    return Task.FromResult(""5,10,15"");;
+                    return Task.FromResult(""5,10,15""); //
                 }}
                 else
                 {{
                     // Random distribution (still sums to 30)
-                    var allocations = new int[3];;
-                    var remaining = 30;;
+                    var allocations = new int[3]; //
+                    var remaining = 30; //
                     for (int i = 0; i < 2; i++)
                     {{
-                        allocations[i] = _rng.Next(0, remaining + 1);;
-                        remaining -= allocations[i];;
+                        allocations[i] = _rng.Next(0, remaining + 1); //
+                        remaining -= allocations[i]; //
                     }}
-                    allocations[2] = remaining;;
-                    return Task.FromResult($""{{allocations[0]}},{{allocations[1]}},{{allocations[2]}}"");;
+                    allocations[2] = remaining; //
+                    return Task.FromResult($""{{allocations[0]}},{{allocations[1]}},{{allocations[2]}}""); //
                 }}
             }}
         }}
 
         private int[] CreateRandomAllocation()
         {{
-            const int battlefields = 5;;
-            const int totalTroops = 100;;
-            const int minPerField = 5;;
+            const int battlefields = 5; //
+            const int totalTroops = 100; //
+            const int minPerField = 5; //
 
-            var allocation = new int[battlefields];;
-            var remaining = totalTroops;;
+            var allocation = new int[battlefields]; //
+            var remaining = totalTroops; //
 
             for (int i = 0; i < battlefields - 1; i++)
             {{
-                var maxForField = remaining - ((battlefields - i - 1) * minPerField);;
-                allocation[i] = _rng.Next(minPerField, maxForField + 1);;
-                remaining -= allocation[i];;
+                var maxForField = remaining - ((battlefields - i - 1) * minPerField); //
+                allocation[i] = _rng.Next(minPerField, maxForField + 1); //
+                remaining -= allocation[i]; //
             }}
 
-            allocation[battlefields - 1] = remaining;;
+            allocation[battlefields - 1] = remaining; //
 
             // Shuffle so the heavy field is not always in the same index
             for (int i = allocation.Length - 1; i > 0; i--)
             {{
-                var j = _rng.Next(i + 1);;
-                (allocation[i], allocation[j]) = (allocation[j], allocation[i]);;
+                var j = _rng.Next(i + 1); //
+                (allocation[i], allocation[j]) = (allocation[j], allocation[i]); //
             }}
 
-            return allocation;;
+            return allocation; //
         }}
     }}
 }}
@@ -672,7 +672,7 @@ namespace BotHelpers
     {
         public static int CalculateScore(int wins, int draws)
         {
-            return wins * 2 + draws;;
+            return wins * 2 + draws; //
         }
     }
 }

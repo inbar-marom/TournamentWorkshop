@@ -4,6 +4,8 @@
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Prevent content files from referenced projects from being copied -->
+    <ExcludeContentFilesFromProjects>true</ExcludeContentFilesFromProjects>
   </PropertyGroup>
 
   <ItemGroup>
@@ -13,7 +15,18 @@
 
   <ItemGroup>
     <ProjectReference Include="..\TournamentEngine.Core\TournamentEngine.Core.csproj" />
-    <ProjectReference Include="..\TournamentEngine.Api\TournamentEngine.Api.csproj" />
+    <ProjectReference Include="..\TournamentEngine.Api\TournamentEngine.Api.csproj">
+      <PrivateAssets>contentfiles;build</PrivateAssets>
+    </ProjectReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Exclude bot files from compilation - they're loaded dynamically at runtime -->
+    <Compile Remove="bots\**\*.cs" />
+    <!-- Include bot files as content to copy to output -->
+    <Content Include="bots\**\*.cs">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
 </Project>

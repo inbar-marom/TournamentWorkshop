@@ -119,9 +119,10 @@ builder.Services.AddSingleton<ResponsiveLayoutService>();
 builder.Services.AddSingleton<SeriesDashboardViewService>();
 
 // Configure to listen on all network interfaces for remote access
+// Default to HTTP only (no HTTPS certificate required)
 if (string.IsNullOrWhiteSpace(builder.Configuration["ASPNETCORE_URLS"]))
 {
-    builder.WebHost.UseUrls("http://0.0.0.0:5000", "https://0.0.0.0:5001");
+    builder.WebHost.UseUrls("http://0.0.0.0:5000");
 }
 
 var app = builder.Build();
