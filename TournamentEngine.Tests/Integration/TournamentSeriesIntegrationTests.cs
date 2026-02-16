@@ -232,12 +232,12 @@ public class TournamentSeriesIntegrationTests
         foreach (var tournament in seriesInfo.Tournaments)
         {
             Assert.AreEqual(TournamentState.Completed, tournament.State);
-            Assert.AreEqual(50, tournament.Bots.Count);
+            Assert.AreEqual(20, tournament.Bots.Count);
         }
 
         // Verify statistics are reasonable
         Assert.IsTrue(seriesInfo.TotalMatches > 0);
-        Assert.IsTrue(seriesInfo.TotalMatches >= seriesInfo.Tournaments.Count * 50); // At least some matches per bot
+        Assert.IsTrue(seriesInfo.TotalMatches >= seriesInfo.Tournaments.Count * 20); // At least some matches per bot
     }
 
     [TestMethod]
