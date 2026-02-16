@@ -87,13 +87,19 @@ public class MemoryMonitoredBot : IBot
     /// </summary>
     private async Task<T> ExecuteWithMemoryTracking<T>(Func<Task<T>> botMethod, string methodName)
     {
+        // Force two GC cycles to establish a clean, consistent baseline
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+        
         // Capture memory before execution
         var memoryBefore = GC.GetTotalMemory(forceFullCollection: false);
 
         // Execute bot method
         var result = await botMethod();
 
-        // Capture memory after execution
+        // Capture memory after execution to include all allocations
+        // Note: Not forcing GC here to capture the actual memory impact
         var memoryAfter = GC.GetTotalMemory(forceFullCollection: false);
 
         // Calculate delta (only count positive changes - memory growth)
