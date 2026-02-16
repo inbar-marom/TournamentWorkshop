@@ -87,15 +87,31 @@ public class MultiGameTournament
                 continue; // Only count completed events
             }
             
-            // Get scores for this event (to be implemented based on scoring system)
-            // For now, placeholder logic
-            foreach (var bot in eventInfo.Bots)
+            // Count wins for each bot in this event
+            foreach (var matchResult in eventInfo.MatchResults)
             {
-                if (!aggregateScores.ContainsKey(bot.TeamName))
+                // Initialize bot entries if needed
+                if (!aggregateScores.ContainsKey(matchResult.Bot1Name))
                 {
-                    aggregateScores[bot.TeamName] = 0;
+                    aggregateScores[matchResult.Bot1Name] = 0;
                 }
-                // Score calculation will be implemented in Sub-Phase 3.4
+                if (!aggregateScores.ContainsKey(matchResult.Bot2Name))
+                {
+                    aggregateScores[matchResult.Bot2Name] = 0;
+                }
+                
+                // Award points based on outcome (1 point per win, 0 for draw/loss)
+                if (matchResult.Outcome == MatchOutcome.Player1Wins || 
+                    matchResult.WinnerName == matchResult.Bot1Name)
+                {
+                    aggregateScores[matchResult.Bot1Name]++;
+                }
+                else if (matchResult.Outcome == MatchOutcome.Player2Wins || 
+                         matchResult.WinnerName == matchResult.Bot2Name)
+                {
+                    aggregateScores[matchResult.Bot2Name]++;
+                }
+                // Draw: no points awarded to either bot
             }
         }
         

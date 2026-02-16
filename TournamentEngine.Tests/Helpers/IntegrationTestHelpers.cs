@@ -119,6 +119,7 @@ public class Bot{botNumber} : IBot
 
     /// <summary>
     /// Creates a standard tournament configuration for integration testing.
+    /// Uses GroupCount=1 to ensure all bots compete in a single group for predictable test behavior.
     /// </summary>
     public static TournamentConfig CreateConfig()
     {
@@ -131,7 +132,8 @@ public class Bot{botNumber} : IBot
             LogLevel = "INFO",
             LogFilePath = "tournament.log",
             BotsDirectory = "demo_bots",
-            ResultsFilePath = "results.json"
+            ResultsFilePath = "results.json",
+            GroupCount = 1 //
         };
     }
 

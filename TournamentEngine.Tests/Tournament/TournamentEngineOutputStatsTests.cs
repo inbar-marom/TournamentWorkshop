@@ -39,9 +39,20 @@ public class TournamentEngineOutputStatsTests
     [TestMethod]
     public void GetRemainingBots_AfterAdvanceToFinalGroup_ShouldReturnFinalists()
     {
-        // Arrange
+        // Arrange - 20 bots with GroupCount=2 -> 2 groups of 10 -> 2 winners
         var bots = TestHelpers.CreateDummyBotInfos(20, GameType.RPSLS);
-        var config = TestHelpers.CreateDefaultConfig();
+        var config = new TournamentConfig
+        {
+            ImportTimeout = TimeSpan.FromSeconds(5),
+            MoveTimeout = TimeSpan.FromSeconds(1),
+            MemoryLimitMB = 512,
+            MaxRoundsRPSLS = 50,
+            LogLevel = "INFO",
+            LogFilePath = "test_tournament.log",
+            BotsDirectory = "test_bots",
+            ResultsFilePath = "test_results.json",
+            GroupCount = 2 //
+        };
         _engine.InitializeTournament(bots, GameType.RPSLS, config);
         RecordAllCurrentMatchesAsPlayer1Wins();
 
@@ -58,7 +69,18 @@ public class TournamentEngineOutputStatsTests
     {
         // Arrange
         var bots = TestHelpers.CreateDummyBotInfos(20, GameType.RPSLS);
-        var config = TestHelpers.CreateDefaultConfig();
+        var config = new TournamentConfig
+        {
+            ImportTimeout = TimeSpan.FromSeconds(5),
+            MoveTimeout = TimeSpan.FromSeconds(1),
+            MemoryLimitMB = 512,
+            MaxRoundsRPSLS = 50,
+            LogLevel = "INFO",
+            LogFilePath = "test_tournament.log",
+            BotsDirectory = "test_bots",
+            ResultsFilePath = "test_results.json",
+            GroupCount = 2 //
+        };
         var scoringSystem = new RecordingScoringSystem();
         _engine = new GroupStageTournamentEngine(_mockGameRunner, scoringSystem);
         _engine.InitializeTournament(bots, GameType.RPSLS, config);

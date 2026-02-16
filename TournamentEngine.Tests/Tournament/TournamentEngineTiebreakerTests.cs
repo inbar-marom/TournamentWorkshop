@@ -26,9 +26,20 @@ public class TournamentEngineTiebreakerTests
     [TestMethod]
     public void AdvanceToNextRound_AfterFinalGroupTie_ShouldQueueTiebreakerMatch()
     {
-        // Arrange - 20 bots -> 2 groups -> final group has 2 bots
+        // Arrange - 20 bots with GroupCount=2 -> 2 groups of 10 -> final group has 2 bots
         var bots = TestHelpers.CreateDummyBotInfos(20, GameType.RPSLS);
-        var config = TestHelpers.CreateDefaultConfig();
+        var config = new TournamentConfig
+        {
+            ImportTimeout = TimeSpan.FromSeconds(5),
+            MoveTimeout = TimeSpan.FromSeconds(1),
+            MemoryLimitMB = 512,
+            MaxRoundsRPSLS = 50,
+            LogLevel = "INFO",
+            LogFilePath = "test_tournament.log",
+            BotsDirectory = "test_bots",
+            ResultsFilePath = "test_results.json",
+            GroupCount = 2 //
+        };
         _engine.InitializeTournament(bots, GameType.RPSLS, config);
         RecordAllCurrentMatchesAsPlayer1Wins();
         _engine.AdvanceToNextRound();
@@ -49,9 +60,20 @@ public class TournamentEngineTiebreakerTests
     [TestMethod]
     public void AdvanceToNextRound_AfterFinalGroupTie_ShouldNotCompleteTournament()
     {
-        // Arrange - 20 bots -> 2 groups -> final group has 2 bots
+        // Arrange - 20 bots with GroupCount=2 -> 2 groups of 10 -> final group has 2 bots
         var bots = TestHelpers.CreateDummyBotInfos(20, GameType.RPSLS);
-        var config = TestHelpers.CreateDefaultConfig();
+        var config = new TournamentConfig
+        {
+            ImportTimeout = TimeSpan.FromSeconds(5),
+            MoveTimeout = TimeSpan.FromSeconds(1),
+            MemoryLimitMB = 512,
+            MaxRoundsRPSLS = 50,
+            LogLevel = "INFO",
+            LogFilePath = "test_tournament.log",
+            BotsDirectory = "test_bots",
+            ResultsFilePath = "test_results.json",
+            GroupCount = 2 //
+        };
         _engine.InitializeTournament(bots, GameType.RPSLS, config);
         RecordAllCurrentMatchesAsPlayer1Wins();
         _engine.AdvanceToNextRound();

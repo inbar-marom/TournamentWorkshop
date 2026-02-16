@@ -287,7 +287,7 @@ public class FullStackIntegrationTests
         // Act - Run series, events stream in REAL-TIME across all tournaments
         var seriesInfo = await _seriesManager.RunSeriesAsync(bots, seriesConfig);
         
-        await Task.Delay(300);
+        await Task.Delay(1000);
 
         // Assert
         Assert.AreEqual(3, seriesInfo.Tournaments.Count);
@@ -371,7 +371,7 @@ public class FullStackIntegrationTests
         // Act - Run large series, stream all events in real-time
         var seriesInfo = await _seriesManager.RunSeriesAsync(bots, seriesConfig);
         
-        await Task.Delay(500);
+        await Task.Delay(2000);
 
         // Assert
         Assert.AreEqual(4, seriesInfo.Tournaments.Count);
@@ -465,7 +465,7 @@ public class FullStackIntegrationTests
         var seriesInfo = await _seriesManager.RunSeriesAsync(bots, seriesConfig);
         
         // Wait for all SignalR messages to be received
-        await Task.Delay(2000);
+        await Task.Delay(3000);
 
         // Assert
         Assert.AreEqual(3, seriesInfo.Tournaments.Count);

@@ -26,9 +26,20 @@ public class TournamentEnginePhaseProgressionTests
     [TestMethod]
     public void AdvanceToNextRound_AfterInitialGroups_ShouldCreateFinalGroupMatches()
     {
-        // Arrange
+        // Arrange - 20 bots with GroupCount=2 -> 2 groups of 10 -> 2 winners -> 1 match
         var bots = TestHelpers.CreateDummyBotInfos(20, GameType.RPSLS);
-        var config = TestHelpers.CreateDefaultConfig();
+        var config = new TournamentConfig
+        {
+            ImportTimeout = TimeSpan.FromSeconds(5),
+            MoveTimeout = TimeSpan.FromSeconds(1),
+            MemoryLimitMB = 512,
+            MaxRoundsRPSLS = 50,
+            LogLevel = "INFO",
+            LogFilePath = "test_tournament.log",
+            BotsDirectory = "test_bots",
+            ResultsFilePath = "test_results.json",
+            GroupCount = 2 //
+        };
         _engine.InitializeTournament(bots, GameType.RPSLS, config);
         RecordAllCurrentMatchesAsPlayer1Wins();
 
@@ -45,7 +56,18 @@ public class TournamentEnginePhaseProgressionTests
     {
         // Arrange
         var bots = TestHelpers.CreateDummyBotInfos(20, GameType.RPSLS);
-        var config = TestHelpers.CreateDefaultConfig();
+        var config = new TournamentConfig
+        {
+            ImportTimeout = TimeSpan.FromSeconds(5),
+            MoveTimeout = TimeSpan.FromSeconds(1),
+            MemoryLimitMB = 512,
+            MaxRoundsRPSLS = 50,
+            LogLevel = "INFO",
+            LogFilePath = "test_tournament.log",
+            BotsDirectory = "test_bots",
+            ResultsFilePath = "test_results.json",
+            GroupCount = 2 //
+        };
         _engine.InitializeTournament(bots, GameType.RPSLS, config);
         RecordAllCurrentMatchesAsPlayer1Wins();
         _engine.AdvanceToNextRound();

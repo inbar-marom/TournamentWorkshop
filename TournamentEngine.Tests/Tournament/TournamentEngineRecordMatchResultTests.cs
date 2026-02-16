@@ -115,9 +115,20 @@ public class TournamentEngineRecordMatchResultTests
     [TestMethod]
     public void RecordMatchResult_Player1Wins_ShouldAward3PointsToWinnerAndIncrementWins()
     {
-        // Arrange
+        // Arrange - Use GroupCount=1 to ensure all 10 bots play each other
         var bots = TestHelpers.CreateDummyBotInfos(10, GameType.RPSLS);
-        var config = TestHelpers.CreateDefaultConfig();
+        var config = new TournamentConfig
+        {
+            ImportTimeout = TimeSpan.FromSeconds(5),
+            MoveTimeout = TimeSpan.FromSeconds(1),
+            MemoryLimitMB = 512,
+            MaxRoundsRPSLS = 50,
+            LogLevel = "INFO",
+            LogFilePath = "test_tournament.log",
+            BotsDirectory = "test_bots",
+            ResultsFilePath = "test_results.json",
+            GroupCount = 1 //
+        };
         _engine.InitializeTournament(bots, GameType.RPSLS, config);
         var matches = _engine.GetNextMatches();
         var firstMatch = matches[0];
@@ -135,9 +146,20 @@ public class TournamentEngineRecordMatchResultTests
     [TestMethod]
     public void RecordMatchResult_ShouldRemoveFromPendingMatches()
     {
-        // Arrange
+        // Arrange - Use GroupCount=1 to ensure all 10 bots play each other
         var bots = TestHelpers.CreateDummyBotInfos(10, GameType.RPSLS);
-        var config = TestHelpers.CreateDefaultConfig();
+        var config = new TournamentConfig
+        {
+            ImportTimeout = TimeSpan.FromSeconds(5),
+            MoveTimeout = TimeSpan.FromSeconds(1),
+            MemoryLimitMB = 512,
+            MaxRoundsRPSLS = 50,
+            LogLevel = "INFO",
+            LogFilePath = "test_tournament.log",
+            BotsDirectory = "test_bots",
+            ResultsFilePath = "test_results.json",
+            GroupCount = 1 //
+        };
         _engine.InitializeTournament(bots, GameType.RPSLS, config);
         var matchesBefore = _engine.GetNextMatches();
         var countBefore = matchesBefore.Count;

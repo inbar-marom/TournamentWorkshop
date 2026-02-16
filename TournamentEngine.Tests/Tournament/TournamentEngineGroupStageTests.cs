@@ -46,7 +46,7 @@ public class TournamentEngineGroupStageTests
     [TestMethod]
     public void GetNextMatches_With20Bots_ShouldReturnCorrectNumberOfMatches()
     {
-        // Arrange - 20 bots divided into 2 groups of 10 = 2 * (10*9/2) = 90 matches total
+        // Arrange - 20 bots with GroupCount=10 → 10 groups of 2 bots each = 10 * 1 match = 10 matches total
         var bots = TestHelpers.CreateDummyBotInfos(20, GameType.RPSLS);
         var config = TestHelpers.CreateDefaultConfig();
         _engine.InitializeTournament(bots, GameType.RPSLS, config);
@@ -55,13 +55,13 @@ public class TournamentEngineGroupStageTests
         var matches = _engine.GetNextMatches();
 
         // Assert
-        Assert.AreEqual(90, matches.Count, "20 bots in 2 groups of 10 should generate 90 round-robin matches");
+        Assert.AreEqual(10, matches.Count, "20 bots in 10 groups of 2 should generate 10 round-robin matches");
     }
 
     [TestMethod]
     public void GetNextMatches_With60Bots_ShouldReturnCorrectNumberOfMatches()
     {
-        // Arrange - 60 bots divided into 6 groups of 10 = 6 * (10*9/2) = 270 matches total
+        // Arrange - 60 bots with GroupCount=10 → 10 groups of 6 bots each = 10 * 15 matches = 150 matches total
         var bots = TestHelpers.CreateDummyBotInfos(60, GameType.RPSLS);
         var config = TestHelpers.CreateDefaultConfig();
         _engine.InitializeTournament(bots, GameType.RPSLS, config);
@@ -70,7 +70,7 @@ public class TournamentEngineGroupStageTests
         var matches = _engine.GetNextMatches();
 
         // Assert
-        Assert.AreEqual(270, matches.Count, "60 bots in 6 groups of 10 should generate 270 round-robin matches");
+        Assert.AreEqual(150, matches.Count, "60 bots in 10 groups of 6 should generate 150 round-robin matches");
     }
 
     [TestMethod]
@@ -115,61 +115,6 @@ public class TournamentEngineGroupStageTests
             Assert.AreNotEqual(bot1.TeamName, bot2.TeamName, 
                 "Bot should not be matched against itself");
         }
-    }
-
-    #endregion
-
-    #region Group Creation Tests
-
-    [TestMethod]
-    public void CreateInitialGroups_With30Bots_ShouldCreate3Groups()
-    {
-        // Arrange
-        var bots = TestHelpers.CreateDummyBots(30, GameType.RPSLS);
-
-        // Act
-        var groups = _engine.CreateInitialGroups(bots);
-
-        // Assert
-        Assert.AreEqual(3, groups.Count, "30 bots should create 3 groups");
-        foreach (var group in groups)
-        {
-            Assert.AreEqual(10, group.Bots.Count, "Each group should have 10 bots");
-        }
-    }
-
-    [TestMethod]
-    public void CreateInitialGroups_With60Bots_ShouldCreate6Groups()
-    {
-        // Arrange
-        var bots = TestHelpers.CreateDummyBots(60, GameType.RPSLS);
-
-        // Act
-        var groups = _engine.CreateInitialGroups(bots);
-
-        // Assert
-        Assert.AreEqual(6, groups.Count, "60 bots should create 6 groups");
-        foreach (var group in groups)
-        {
-            Assert.AreEqual(10, group.Bots.Count, "Each group should have 10 bots");
-        }
-    }
-
-    [TestMethod]
-    public void CreateInitialGroups_With65Bots_ShouldDistributeEvenly()
-    {
-        // Arrange
-        var bots = TestHelpers.CreateDummyBots(65, GameType.RPSLS);
-
-        // Act
-        var groups = _engine.CreateInitialGroups(bots);
-
-        // Assert
-        Assert.AreEqual(6, groups.Count, "65 bots should create 6 groups");
-        var sizes = groups.Select(group => group.Bots.Count).ToList();
-        var min = sizes.Min();
-        var max = sizes.Max();
-        Assert.IsTrue(max - min <= 1, "Group sizes should differ by at most 1 bot");
     }
 
     #endregion
@@ -256,8 +201,8 @@ public class TournamentEngineGroupStageTests
 
         // Assert
         Assert.IsNotNull(matches);
-        // 30 bots in 3 groups of 10 = 3 * 45 = 135 matches
-        Assert.AreEqual(135, matches.Count);
+        // 30 bots with GroupCount=10 → 10 groups of 3 bots = 10 * 3 = 30 matches
+        Assert.AreEqual(30, matches.Count);
     }
 
     [TestMethod]
@@ -280,9 +225,20 @@ public class TournamentEngineGroupStageTests
     [TestMethod]
     public void GetNextMatches_AllBotsInGroup_ShouldPlayEachOtherExactlyOnce()
     {
-        // Arrange
+        // Arrange - Use GroupCount=1 to put all 10 bots in one group
         var bots = TestHelpers.CreateDummyBotInfos(10, GameType.RPSLS);
-        var config = TestHelpers.CreateDefaultConfig();
+        var config = new TournamentConfig
+        {
+            ImportTimeout = TimeSpan.FromSeconds(5),
+            MoveTimeout = TimeSpan.FromSeconds(1),
+            MemoryLimitMB = 512,
+            MaxRoundsRPSLS = 50,
+            LogLevel = "INFO",
+            LogFilePath = "test_tournament.log",
+            BotsDirectory = "test_bots",
+            ResultsFilePath = "test_results.json",
+            GroupCount = 1 //
+        };
         _engine.InitializeTournament(bots, GameType.RPSLS, config);
 
         // Act
@@ -301,7 +257,7 @@ public class TournamentEngineGroupStageTests
             botMatchCount[bot2.TeamName]++;
         }
 
-        // In round-robin with 10 bots, each bot should play 9 matches
+        // In round-robin with 10 bots in 1 group, each bot should play 9 matches
         foreach (var count in botMatchCount.Values)
         {
             Assert.AreEqual(9, count, "Each bot should play exactly 9 matches in a group of 10");
@@ -315,24 +271,35 @@ public class TournamentEngineGroupStageTests
     [TestMethod]
     public void GetNextMatches_With2Bots_ShouldReturnSingleMatch()
     {
-        // Arrange - minimum viable tournament
+        // Arrange - minimum viable tournament - use GroupCount=1 to put both bots in one group
         var bots = TestHelpers.CreateDummyBotInfos(2, GameType.RPSLS);
-        var config = TestHelpers.CreateDefaultConfig();
+        var config = new TournamentConfig
+        {
+            ImportTimeout = TimeSpan.FromSeconds(5),
+            MoveTimeout = TimeSpan.FromSeconds(1),
+            MemoryLimitMB = 512,
+            MaxRoundsRPSLS = 50,
+            LogLevel = "INFO",
+            LogFilePath = "test_tournament.log",
+            BotsDirectory = "test_bots",
+            ResultsFilePath = "test_results.json",
+            GroupCount = 1 //
+        };
         _engine.InitializeTournament(bots, GameType.RPSLS, config);
 
         // Act
         var matches = _engine.GetNextMatches();
 
         // Assert
-        Assert.AreEqual(1, matches.Count, "2 bots should result in exactly 1 match");
+        Assert.AreEqual(1, matches.Count, "2 bots in 1 group should result in exactly 1 match");
     }
 
     [TestMethod]
     public void GetNextMatches_With120Bots_ShouldGenerateCorrectNumberOfMatches()
     {
         // Arrange - maximum expected tournament size
-        // 120 bots / 10 = 12 groups of 10 bots
-        // 12 groups * 45 matches each = 540 matches total
+        // 120 bots with GroupCount=10 → 10 groups of 12 bots each
+        // 10 groups * (12*11/2) matches each = 10 * 66 = 660 matches total
         var bots = TestHelpers.CreateDummyBotInfos(120, GameType.RPSLS);
         var config = TestHelpers.CreateDefaultConfig();
         _engine.InitializeTournament(bots, GameType.RPSLS, config);
@@ -341,7 +308,7 @@ public class TournamentEngineGroupStageTests
         var matches = _engine.GetNextMatches();
 
         // Assert
-        Assert.AreEqual(540, matches.Count);
+        Assert.AreEqual(660, matches.Count);
     }
 
     #endregion

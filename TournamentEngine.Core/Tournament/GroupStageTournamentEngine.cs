@@ -575,14 +575,6 @@ public class GroupStageTournamentEngine : ITournamentEngine
             BotInstance = null
         }, _tournamentInfo.GameType);
     }
-
-    internal List<Group> CreateInitialGroups(List<IBot> bots)
-    {
-        // Backward compatibility: use old dynamic behavior (bots.Count / 10)
-        var dynamicGroupCount = Math.Max(1, bots.Count / 10);
-        var config = new TournamentConfig { GroupCount = dynamicGroupCount };
-        return CreateInitialGroups(bots, config);
-    }
     
     internal List<Group> CreateInitialGroups(List<IBot> bots, TournamentConfig config)
     {
