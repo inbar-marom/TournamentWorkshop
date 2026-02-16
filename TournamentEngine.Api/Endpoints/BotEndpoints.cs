@@ -129,6 +129,23 @@ public static class BotEndpoints
             });
         }
 
+        // Run enhanced validation (same as verify endpoint)
+        var validationErrors = new List<string>();
+        var validationWarnings = new List<string>();
+        ValidateAllFiles(request.Files, validationErrors, validationWarnings);
+
+        if (validationErrors.Count > 0)
+        {
+            logger.LogWarning("Bot submission validation failed for team {TeamName}: {ErrorCount} errors", request.TeamName, validationErrors.Count);
+            return Results.BadRequest(new BotSubmissionResult
+            {
+                Success = false,
+                TeamName = request.TeamName,
+                Message = "Bot validation failed",
+                Errors = validationErrors
+            });
+        }
+
         // Attempt to store bot
         var result = await botStorage.StoreBotAsync(request);
 
@@ -283,7 +300,56 @@ public static class BotEndpoints
     }
 
     /// <summary>
+    /// Approved .NET namespaces for bot safety
+    /// </summary>
+    private static readonly HashSet<string> ApprovedNamespaces = new()
+    {
+        "System",
+        "System.Collections.Generic",
+        "System.Linq",
+        "System.Text",
+        "System.Numerics",
+        "System.Threading",
+        "System.IO",
+        "System.Text.RegularExpressions",
+        "System.Diagnostics"
+    };
+
+    /// <summary>
+    /// Shared validation logic for all bot file submissions
+    /// Validates file types, content, approved libraries, and coding rules
+    /// </summary>
+    private static void ValidateAllFiles(List<BotFile> files, List<string> errors, List<string> warnings)
+    {
+        foreach (var file in files)
+        {
+            if (string.IsNullOrWhiteSpace(file.Code))
+            {
+                errors.Add($"File {file.FileName} is empty");
+                continue;
+            }
+
+            // C# file validation
+            if (file.FileName.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+            {
+                ValidateCSharpFile(file, errors, warnings);
+            }
+            // Only C# is supported - reject other file types
+            else if (file.FileName.EndsWith(".py", StringComparison.OrdinalIgnoreCase))
+            {
+                errors.Add($"File {file.FileName} is Python (.py) but only C# (.cs) files are supported");
+            }
+            else if (!file.FileName.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+            {
+                errors.Add($"File {file.FileName} has unsupported extension. Only C# (.cs) files are accepted");
+            }
+        }
+    }
+
+    /// <summary>
     /// POST /api/bots/verify - Verify a bot before submission
+    /// Enhanced validation including .NET library checks and syntax validation
+    /// NOTE: Only C# (.cs) files are supported - Python is NOT supported
     /// </summary>
     private static async Task<IResult> VerifyBot(
         BotVerificationRequest request,
@@ -345,21 +411,13 @@ public static class BotEndpoints
             errors.Add("Duplicate file names detected");
         }
 
-        // Basic syntax/structure validation (simplified - just check for common issues)
-        foreach (var file in request.Files)
+        // Run enhanced validation
+        ValidateAllFiles(request.Files, errors, warnings);
+
+        // Game-type specific validation (if specified)
+        if (request.GameType.HasValue)
         {
-            if (string.IsNullOrWhiteSpace(file.Code))
-            {
-                errors.Add($"File {file.FileName} is empty");
-            }
-            else if (file.FileName.EndsWith(".py") && !file.Code.Contains("def "))
-            {
-                warnings.Add($"File {file.FileName} appears to be Python but has no function definitions");
-            }
-            else if (file.FileName.EndsWith(".cs") && !file.Code.Contains("class "))
-            {
-                warnings.Add($"File {file.FileName} appears to be C# but has no class definitions");
-            }
+            ValidateForGameType(request.GameType.Value, request.Files, warnings);
         }
 
         if (errors.Count > 0)
@@ -382,5 +440,152 @@ public static class BotEndpoints
             Errors = new(),
             Warnings = warnings
         });
+    }
+
+    /// <summary>
+    /// Validate C# file for approved libraries and .NET 8.0 compatibility
+    /// Enforces: approved namespaces, no dangerous APIs, no unsafe code, double semicolons, proper structure
+    /// </summary>
+    private static void ValidateCSharpFile(BotFile file, List<string> errors, List<string> warnings)
+    {
+        var code = file.Code;
+
+        // Check for basic C# structure
+        if (!code.Contains("class "))
+        {
+            warnings.Add($"File {file.FileName} appears to be C# but has no class definitions");
+        }
+
+        // CODING RULE: Check for double semicolons (required pattern)
+        // Note: This validates that statements end with ;; instead of single ;
+        // Count total semicolons
+        var singleSemicolonPattern = @"(?<!;);(?!;)"; // Single semicolon not preceded or followed by another semicolon
+        var singleSemicolons = Regex.Matches(code, singleSemicolonPattern);
+        
+        if (singleSemicolons.Count > 0)
+        {
+            // Allow single semicolons in specific contexts (using directives, for loops)
+            var validSingleSemicolonContexts = new[]
+            {
+                @"using\s+[^;]+;",           // using directives
+                @"for\s*\([^;]*;[^;]*;[^)]*\)", // for loop
+                @"namespace\s+[^;]+;"        // namespace (rare but valid)
+            };
+
+            var validSingleSemiCount = validSingleSemicolonContexts
+                .Sum(pattern => Regex.Matches(code, pattern).Count);
+
+            // Check if there are single semicolons outside valid contexts
+            if (singleSemicolons.Count > validSingleSemiCount)
+            {
+                errors.Add($"File {file.FileName} violates double semicolon rule. All statements must end with ';;' (except using directives and for loops)");
+            }
+        }
+
+        // Check for unsafe code blocks (not allowed)
+        if (code.Contains("unsafe "))
+        {
+            errors.Add($"File {file.FileName} contains 'unsafe' code blocks which are not allowed");
+        }
+
+        // Check for dangerous patterns
+        var dangerousPatterns = new[]
+        {
+            "System.Reflection.Assembly.Load",
+            "System.Runtime.InteropServices",
+            "System.Net.Http",
+            "System.Net.Sockets",
+            "System.Diagnostics.Process.Start",
+            "File.Delete",
+            "Directory.Delete",
+            "Environment.Exit"
+        };
+
+        foreach (var pattern in dangerousPatterns)
+        {
+            if (code.Contains(pattern))
+            {
+                errors.Add($"File {file.FileName} contains disallowed pattern: {pattern}");
+            }
+        }
+
+        // Validate using directives (namespaces)
+        var usingMatches = Regex.Matches(code, @"using\s+([a-zA-Z0-9_.]+)\s*;");
+        foreach (Match match in usingMatches)
+        {
+            var namespaceName = match.Groups[1].Value;
+            
+            if (!ApprovedNamespaces.Any(approved => namespaceName.StartsWith(approved)))
+            {
+                errors.Add($"File {file.FileName} uses unapproved namespace: {namespaceName}. Only approved .NET libraries are allowed: {string.Join(", ", ApprovedNamespaces)}");
+            }
+        }
+
+        // Check for TournamentEngine.Core.Common namespace (required for IBot)
+        if (!code.Contains("using TournamentEngine.Core.Common"))
+        {
+            warnings.Add($"File {file.FileName} should include 'using TournamentEngine.Core.Common;' to implement IBot interface");
+        }
+
+        // Check for .NET 8.0 target framework hints (strict enforcement)
+        if (code.Contains("<TargetFramework>") && !code.Contains("<TargetFramework>net8.0</TargetFramework>"))
+        {
+            errors.Add($"File {file.FileName} targets a framework other than net8.0. Must target .NET 8.0");
+        }
+
+        // Check for required IBot implementation
+        if (!code.Contains(": IBot"))
+        {
+            warnings.Add($"File {file.FileName} doesn't appear to implement IBot interface");
+        }
+
+        // Check for required method signatures (all 4 game methods)
+        var requiredMethods = new[] { "MakeMove", "AllocateTroops", "MakePenaltyDecision", "MakeSecurityMove" };
+        foreach (var method in requiredMethods)
+        {
+            if (!code.Contains(method))
+            {
+                warnings.Add($"File {file.FileName} doesn't appear to implement required method: {method}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Validate bot files for specific game type requirements
+    /// </summary>
+    private static void ValidateForGameType(Core.Common.GameType gameType, List<BotFile> files, List<string> warnings)
+    {
+        var allCode = string.Join("\n", files.Select(f => f.Code));
+
+        switch (gameType)
+        {
+            case Core.Common.GameType.RPSLS:
+                if (!allCode.Contains("Rock") && !allCode.Contains("Paper"))
+                {
+                    warnings.Add("RPSLS bot should handle Rock, Paper, Scissors, Lizard, Spock moves");
+                }
+                break;
+
+            case Core.Common.GameType.ColonelBlotto:
+                if (!allCode.Contains("troops") && !allCode.Contains("Troops") && !allCode.Contains("allocate"))
+                {
+                    warnings.Add("Colonel Blotto bot should handle troop allocation logic");
+                }
+                break;
+
+            case Core.Common.GameType.PenaltyKicks:
+                if (!allCode.Contains("direction") && !allCode.Contains("Direction"))
+                {
+                    warnings.Add("Penalty Kicks bot should handle direction selection");
+                }
+                break;
+
+            case Core.Common.GameType.SecurityGame:
+                if (!allCode.Contains("target") && !allCode.Contains("Target"))
+                {
+                    warnings.Add("Security Game bot should handle target selection logic");
+                }
+                break;
+        }
     }
 }
