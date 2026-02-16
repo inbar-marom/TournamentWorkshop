@@ -131,8 +131,8 @@ public class BotLoader : IBotLoader
                 };
             }
 
-            // 2. Validate total file size (200KB limit)
-            const long MaxTotalSizeBytes = 200 * 1024; // 200KB
+            // 2. Validate total file size (500KB limit - aligned with API submission limit)
+            const long MaxTotalSizeBytes = 500 * 1024; // 500KB
             long totalSize = 0;
             foreach (var filePath in csFiles)
             {
@@ -149,7 +149,7 @@ public class BotLoader : IBotLoader
                     IsValid = false,
                     ValidationErrors = new List<string> 
                     { 
-                        $"Total bot code size ({totalSize / 1024}KB) exceeds the 200KB limit" 
+                        $"Total bot code size ({totalSize / 1024}KB) exceeds the 500KB limit" 
                     }
                 };
             }

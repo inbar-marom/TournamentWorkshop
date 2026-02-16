@@ -356,10 +356,10 @@ public class Bot2 : IBot
         var botFolder = Path.Combine(_testBotsDirectory, $"{teamName}_v1");
         Directory.CreateDirectory(botFolder);
 
-        // Create 5 files, each 50KB (250KB total > 200KB limit)
+        // Create 11 files, each 50KB (550KB total > 500KB limit)
         var largeCommentBlock = new string('/', 50 * 1024); // 50KB of comment characters
 
-        for (int i = 1; i <= 5; i++)
+        for (int i = 1; i <= 11; i++)
         {
             var fileCode = $@"
 // {largeCommentBlock}
@@ -423,10 +423,10 @@ namespace LargeBot
         var result = await botLoader.LoadBotFromFolderAsync(botFolder);
 
         // Assert
-        Assert.IsFalse(result.IsValid, "Bot exceeding 200KB total size should be invalid");
+        Assert.IsFalse(result.IsValid, "Bot exceeding 500KB total size should be invalid");
         Assert.IsNull(result.BotInstance, "BotInstance should be null when size limit exceeded");
         Assert.IsTrue(result.ValidationErrors.Count > 0, "Should have validation errors");
-        Assert.IsTrue(result.ValidationErrors.Any(e => e.Contains("size") || e.Contains("200")), 
+        Assert.IsTrue(result.ValidationErrors.Any(e => e.Contains("size") || e.Contains("500")), 
             "Error message should mention size limit");
     }
 

@@ -323,6 +323,8 @@ public static class BotEndpoints
     /// </summary>
     private static void ValidateAllFiles(List<BotFile> files, List<string> errors, List<string> warnings)
     {
+        var hasCodeFile = false;
+        
         foreach (var file in files)
         {
             if (string.IsNullOrWhiteSpace(file.Code))
@@ -334,17 +336,26 @@ public static class BotEndpoints
             // C# file validation
             if (file.FileName.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
             {
+                hasCodeFile = true;
                 ValidateCSharpFile(file, errors, warnings);
             }
-            // Only C# is supported - reject other file types
-            else if (file.FileName.EndsWith(".py", StringComparison.OrdinalIgnoreCase))
+            // Allow documentation files - just skip validation
+            else if (file.FileName.EndsWith(".md", StringComparison.OrdinalIgnoreCase) ||
+                     file.FileName.EndsWith(".py", StringComparison.OrdinalIgnoreCase) ||
+                     file.FileName.EndsWith(".txt", StringComparison.OrdinalIgnoreCase))
             {
-                errors.Add($"File {file.FileName} is Python (.py) but only C# (.cs) files are supported");
+                // Documentation/verification files allowed - no validation needed
+                continue;
             }
-            else if (!file.FileName.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+            else
             {
-                errors.Add($"File {file.FileName} has unsupported extension. Only C# (.cs) files are accepted");
+                warnings.Add($"File {file.FileName} has unknown extension. Only .cs files will be compiled. Documentation files (.md, .py, .txt) are allowed but ignored.");
             }
+        }
+        
+        if (!hasCodeFile)
+        {
+            errors.Add("At least one .cs file is required");
         }
     }
 
@@ -458,7 +469,13 @@ public static class BotEndpoints
             warnings.Add($"File {file.FileName} appears to be C# but has no class definitions");
         }
 
-        // CODING RULE: Check for double forward slashes at end of lines (required pattern)
+        // CODING RULE 1: Check for double semicolons (;;) - not allowed
+        if (code.Contains(";;"))
+        {
+            errors.Add($"File {file.FileName} contains double semicolons (;;) which are not allowed");
+        }
+        
+        // CODING RULE 2: Check for double forward slashes at end of lines (required pattern)
         // Note: This validates that statements end with ; // (semicolon space double-slash)
         // Look for lines ending with semicolon but NOT followed by space and //
         var lines = code.Split('\n');
