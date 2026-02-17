@@ -513,13 +513,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Setup SignalR Connection
     setupSignalRConnection();
+    // Initialize connection status as disconnected
+    updateConnectionStatus(false);
+    // Start the connection
+    startConnection();
 });
 
 function setupSignalRConnection() {
     // SignalR Connection
     connection = new signalR.HubConnectionBuilder()
         .withUrl('/tournamentHub')
-        .withAutomaticReconnect()
+        .withAutomaticReconnect([0, 0, 1000, 3000, 5000, 10000])
         .build();
 
     connection.on('BotSubmitted', () => { console.log('SignalR: BotSubmitted'); if (connectionReady) loadBots(); });
@@ -542,24 +546,32 @@ function setupSignalRConnection() {
         console.warn('SignalR: closed', err);
         connectionReady = false;
         updateConnectionStatus(false);
+        // Retry connection after delay
+        setTimeout(() => {
+            if (!connectionReady) {
+                startConnection();
+            }
+        }, 5000);
     });
+}
 
-    connection.start()
-        .then(() => {
-            connectionReady = true;
-            updateConnectionStatus(true);
-            console.log('SignalR: connection started');
-        })
-        .catch(err => {
-            console.error('SignalR connection error:', err);
-            updateConnectionStatus(false);
-            // Retry after delay
-            setTimeout(() => {
-                if (!connectionReady) {
-                    setupSignalRConnection();
-                }
-            }, 5000);
-        });
+async function startConnection() {
+    try {
+        await connection.start();
+        connectionReady = true;
+        updateConnectionStatus(true);
+        console.log('SignalR: connection started');
+    } catch (err) {
+        console.error('SignalR connection error:', err);
+        updateConnectionStatus(false);
+        // Retry after delay with exponential backoff
+        const retryDelay = Math.min(5000, 1000);
+        setTimeout(() => {
+            if (!connectionReady) {
+                startConnection();
+            }
+        }, retryDelay);
+    }
 }
 
 function updateConnectionStatus(connected) {

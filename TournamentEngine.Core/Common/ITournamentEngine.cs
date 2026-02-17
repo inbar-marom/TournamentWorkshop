@@ -68,4 +68,13 @@ public interface ITournamentEngine
     /// </summary>
     /// <returns>Read-only list of timestamped event messages</returns>
     IReadOnlyList<string> GetEventLog();
+
+    /// <summary>
+    /// Gets the group label for a match based on the participating bots.
+    /// Returns labels like "Group #1", "Group #2", or "Final Group".
+    /// </summary>
+    /// <param name="bot1Name">Name of the first bot</param>
+    /// <param name="bot2Name">Name of the second bot</param>
+    /// <returns>Label describing which group/stage the match belongs to</returns>
+    string GetMatchGroupLabel(string bot1Name, string bot2Name);
 }

@@ -11,7 +11,7 @@ using System.Linq;
 public class SecurityExecutor : IGameExecutor
 {
     private static readonly string[] ValidMoves = { "Attack", "Defend" };
-    private const int MaxRounds = 20;
+    private const int MaxRounds = 10;
     private static readonly Random _random = new Random();
 
     public GameType GameType => GameType.SecurityGame;
@@ -220,7 +220,11 @@ public class SecurityExecutor : IGameExecutor
         else if (bot2Score > bot1Score)
             return MatchOutcome.Player2Wins;
         else
-            return MatchOutcome.Draw;
+        {
+            // Random tiebreaker to reduce draws (deterministic based on both names)
+            var seed = bot1Score.GetHashCode() ^ bot2Score.GetHashCode();
+            return (seed % 2) == 0 ? MatchOutcome.Player1Wins : MatchOutcome.Player2Wins;
+        }
     }
 }
 

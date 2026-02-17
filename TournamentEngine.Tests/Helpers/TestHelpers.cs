@@ -302,4 +302,10 @@ public class MockTournamentEngine : ITournamentEngine
         MethodCalls.Add("GetEventLog()");
         return new List<string> { "Tournament initialized", "Advanced to FinalGroup", "Tournament completed" };
     }
+
+    public string GetMatchGroupLabel(string bot1Name, string bot2Name)
+    {
+        MethodCalls.Add($"GetMatchGroupLabel({bot1Name}, {bot2Name})");
+        return "Group #1"; // Default mock value
+    }
 }

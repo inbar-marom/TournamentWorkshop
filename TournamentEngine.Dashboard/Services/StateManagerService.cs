@@ -140,7 +140,8 @@ public class StateManagerService
             Bot1Score = match.Bot1Score,
             Bot2Score = match.Bot2Score,
             CompletedAt = match.CompletedAt,
-            GameType = match.GameType
+            GameType = match.GameType,
+            GroupLabel = match.GroupLabel
         };
         
         _recentMatches.Enqueue(recentMatch);

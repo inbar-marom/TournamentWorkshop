@@ -45,7 +45,8 @@ public class SignalRTournamentEventPublisher : ITournamentEventPublisher
             Bot1Score = matchEvent.Bot1Score,
             Bot2Score = matchEvent.Bot2Score,
             CompletedAt = matchEvent.CompletedAt,
-            GameType = matchEvent.GameType
+            GameType = matchEvent.GameType,
+            GroupLabel = matchEvent.GroupLabel
         };
 
         // Broadcast to all connected clients

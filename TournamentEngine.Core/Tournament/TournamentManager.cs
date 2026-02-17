@@ -69,10 +69,12 @@ public class TournamentManager : ITournamentManager
 
             // Get next batch of matches from the engine
             var matches = _engine.GetNextMatches();
+            Console.WriteLine($"[TournamentManager] Retrieved {matches.Count} matches");
             
             if (matches.Count == 0)
             {
                 // No matches available - let engine advance to next phase/round
+                Console.WriteLine($"[TournamentManager] No matches, advancing to next round");
                 _engine.AdvanceToNextRound();
                 
                 // Publish round started event
@@ -92,6 +94,8 @@ public class TournamentManager : ITournamentManager
                 continue;
             }
 
+            Console.WriteLine($"[TournamentManager] Starting execution of {matches.Count} matches with max concurrency {Environment.ProcessorCount * 2}");
+            
             // Execute all matches in the current stage concurrently
             // THREAD SAFETY: All matches within a stage run in parallel via Task.WhenAll
             // The engine's RecordMatchResult() is thread-safe (uses lock)
@@ -99,22 +103,84 @@ public class TournamentManager : ITournamentManager
             // Throttle to prevent overwhelming the system (2x processor count is reasonable)
             var maxConcurrency = Environment.ProcessorCount * 2;
             using var semaphore = new SemaphoreSlim(maxConcurrency);
-            var tasks = matches.Select(async match =>
+            
+            Console.WriteLine($"[TournamentManager] Creating {matches.Count} tasks...");
+            var taskList = new List<Task<MatchResult>>();
+            for (int i = 0; i < matches.Count; i++)
             {
-                await semaphore.WaitAsync(cancellationToken);
-                try
+                var match = matches[i];
+                var index = i;
+                var task = Task.Run(async () =>
                 {
-                    var (bot1, bot2) = match;
-                    return await _gameRunner.ExecuteMatch(bot1, bot2, gameType, cancellationToken);
-                }
-                finally
-                {
-                    semaphore.Release();
-                }
-            }).ToList();
+                    await semaphore.WaitAsync(cancellationToken);
+                    try
+                    {
+                        var (bot1, bot2) = match;
+                        if (index < 5)
+                        {
+                            Console.WriteLine($"[TournamentManager] Starting match {index + 1}: {bot1.TeamName} vs {bot2.TeamName}");
+                        }
+                        
+                        var result = await _gameRunner.ExecuteMatch(bot1, bot2, gameType, cancellationToken);
+                        
+                        if (index < 5)
+                        {
+                            Console.WriteLine($"[TournamentManager] Completed match {index + 1}");
+                        }
+                        return result;
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[TournamentManager] ERROR in match {index + 1}: {ex.GetType().Name}: {ex.Message}");
+                        if (ex.InnerException != null)
+                        {
+                            Console.WriteLine($"[TournamentManager] Inner exception: {ex.InnerException.Message}");
+                        }
+                        throw;
+                    }
+                    finally
+                    {
+                        semaphore.Release();
+                    }
+                }, cancellationToken);
+                taskList.Add(task);
+            }
+            var tasks = taskList;
 
+            Console.WriteLine($"[TournamentManager] Created {tasks.Count} tasks, waiting for completion...");
+            
+            // Monitor task completion with timeout
+            var completedCount = 0;
+            var monitorTask = Task.Run(async () =>
+            {
+                while (completedCount < tasks.Count)
+                {
+                    await Task.Delay(5000); // Check every 5 seconds
+                    var completed = tasks.Count(t => t.IsCompleted);
+                    var faulted = tasks.Count(t => t.IsFaulted);
+                    var canceled = tasks.Count(t => t.IsCanceled);
+                    var running = tasks.Count - completed;
+                    
+                    if (completed != completedCount)
+                    {
+                        completedCount = completed;
+                        Console.WriteLine($"[TournamentManager] Progress: {completed}/{tasks.Count} completed, {faulted} faulted, {canceled} canceled, {running} still running");
+                        
+                        if (faulted > 0)
+                        {
+                            var firstFaulted = tasks.FirstOrDefault(t => t.IsFaulted);
+                            if (firstFaulted?.Exception != null)
+                            {
+                                Console.WriteLine($"[TournamentManager] First faulted task exception: {firstFaulted.Exception.InnerException?.Message ?? firstFaulted.Exception.Message}");
+                            }
+                        }
+                    }
+                }
+            });
+            
             // STAGE SYNCHRONIZATION: Wait for ALL matches in this stage to complete
             var results = await Task.WhenAll(tasks);
+            Console.WriteLine($"[TournamentManager] All {results.Length} matches completed, recording results...");
 
             // Record all results and publish events concurrently
             // Recording is thread-safe (engine uses locks), and we publish all events in parallel
@@ -127,6 +193,9 @@ public class TournamentManager : ITournamentManager
                 // Publish match completed event (fire in parallel, don't block)
                 if (_eventPublisher != null)
                 {
+                    var groupLabel = _engine.GetMatchGroupLabel(result.Bot1Name, result.Bot2Name);
+                    Console.WriteLine($"[TournamentManager] Match {result.Bot1Name} vs {result.Bot2Name} - GroupLabel: '{groupLabel}'");
+                    
                     var matchEvent = new MatchCompletedDto
                     {
                         TournamentId = tournamentId,
@@ -139,7 +208,8 @@ public class TournamentManager : ITournamentManager
                         Bot1Score = result.Bot1Score,
                         Bot2Score = result.Bot2Score,
                         MatchId = Guid.NewGuid().ToString(),
-                        WinnerName = result.WinnerName
+                        WinnerName = result.WinnerName,
+                        GroupLabel = groupLabel
                     };
                     publishTasks.Add(_eventPublisher.PublishMatchCompletedAsync(matchEvent));
                 }

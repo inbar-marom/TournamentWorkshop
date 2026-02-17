@@ -540,21 +540,29 @@ namespace {teamName}Bot
 
         public Task<string> MakeMove(GameState gameState, CancellationToken cancellationToken)
         {{
-            // Randomized RPSLS with team-specific bias
+            // Randomized RPSLS with slight team-specific bias to add variety but avoid draws
             _moveCount++; //
             var roll = _rng.NextDouble(); //
+            
+            // Add move count to randomization to ensure different moves over time
+            var randomSeed = _rng.Next(1000) + _moveCount; //
 
-            if (roll < 0.45)
+            if (roll < 0.30)
             {{
-                return Task.FromResult(_rpslsMoves[_rpslsBias]); //
+                // Preferred move with occasional variation
+                var variation = randomSeed % 3; //
+                var index = (_rpslsBias + variation) % _rpslsMoves.Length; //
+                return Task.FromResult(_rpslsMoves[index]); //
             }}
 
-            if (roll < 0.80)
+            if (roll < 0.60)
             {{
-                var altIndex = (_rpslsBias + (_moveCount % 4) + 1) % _rpslsMoves.Length; //
+                // Pattern-based but with randomization
+                var altIndex = (_rpslsBias + (randomSeed % 5)) % _rpslsMoves.Length; //
                 return Task.FromResult(_rpslsMoves[altIndex]); //
             }}
 
+            // Fully random move
             return Task.FromResult(_rpslsMoves[_rng.Next(_rpslsMoves.Length)]); //
         }}
 
@@ -565,19 +573,21 @@ namespace {teamName}Bot
 
         public Task<string> MakePenaltyDecision(GameState gameState, CancellationToken cancellationToken)
         {{
-            // Penalty Kicks: Left, Center, or Right
+            // Penalty Kicks: Left, Center, or Right with randomness to avoid draws
             var roll = _rng.NextDouble(); //
+            var extraRandom = _rng.Next(100); // Add extra randomness
+            
             if (_leftBias)
             {{
-                // Left-biased strategy
-                if (roll < 0.50) return Task.FromResult(""Left""); //
-                if (roll < 0.75) return Task.FromResult(""Center""); //
+                // Left-biased strategy with variation
+                if (roll < 0.40 && extraRandom > 20) return Task.FromResult(""Left""); //
+                if (roll < 0.70 || (roll < 0.85 && extraRandom < 50)) return Task.FromResult(""Center""); //
                 return Task.FromResult(""Right""); //
             }}
 
-            // Right-biased strategy  
-            if (roll < 0.20) return Task.FromResult(""Left""); //
-            if (roll < 0.45) return Task.FromResult(""Center""); //
+            // Right-biased strategy with variation
+            if (roll < 0.25 && extraRandom > 30) return Task.FromResult(""Left""); //
+            if (roll < 0.55 || (roll < 0.75 && extraRandom < 60)) return Task.FromResult(""Center""); //
             return Task.FromResult(""Right""); //
         }}
 
@@ -588,37 +598,46 @@ namespace {teamName}Bot
             
             if (role == ""Attacker"")
             {{
-                // Choose target index (0, 1, or 2)
-                // Higher value targets are more attractive but may be more defended
+                // Choose target index (0, 1, or 2) with randomness
                 var roll = _rng.NextDouble(); //
+                var extraRandom = _rng.Next(100); // Add extra randomness to avoid predictability
+                
                 if (_attackBias)
                 {{
-                    // Aggressive: favor high-value targets
-                    if (roll < 0.15) return Task.FromResult(""0""); //  // Target 0 (value 10)
-                    if (roll < 0.40) return Task.FromResult(""1""); //  // Target 1 (value 20)
+                    // Aggressive: favor high-value targets but with variation
+                    if (roll < 0.20 && extraRandom < 25) return Task.FromResult(""0""); //  // Target 0 (value 10)
+                    if (roll < 0.45 || (roll < 0.60 && extraRandom < 50)) return Task.FromResult(""1""); //  // Target 1 (value 20)
                     return Task.FromResult(""2""); //                   // Target 2 (value 30)
                 }}
                 else
                 {{
-                    // Balanced approach
-                    if (roll < 0.30) return Task.FromResult(""0""); //
-                    if (roll < 0.65) return Task.FromResult(""1""); //
+                    // Balanced approach with randomness
+                    if (roll < 0.35 || extraRandom < 20) return Task.FromResult(""0""); //
+                    if (roll < 0.70 && extraRandom > 30) return Task.FromResult(""1""); //
                     return Task.FromResult(""2""); //
                 }}
             }}
             else // Defender
             {{
                 // Distribute 30 defense units across 3 targets [10, 20, 30]
-                // Different strategies based on bot personality
+                // Add randomness to defense allocation to prevent draws
+                var randomAdjust = _rng.Next(-3, 4); // Random adjustment -3 to +3
+                
                 if (_leftBias)
                 {{
-                    // Protect high-value targets heavily
-                    return Task.FromResult(""2,8,20""); //  // Heavy defense on target 2
+                    // Protect high-value targets heavily with variation
+                    var t0 = Math.Max(1, 2 + randomAdjust); //
+                    var t1 = Math.Max(1, 8 + _rng.Next(-2, 3)); //
+                    var t2 = Math.Max(1, 30 - t0 - t1); //
+                    return Task.FromResult($""{{t0}},{{t1}},{{t2}}""); //
                 }}
                 else if (_attackBias)
                 {{
-                    // Balanced defense
-                    return Task.FromResult(""5,10,15""); //
+                    // Balanced defense with variation
+                    var t0 = Math.Max(1, 5 + randomAdjust); //
+                    var t1 = Math.Max(1, 10 + _rng.Next(-3, 4)); //
+                    var t2 = Math.Max(1, 30 - t0 - t1); //
+                    return Task.FromResult($""{{t0}},{{t1}},{{t2}}""); //
                 }}
                 else
                 {{
@@ -627,10 +646,11 @@ namespace {teamName}Bot
                     var remaining = 30; //
                     for (int i = 0; i < 2; i++)
                     {{
-                        allocations[i] = _rng.Next(0, remaining + 1); //
+                        var max = Math.Max(1, remaining - (2 - i)); // Ensure at least 1 for remaining targets
+                        allocations[i] = _rng.Next(1, max + 1); //
                         remaining -= allocations[i]; //
                     }}
-                    allocations[2] = remaining; //
+                    allocations[2] = Math.Max(1, remaining); //
                     return Task.FromResult($""{{allocations[0]}},{{allocations[1]}},{{allocations[2]}}""); //
                 }}
             }}

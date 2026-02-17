@@ -17,7 +17,7 @@ public class TournamentManagementService
     private readonly StateManagerService _stateManager;
     private readonly BotDashboardService _botDashboard;
     private readonly IHubContext<TournamentHub> _hubContext;
-    private readonly TournamentSeriesManager? _seriesManager;
+    private readonly TournamentSeriesManager _seriesManager;
     private readonly ILogger<TournamentManagementService> _logger;
     private ManagementStateDto _managementState;
     private readonly SemaphoreSlim _stateLock = new(1, 1);
@@ -150,18 +150,9 @@ public class TournamentManagementService
             };
             await _stateManager.UpdateStateAsync(dashboardState);
 
-            // Start tournament execution in background if series manager is available
-            if (_seriesManager != null)
-            {
-                _executionCancellation = new CancellationTokenSource();
-                _executionTask = ExecuteTournamentSeriesAsync(botCount, _executionCancellation.Token);
-            }
-            else
-            {
-                // Fallback: Start simulation mode with fake match events
-                _executionCancellation = new CancellationTokenSource();
-                _executionTask = SimulateTournamentAsync(botCount, _executionCancellation.Token);
-            }
+            // Start tournament execution in background
+            _executionCancellation = new CancellationTokenSource();
+            _executionTask = ExecuteTournamentSeriesAsync(botCount, _executionCancellation.Token);
 
             return Result.Success();
         }
@@ -396,12 +387,6 @@ public class TournamentManagementService
             var bots = await _botDashboard.LoadValidBotInfosAsync(cancellationToken);
             _logger.LogInformation("Loaded {Count} valid bots for tournament", bots.Count);
 
-            // TEMPORARY: Limit to 12 bots for faster testing (12 bots = 66 matches instead of 4,656!)
-            if (bots.Count > 12)
-            {
-                bots = bots.Take(12).ToList();
-                _logger.LogWarning("LIMITED to {Count} bots for faster testing", bots.Count);
-            }
 
             if (bots.Count < 2)
             {
@@ -465,7 +450,7 @@ public class TournamentManagementService
 
             // Run the tournament series
             _logger.LogInformation("Starting tournament series with {BotCount} bots...", bots.Count);
-            var result = await _seriesManager!.RunSeriesAsync(bots, seriesConfig, cancellationToken);
+            var result = await _seriesManager.RunSeriesAsync(bots, seriesConfig, cancellationToken);
 
             _logger.LogInformation("Tournament series completed: Champion={Champion}, Tournaments={Count}, TotalMatches={TotalMatches}",
                 result?.SeriesChampion ?? "N/A", 
@@ -656,251 +641,6 @@ public class TournamentManagementService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error broadcasting management state");
-        }
-    }
-
-    /// <summary>
-    /// Simulates tournament progress with fake match events for testing/demo purposes.
-    /// Creates complete tournament structure with events, matches, leaderboard, and standings.
-    /// </summary>
-    private async Task SimulateTournamentAsync(int botCount, CancellationToken cancellationToken)
-    {
-        try
-        {
-            _logger.LogInformation("Starting tournament simulation with {BotCount} bots", botCount);
-            var random = new Random();
-            var tournamentId = Guid.NewGuid().ToString();
-            var tournamentName = $"Productivity Tournament #{DateTime.UtcNow.ToString("MMdd")}";
-            var botNames = Enumerable.Range(1, botCount).Select(i => $"Bot{i}").ToList();
-            var botScores = new Dictionary<string, int>();
-            var recentMatches = new List<RecentMatchDto>();
-            
-            // Initialize bot scores
-            foreach (var bot in botNames)
-            {
-                botScores[bot] = 0;
-            }
-
-            var completedMatches = 0;
-            var totalMatches = (botCount * (botCount - 1)) / 2; // Round-robin matches
-
-            // Simulate tournament matches
-            while (!cancellationToken.IsCancellationRequested && completedMatches < totalMatches)
-            {
-                // Respect pause state
-                if (_isPaused)
-                {
-                    await Task.Delay(1000, cancellationToken);
-                    continue;
-                }
-
-                // Simulate a match taking 2-5 seconds
-                await Task.Delay(random.Next(2000, 5000), cancellationToken);
-
-                completedMatches++;
-
-                // Pick two different bots
-                var bot1 = botNames[random.Next(botNames.Count)];
-                var bot2 = botNames[random.Next(botNames.Count)];
-                
-                if (bot1 == bot2)
-                {
-                    completedMatches--; // Retry this iteration
-                    continue;
-                }
-
-                var winner = random.Next(0, 2) == 0 ? bot1 : bot2;
-                var loser = winner == bot1 ? bot2 : bot1;
-                
-                // Update scores
-                botScores[winner] += 3; // Win = 3 points
-                botScores[loser] += 0;  // Loss = 0 points
-
-                // Create match record
-                var matchRecord = new RecentMatchDto
-                {
-                    MatchId = Guid.NewGuid().ToString(),
-                    TournamentId = tournamentId,
-                    TournamentName = tournamentName,
-                    Bot1Name = bot1,
-                    Bot2Name = bot2,
-                    WinnerName = winner,
-                    Outcome = winner == bot1 ? MatchOutcome.Player1Wins : MatchOutcome.Player2Wins,
-                    Bot1Score = winner == bot1 ? 1 : 0,
-                    Bot2Score = winner == bot2 ? 1 : 0,
-                    CompletedAt = DateTime.UtcNow,
-                    GameType = GameType.SecurityGame
-                };
-                recentMatches.Add(matchRecord);
-
-                // Build leaderboard (top 5)
-                var leaderboard = botScores
-                    .OrderByDescending(x => x.Value)
-                    .Take(5)
-                    .Select((x, idx) => new TeamStandingDto
-                    {
-                        Rank = idx + 1,
-                        TeamName = x.Key,
-                        TotalPoints = x.Value,
-                        TournamentWins = x.Value / 3, // Simplified: wins = points/3
-                        TotalWins = x.Value / 3,
-                        TotalLosses = completedMatches - (x.Value / 3),
-                        RankChange = 0
-                    })
-                    .ToList();
-
-                // Create an event (treat entire tournament as one event for simplicity)
-                var currentEvent = new CurrentEventDto
-                {
-                    TournamentNumber = 1,
-                    GameType = GameType.SecurityGame,
-                    Stage = TournamentStage.GroupStage,
-                    CurrentRound = 1,
-                    TotalRounds = 1,
-                    MatchesCompleted = completedMatches,
-                    TotalMatches = totalMatches,
-                    ProgressPercentage = (double)completedMatches / totalMatches * 100
-                };
-
-                // Update tournament progress
-                var tournamentProgress = new TournamentProgressDto
-                {
-                    TournamentId = tournamentId,
-                    CompletedCount = completedMatches,
-                    TotalCount = totalMatches,
-                    CurrentEventIndex = 0,
-                    Events = new List<EventInTournamentDto>
-                    {
-                        new EventInTournamentDto
-                        {
-                            EventNumber = 1,
-                            GameType = GameType.SecurityGame,
-                            Status = EventItemStatus.InProgress,
-                            Champion = leaderboard.FirstOrDefault()?.TeamName,
-                            StartTime = DateTime.UtcNow.AddSeconds(-30),
-                            EndTime = null
-                        }
-                    }
-                };
-
-                // Update dashboard state with full tournament data
-                var dashboardState = new DashboardStateDto
-                {
-                    TournamentId = tournamentId,
-                    TournamentName = tournamentName,
-                    Champion = leaderboard.FirstOrDefault()?.TeamName,
-                    Status = TournamentStatus.InProgress,
-                    Message = $"Match {completedMatches}/{totalMatches} complete: {winner} vs {loser}",
-                    TournamentProgress = tournamentProgress,
-                    CurrentEvent = currentEvent,
-                    OverallLeaderboard = leaderboard,
-                    RecentMatches = recentMatches.TakeLast(10).ToList(),
-                    LastUpdated = DateTime.UtcNow
-                };
-
-                await _stateManager.UpdateStateAsync(dashboardState);
-                var currentState = await _stateManager.GetCurrentStateAsync();
-                
-                // Broadcast state update to all connected clients
-                await _hubContext.Clients.All.SendAsync("CurrentState", currentState);
-                
-                _logger.LogInformation("Match {Completed}/{Total}: {Bot1} vs {Bot2} - {Winner} wins", 
-                    completedMatches, totalMatches, bot1, bot2, winner);
-            }
-
-            // Tournament completed
-            if (completedMatches >= totalMatches)
-            {
-                await _stateLock.WaitAsync();
-                try
-                {
-                    _managementState.Status = ManagementRunState.Completed;
-                    _managementState.Message = $"Tournament completed! {completedMatches} matches played";
-                    _managementState.LastUpdated = DateTime.UtcNow;
-                    await BroadcastStateAsync();
-
-                    // Build final leaderboard and state
-                    var finalLeaderboard = botScores
-                        .OrderByDescending(x => x.Value)
-                        .Select((x, idx) => new TeamStandingDto
-                        {
-                            Rank = idx + 1,
-                            TeamName = x.Key,
-                            TotalPoints = x.Value,
-                            TournamentWins = x.Value / 3,
-                            TotalWins = x.Value / 3,
-                            TotalLosses = completedMatches - (x.Value / 3),
-                            RankChange = 0
-                        })
-                        .ToList();
-
-                    var champion = finalLeaderboard.FirstOrDefault()?.TeamName;
-
-                    var finalState = new DashboardStateDto
-                    {
-                        TournamentId = tournamentId,
-                        TournamentName = tournamentName,
-                        Champion = champion,
-                        Status = TournamentStatus.Completed,
-                        Message = $"Tournament completed! {completedMatches} matches played. Champion: {champion}",
-                        OverallLeaderboard = finalLeaderboard,
-                        RecentMatches = recentMatches.TakeLast(20).ToList(),
-                        TournamentProgress = new TournamentProgressDto
-                        {
-                            TournamentId = tournamentId,
-                            CompletedCount = completedMatches,
-                            TotalCount = totalMatches,
-                            CurrentEventIndex = 0,
-                            Events = new List<EventInTournamentDto>
-                            {
-                                new EventInTournamentDto
-                                {
-                                    EventNumber = 1,
-                                    GameType = GameType.SecurityGame,
-                                    Status = EventItemStatus.Completed,
-                                    Champion = champion,
-                                    StartTime = DateTime.UtcNow.AddSeconds(-30),
-                                    EndTime = DateTime.UtcNow
-                                }
-                            }
-                        },
-                        LastUpdated = DateTime.UtcNow
-                    };
-                    await _stateManager.UpdateStateAsync(finalState);
-                    var currentState = await _stateManager.GetCurrentStateAsync();
-                    
-                    // Broadcast final state to all clients
-                    await _hubContext.Clients.All.SendAsync("CurrentState", currentState);
-                    await _hubContext.Clients.All.SendAsync("TournamentCompleted", new { TournamentId = tournamentId, Champion = champion });
-                    
-                    _logger.LogInformation("Tournament simulation completed with {Matches} matches. Champion: {Champion}", 
-                        completedMatches, champion);
-                }
-                finally
-                {
-                    _stateLock.Release();
-                }
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            _logger.LogInformation("Tournament simulation was cancelled");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error during tournament simulation");
-            await _stateLock.WaitAsync();
-            try
-            {
-                _managementState.Status = ManagementRunState.Error;
-                _managementState.Message = $"Simulation error: {ex.Message}";
-                _managementState.LastUpdated = DateTime.UtcNow;
-                await BroadcastStateAsync();
-            }
-            finally
-            {
-                _stateLock.Release();
-            }
         }
     }
 

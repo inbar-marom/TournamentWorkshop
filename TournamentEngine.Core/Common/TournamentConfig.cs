@@ -8,7 +8,7 @@ public class TournamentConfig
     public TimeSpan ImportTimeout { get; init; } = TimeSpan.FromSeconds(5);
     public TimeSpan MoveTimeout { get; init; } = TimeSpan.FromSeconds(1);
     public int MemoryLimitMB { get; init; } = 512;
-    public int MaxRoundsRPSLS { get; init; } = 50;
+    public int MaxRoundsRPSLS { get; init; } = 10;
     public string LogLevel { get; init; } = "INFO";
     public string LogFilePath { get; init; } = "tournament_log.txt";
     public string BotsDirectory { get; init; } = "bots";

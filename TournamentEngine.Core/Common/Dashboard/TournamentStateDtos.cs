@@ -183,6 +183,7 @@ public class RecentMatchDto
     public int Bot2Score { get; set; }
     public DateTime CompletedAt { get; set; }
     public GameType GameType { get; set; }
+    public string GroupLabel { get; set; } = string.Empty;
 }
 
 /// <summary>
@@ -201,6 +202,7 @@ public class MatchCompletedDto
     public int Bot2Score { get; set; }
     public DateTime CompletedAt { get; set; }
     public GameType GameType { get; set; }
+    public string GroupLabel { get; set; } = string.Empty;
 }
 
 /// <summary>

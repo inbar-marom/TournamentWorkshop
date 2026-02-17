@@ -26,7 +26,7 @@ public class BotDashboardService : IDisposable
     // Cache for bot list with TTL
     private List<BotDashboardDto>? _botsCache;
     private DateTime _cacheExpirationTime = DateTime.MinValue;
-    private readonly TimeSpan _cacheDuration = TimeSpan.FromSeconds(1);
+    private readonly TimeSpan _cacheDuration = TimeSpan.FromMinutes(5); // Increased from 1 second to 5 minutes
     private readonly object _cacheLock = new();
 
     public BotDashboardService(
@@ -62,21 +62,30 @@ public class BotDashboardService : IDisposable
 
             var submissions = _storageService.GetAllSubmissions();
 
-            var bots = new List<BotDashboardDto>();
+            _logger.LogInformation("Loading {Count} bots in parallel...", submissions.Count);
 
-            foreach (var submission in submissions)
+            // Load bots in parallel for better performance (max 10 at a time to avoid overwhelming the system)
+            var semaphore = new SemaphoreSlim(10, 10);
+            var tasks = submissions.Select(async submission =>
             {
+                await semaphore.WaitAsync();
                 try
                 {
-                    var botDto = await ConvertToBotsDto(submission);
-                    bots.Add(botDto);
+                    return await ConvertToBotsDto(submission);
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Error loading bot details for {TeamName}", submission.TeamName);
-                    // Continue with other bots even if one fails
+                    return null; // Will be filtered out
                 }
-            }
+                finally
+                {
+                    semaphore.Release();
+                }
+            }).ToList();
+
+            var botResults = await Task.WhenAll(tasks);
+            var bots = botResults.Where(b => b != null).Cast<BotDashboardDto>().ToList();
 
             // Sort by submission time (newest first)
             bots = bots.OrderByDescending(b => b.SubmissionTime).ToList();

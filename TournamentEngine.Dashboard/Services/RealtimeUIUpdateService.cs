@@ -93,7 +93,8 @@ public class RealtimeUIUpdateService
             Bot1Score = evt.Bot1Score,
             Bot2Score = evt.Bot2Score,
             CompletedAt = evt.CompletedAt,
-            GameType = evt.GameType
+            GameType = evt.GameType,
+            GroupLabel = evt.GroupLabel
         };
 
         // Add to recent matches

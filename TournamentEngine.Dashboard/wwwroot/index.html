@@ -299,10 +299,48 @@
             border: 1px solid var(--border);
             font-size: 0.95em;
             transition: background-color 0.2s ease;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
         }
 
         .match-item:hover {
             background: #efefeb;
+        }
+
+        .match-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 2px;
+        }
+
+        .match-stage-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 3px 10px;
+            border-radius: 999px;
+            font-weight: 600;
+            font-size: 0.75em;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .match-stage-badge.group {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .match-stage-badge.final {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .match-stage-badge.tiebreaker {
+            background: #fee2e2;
+            color: #991b1b;
         }
 
         .match-result {
@@ -903,11 +941,25 @@
                 const score2 = match.Bot2Score || match.bot2Score || 0;
                 const when = new Date(match.CompletedAt || match.completedAt).toLocaleTimeString();
                 const gameLabel = formatGameType(match.GameType || match.gameType);
+                const groupLabel = match.GroupLabel || match.groupLabel || '';
+                
+                // Determine badge class based on stage
+                let badgeClass = 'group';
+                if (groupLabel.toLowerCase().includes('final')) {
+                    badgeClass = 'final';
+                } else if (groupLabel.toLowerCase().includes('tiebreaker')) {
+                    badgeClass = 'tiebreaker';
+                }
+                
                 return `
                     <div class="match-item">
+                        <div class="match-header">
+                            ${groupLabel ? `<span class="match-stage-badge ${badgeClass}">${groupLabel}</span>` : ''}
+                            <span class="timestamp">${gameLabel}</span>
+                        </div>
                         <div class="match-result">${bot1} vs ${bot2}</div>
                         <div>Result: ${winner} (${score1}-${score2})</div>
-                        <div class="timestamp">${gameLabel} - ${when}</div>
+                        <div class="timestamp">${when}</div>
                     </div>
                 `;
             }).join('');

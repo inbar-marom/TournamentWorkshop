@@ -18,6 +18,7 @@ public class GroupStageTournamentEngine : ITournamentEngine
     private readonly object _stateLock = new object();
     private TournamentInfo _tournamentInfo;
     private List<Group> _currentGroups;
+    private List<Group> _initialGroups; // Preserve initial groups for group label lookup
     private Group? _finalGroup;
     private Queue<(IBot bot1, IBot bot2)> _pendingMatches;
     private Dictionary<string, MatchResult> _matchHistory;
@@ -32,6 +33,7 @@ public class GroupStageTournamentEngine : ITournamentEngine
         _gameRunner = gameRunner ?? throw new ArgumentNullException(nameof(gameRunner));
         _scoringSystem = scoringSystem ?? throw new ArgumentNullException(nameof(scoringSystem));
         _currentGroups = new List<Group>();
+        _initialGroups = new List<Group>();
         _pendingMatches = new Queue<(IBot bot1, IBot bot2)>();
         _matchHistory = new Dictionary<string, MatchResult>();
         _groupStandings = new Dictionary<string, GroupStanding>();
@@ -77,6 +79,7 @@ public class GroupStageTournamentEngine : ITournamentEngine
 
             var botAdapters = CreateBotAdapters(bots, gameType);
             _currentGroups = CreateInitialGroups(botAdapters, config);
+            _initialGroups = new List<Group>(_currentGroups); // Preserve initial groups for label lookup
             _groupStandings = BuildStandingsIndex(_currentGroups);
             var allMatches = GenerateAllGroupMatches(_currentGroups);
             _pendingMatches = new Queue<(IBot bot1, IBot bot2)>(allMatches);
@@ -442,6 +445,51 @@ public class GroupStageTournamentEngine : ITournamentEngine
         lock (_stateLock)
         {
             return _tournamentInfo?.State == TournamentState.Completed;
+        }
+    }
+
+    /// <summary>
+    /// Gets the group label for a match based on the participating bots.
+    /// Returns labels like "Group #1", "Group #2", or "Final Group".
+    /// </summary>
+    public string GetMatchGroupLabel(string bot1Name, string bot2Name)
+    {
+        // Simplified version to avoid potential performance issues
+        try
+        {
+            lock (_stateLock)
+            {
+                if (_currentPhase == TournamentPhase.NotStarted)
+                    return string.Empty;
+
+                if (_currentPhase == TournamentPhase.Tiebreaker)
+                    return "Tiebreaker";
+
+                if (_currentPhase == TournamentPhase.FinalGroup)
+                    return "Final Group";
+
+                // For initial groups phase or when looking up completed matches from initial groups,
+                // always check the preserved _initialGroups to find which specific group the bots were in
+                if (_initialGroups != null && _initialGroups.Count > 0)
+                {
+                    for (int i = 0; i < _initialGroups.Count; i++)
+                    {
+                        var group = _initialGroups[i];
+                        var botNames = new HashSet<string>(group.Bots.Select(b => b.TeamName), StringComparer.OrdinalIgnoreCase);
+                        if (botNames.Contains(bot1Name) && botNames.Contains(bot2Name))
+                        {
+                            return $"Group #{i + 1}";
+                        }
+                    }
+                }
+
+                // Fallback to phase name
+                return "Group Stage";
+            }
+        }
+        catch
+        {
+            return string.Empty;
         }
     }
 
