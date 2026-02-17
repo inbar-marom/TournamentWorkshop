@@ -65,7 +65,6 @@ var tournamentConfig = new TournamentConfig
 {
     ImportTimeout = TimeSpan.FromSeconds(10),
     MoveTimeout = TimeSpan.FromMilliseconds(500), //0.5 seconds for faster feedback in dashboard
-    MaxParallelMatches = 1,
     MemoryLimitMB = 512,
     MaxRoundsRPSLS = 50,
     LogLevel = "Information",
@@ -81,10 +80,10 @@ builder.Services.AddSingleton(sp =>
         sp.GetRequiredService<ILogger<BotDashboardService>>(),
         tournamentConfig));
 
-// Register dashboard services
+// Register dashboard services  
 builder.Services.AddSingleton<StateManagerService>();
 builder.Services.AddSingleton<SignalRTournamentEventPublisher>();
-builder.Services.AddSingleton<ITournamentEventPublisher, SignalRTournamentEventPublisher>();
+builder.Services.AddSingleton<ITournamentEventPublisher>(sp => sp.GetRequiredService<SignalRTournamentEventPublisher>());
 builder.Services.AddSingleton<LeaderboardService>();
 builder.Services.AddSingleton<MatchFeedService>();
 builder.Services.AddSingleton<TournamentStatusService>();
@@ -96,7 +95,11 @@ builder.Services.AddSingleton<TournamentManagementService>();
 builder.Services.AddSingleton<IGameRunner, GameRunner>();
 builder.Services.AddSingleton<IScoringSystem, ScoringSystem>();
 builder.Services.AddSingleton<ITournamentEngine, GroupStageTournamentEngine>();
-builder.Services.AddSingleton<ITournamentManager, TournamentManager>();
+builder.Services.AddSingleton<ITournamentManager>(sp =>
+    new TournamentManager(
+        sp.GetRequiredService<ITournamentEngine>(),
+        sp.GetRequiredService<IGameRunner>(),
+        sp.GetRequiredService<ITournamentEventPublisher>()));
 builder.Services.AddSingleton<TournamentSeriesManager>(sp =>
     new TournamentSeriesManager(
         sp.GetRequiredService<ITournamentManager>(),

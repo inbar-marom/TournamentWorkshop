@@ -388,9 +388,20 @@ public class TournamentManagementService
             }
 
             if (cancellationToken.IsCancellationRequested)
+            {
+                _logger.LogWarning("Tournament execution cancelled before starting");
                 return;
+            }
 
             var bots = await _botDashboard.LoadValidBotInfosAsync(cancellationToken);
+            _logger.LogInformation("Loaded {Count} valid bots for tournament", bots.Count);
+
+            // TEMPORARY: Limit to 12 bots for faster testing (12 bots = 66 matches instead of 4,656!)
+            if (bots.Count > 12)
+            {
+                bots = bots.Take(12).ToList();
+                _logger.LogWarning("LIMITED to {Count} bots for faster testing", bots.Count);
+            }
 
             if (bots.Count < 2)
             {
@@ -439,7 +450,7 @@ public class TournamentManagementService
             {
                 ImportTimeout = TimeSpan.FromSeconds(10),
                 MoveTimeout = TimeSpan.FromSeconds(2),
-                MaxParallelMatches = 1,
+
                 MemoryLimitMB = 512,
                 MaxRoundsRPSLS = 50
             };
@@ -453,10 +464,13 @@ public class TournamentManagementService
             };
 
             // Run the tournament series
+            _logger.LogInformation("Starting tournament series with {BotCount} bots...", bots.Count);
             var result = await _seriesManager!.RunSeriesAsync(bots, seriesConfig, cancellationToken);
 
-            _logger.LogInformation("Tournament series execution returned: {Result}, Champion: {Champion}, Tournaments: {Count}",
-                result != null ? "not null" : "null", result?.SeriesChampion ?? "N/A", result?.Tournaments.Count ?? 0);
+            _logger.LogInformation("Tournament series completed: Champion={Champion}, Tournaments={Count}, TotalMatches={TotalMatches}",
+                result?.SeriesChampion ?? "N/A", 
+                result?.Tournaments.Count ?? 0,
+                result?.Tournaments.Sum(t => t.MatchResults.Count) ?? 0);
 
             if (result != null)
             {
@@ -572,10 +586,29 @@ public class TournamentManagementService
         catch (OperationCanceledException)
         {
             _logger.LogInformation("Tournament series execution was cancelled");
+            await _stateLock.WaitAsync();
+            try
+            {
+                _managementState.Status = ManagementRunState.Stopped;
+                _managementState.Message = "Tournament cancelled";
+                _managementState.LastUpdated = DateTime.UtcNow;
+                await BroadcastStateAsync();
+                
+                await _stateManager.UpdateStateAsync(new DashboardStateDto
+                {
+                    Status = TournamentStatus.Paused,
+                    Message = "Tournament cancelled by user",
+                    LastUpdated = DateTime.UtcNow
+                });
+            }
+            finally
+            {
+                _stateLock.Release();
+            }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error executing tournament series");
+            _logger.LogError(ex, "CRITICAL ERROR executing tournament series: {Message}", ex.Message);
             await _stateLock.WaitAsync();
             try
             {
@@ -583,6 +616,14 @@ public class TournamentManagementService
                 _managementState.Message = $"Tournament error: {ex.Message}";
                 _managementState.LastUpdated = DateTime.UtcNow;
                 await BroadcastStateAsync();
+                
+                // Also update the main dashboard state so UI shows error
+                await _stateManager.UpdateStateAsync(new DashboardStateDto
+                {
+                    Status = TournamentStatus.Completed,
+                    Message = $"Tournament failed: {ex.Message}",
+                    LastUpdated = DateTime.UtcNow
+                });
             }
             finally
             {

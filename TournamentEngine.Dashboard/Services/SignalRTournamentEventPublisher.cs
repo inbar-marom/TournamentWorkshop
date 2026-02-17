@@ -28,7 +28,7 @@ public class SignalRTournamentEventPublisher : ITournamentEventPublisher
 
     public async Task PublishMatchCompletedAsync(MatchCompletedDto matchEvent)
     {
-        _logger.LogDebug("Publishing match completed: {Bot1} vs {Bot2} - Winner: {Winner}",
+        _logger.LogInformation("📨 Publishing match: {Bot1} vs {Bot2} → Winner: {Winner}", 
             matchEvent.Bot1Name, matchEvent.Bot2Name, matchEvent.WinnerName ?? "Draw");
 
         // Add to state manager for persistence

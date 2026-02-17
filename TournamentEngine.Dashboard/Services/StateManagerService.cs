@@ -34,17 +34,30 @@ public class StateManagerService
         await _stateLock.WaitAsync();
         try
         {
-            var state = _currentState ?? new DashboardStateDto
+            // CRITICAL: Return a COPY of the state, not the shared instance
+            // Otherwise concurrent requests modify the same object causing stale data
+            var currentState = _currentState ?? new DashboardStateDto
             {
                 Status = TournamentStatus.NotStarted,
                 Message = "No tournament data available",
                 LastUpdated = DateTime.UtcNow
             };
             
-            // Populate recent matches from the queue
-            state.RecentMatches = GetRecentMatches(20);
+            // Create a fresh copy with recent matches populated
+            var stateCopy = new DashboardStateDto
+            {
+                Status = currentState.Status,
+                Message = currentState.Message,
+                LastUpdated = DateTime.UtcNow,
+                TournamentState = currentState.TournamentState,
+                OverallLeaderboard = currentState.OverallLeaderboard,
+                RecentMatches = GetRecentMatches(20)
+            };
             
-            return state;
+            _logger.LogDebug("GetCurrentStateAsync: Status={Status}, RecentMatches={Count}", 
+                stateCopy.Status, stateCopy.RecentMatches?.Count ?? 0);
+            
+            return stateCopy;
         }
         finally
         {
@@ -217,7 +230,8 @@ public class StateManagerService
     public virtual async Task AddMatchAsync(MatchCompletedDto match)
     {
         await Task.Run(() => AddRecentMatch(match));
-        _logger.LogDebug("Match added: {Bot1} vs {Bot2}", match.Bot1Name, match.Bot2Name);
+        _logger.LogInformation("Match added: {Bot1} vs {Bot2}, Winner: {Winner}, Total matches: {Count}", 
+            match.Bot1Name, match.Bot2Name, match.WinnerName ?? "Draw", _recentMatches.Count);
     }
 
     /// <summary>
