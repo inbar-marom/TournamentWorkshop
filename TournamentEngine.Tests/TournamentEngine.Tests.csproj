@@ -25,4 +25,12 @@
     <ProjectReference Include="..\TournamentEngine.Dashboard\TournamentEngine.Dashboard.csproj" />
     <ProjectReference Include="..\TournamentEngine.Api\TournamentEngine.Api.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <!-- Exclude test data files from compilation -->
+    <Compile Remove="TestData\**\*.cs" />
+    <Content Include="TestData\**\*.*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
 </Project>

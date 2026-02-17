@@ -115,18 +115,9 @@ public class TournamentManager : ITournamentManager
                     await semaphore.WaitAsync(cancellationToken);
                     try
                     {
-                        var (bot1, bot2) = match;
-                        if (index < 5)
-                        {
-                            Console.WriteLine($"[TournamentManager] Starting match {index + 1}: {bot1.TeamName} vs {bot2.TeamName}");
-                        }
-                        
+                        var (bot1, bot2) = match;                       
                         var result = await _gameRunner.ExecuteMatch(bot1, bot2, gameType, cancellationToken);
                         
-                        if (index < 5)
-                        {
-                            Console.WriteLine($"[TournamentManager] Completed match {index + 1}");
-                        }
                         return result;
                     }
                     catch (Exception ex)

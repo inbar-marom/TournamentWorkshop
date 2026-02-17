@@ -498,8 +498,8 @@ public static class BotEndpoints
                 continue;
             }
             
-            // If line ends with semicolon, it must be followed by space and //
-            if (trimmed.EndsWith(";") && !trimmed.EndsWith("; //"))
+            // If line ends with semicolon, it must be followed by //
+            if (trimmed.EndsWith(";") && !trimmed.EndsWith("; //") && !trimmed.EndsWith(";//"))
             {
                 invalidLines++;
             }
@@ -507,7 +507,7 @@ public static class BotEndpoints
         
         if (invalidLines > 0)
         {
-            errors.Add($"File {file.FileName} violates double forward slash rule. All statement lines must end with '; //' (except using directives, namespace declarations, and for loops)");
+            errors.Add($"File {file.FileName} violates double forward slash rule. All statement lines must end with ';//' or '; //' (except using directives, namespace declarations, and for loops)");
         }
 
         // Check for unsafe code blocks (not allowed)
@@ -634,7 +634,7 @@ public static class BotEndpoints
             "plan-colonelBlotto.md",
             "RPSLS_Skill.md",
             "colonelBlotto_Skill.md",
-            "ResearchAgent.md",
+            "Research.agent.md",
             "plan-workshop.md",
             "copilot-instructions.md"
         };

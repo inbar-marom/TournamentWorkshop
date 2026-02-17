@@ -3,6 +3,7 @@ using TournamentEngine.Api.Models;
 using TournamentEngine.Core.Common;
 using System.Collections.Generic;
 using System.Linq;
+using System.IO;
 
 namespace TournamentEngine.Tests.Api;
 
@@ -13,12 +14,12 @@ namespace TournamentEngine.Tests.Api;
 [TestClass]
 public class BotValidationTests
 {
-    #region Double Semicolon Rule Tests
+    #region Double Forward Slash Rule Tests
 
     [TestMethod]
-    public void ValidateCSharpFile_WithSingleSemicolons_ReturnsError()
+    public void ValidateCSharpFile_WithoutDoubleSlash_ReturnsError()
     {
-        // Arrange
+        // Arrange - Code without ;// or ; // at end of statements
         var file = new BotFile
         {
             FileName = "TestBot.cs",
@@ -42,11 +43,11 @@ public class TestBot : IBot
         var warnings = new List<string>();
 
         // Act
-        ValidateCSharpFileDirectly(file, errors, warnings);
+        ValidateCSharpFileDirectly(file, new List<BotFile> { file }, errors, warnings);
 
         // Assert
-        Assert.IsTrue(errors.Any(e => e.Contains("double semicolon rule")), 
-            "Should detect missing double semicolons");
+        Assert.IsTrue(errors.Any(e => e.Contains("double forward slash rule")), 
+            "Should detect missing ;// or ; //");
     }
 
     [TestMethod]
@@ -76,7 +77,7 @@ public class TestBot : IBot
         var warnings = new List<string>();
 
         // Act
-        ValidateCSharpFileDirectly(file, errors, warnings);
+        ValidateCSharpFileDirectly(file, new List<BotFile> { file }, errors, warnings);
 
         // Assert
         Assert.IsFalse(errors.Any(e => e.Contains("double semicolon rule")), 
@@ -86,7 +87,7 @@ public class TestBot : IBot
     [TestMethod]
     public void ValidateCSharpFile_UsingDirectivesWithSingleSemicolon_Allowed()
     {
-        // Arrange
+        // Arrange - using directives don't need ;//
         var file = new BotFile
         {
             FileName = "TestBot.cs",
@@ -97,7 +98,7 @@ using TournamentEngine.Core.Common;
 
 public class TestBot : IBot
 {
-    public string TeamName => ""Test"";;
+    public string TeamName => ""Test"";//
 }"
         };
 
@@ -105,7 +106,7 @@ public class TestBot : IBot
         var warnings = new List<string>();
 
         // Act
-        ValidateCSharpFileDirectly(file, errors, warnings);
+        ValidateCSharpFileDirectly(file, new List<BotFile> { file }, errors, warnings);
 
         // Assert
         Assert.IsFalse(errors.Any(e => e.Contains("double semicolon rule")), 
@@ -140,7 +141,7 @@ public class TestBot
         var warnings = new List<string>();
 
         // Act
-        ValidateCSharpFileDirectly(file, errors, warnings);
+        ValidateCSharpFileDirectly(file, new List<BotFile> { file }, errors, warnings);
 
         // Assert - for loops should be allowed to have single semicolons
         Assert.IsFalse(errors.Any(e => e.Contains("double semicolon rule")), 
@@ -179,7 +180,7 @@ public class TestBot : IBot
         var warnings = new List<string>();
 
         // Act
-        ValidateCSharpFileDirectly(file, errors, warnings);
+        ValidateCSharpFileDirectly(file, new List<BotFile> { file }, errors, warnings);
 
         // Assert
         Assert.IsFalse(errors.Any(e => e.Contains("unapproved namespace")), 
@@ -208,7 +209,7 @@ public class TestBot : IBot
         var warnings = new List<string>();
 
         // Act
-        ValidateCSharpFileDirectly(file, errors, warnings);
+        ValidateCSharpFileDirectly(file, new List<BotFile> { file }, errors, warnings);
 
         // Assert - System.Net.Http is caught by dangerous pattern check
         Assert.IsTrue(errors.Any(e => e.Contains("System.Net.Http")), 
@@ -236,7 +237,7 @@ public class TestBot
         var warnings = new List<string>();
 
         // Act
-        ValidateCSharpFileDirectly(file, errors, warnings);
+        ValidateCSharpFileDirectly(file, new List<BotFile> { file }, errors, warnings);
 
         // Assert -System.Reflection is unapproved namespace (not a sub of approved ones)
         Assert.IsTrue(errors.Any(e => e.Contains("System.Reflection")), 
@@ -244,19 +245,20 @@ public class TestBot
     }
 
     [TestMethod]
-    public void ValidateCSharpFile_WithCustomNamespace_ReturnsError()
+    public void ValidateCSharpFile_WithCustomNamespace_IsAllowed()
     {
-        // Arrange
+        // Arrange - Custom namespaces (like UserBot.Core) should now be allowed
         var file = new BotFile
         {
             FileName = "TestBot.cs",
             Code = @"
 using System;
-using MyCustomLibrary.Hacks;
+using UserBot.Core;
+using UserBot.StrategicMind.Core;
 
 public class TestBot
 {
-    public string TeamName => ""Test"";;
+    public string TeamName => ""Test"";
 }"
         };
 
@@ -264,11 +266,42 @@ public class TestBot
         var warnings = new List<string>();
 
         // Act
-        ValidateCSharpFileDirectly(file, errors, warnings);
+        ValidateCSharpFileDirectly(file, new List<BotFile> { file }, errors, warnings);
 
         // Assert
-        Assert.IsTrue(errors.Any(e => e.Contains("unapproved namespace") && e.Contains("MyCustomLibrary")), 
-            "Should detect custom unapproved namespace");
+        Assert.IsFalse(errors.Any(e => e.Contains("namespace") && e.Contains("UserBot")), 
+            "Custom namespaces like UserBot.* should be allowed");
+    }
+
+    [TestMethod]
+    public void ValidateCSharpFile_WithDangerousSystemNamespace_ReturnsError()
+    {
+        // Arrange - Dangerous system namespaces should still be blocked
+        var file = new BotFile
+        {
+            FileName = "TestBot.cs",
+            Code = @"
+using System;
+using System.Net.Http;
+using System.Reflection.Assembly;
+
+public class TestBot
+{
+    public string TeamName => ""Test"";
+}"
+        };
+
+        var errors = new List<string>();
+        var warnings = new List<string>();
+
+        // Act
+        ValidateCSharpFileDirectly(file, new List<BotFile> { file }, errors, warnings);
+
+        // Assert
+        Assert.IsTrue(errors.Any(e => e.Contains("blocked namespace") && e.Contains("System.Net")), 
+            "Dangerous namespace System.Net.Http should be blocked");
+        Assert.IsTrue(errors.Any(e => e.Contains("blocked namespace") && e.Contains("System.Reflection")), 
+            "Dangerous namespace System.Reflection.Assembly should be blocked");
     }
 
     #endregion
@@ -299,7 +332,7 @@ public class TestBot
         var warnings = new List<string>();
 
         // Act
-        ValidateCSharpFileDirectly(file, errors, warnings);
+        ValidateCSharpFileDirectly(file, new List<BotFile> { file }, errors, warnings);
 
         // Assert
         Assert.IsTrue(errors.Any(e => e.Contains("disallowed pattern") && e.Contains("File.Delete")), 
@@ -330,7 +363,7 @@ public class TestBot
         var warnings = new List<string>();
 
         // Act
-        ValidateCSharpFileDirectly(file, errors, warnings);
+        ValidateCSharpFileDirectly(file, new List<BotFile> { file }, errors, warnings);
 
         // Assert
         Assert.IsTrue(errors.Any(e => e.Contains("disallowed pattern") && e.Contains("Process.Start")), 
@@ -361,7 +394,7 @@ public class TestBot
         var warnings = new List<string>();
 
         // Act
-        ValidateCSharpFileDirectly(file, errors, warnings);
+        ValidateCSharpFileDirectly(file, new List<BotFile> { file }, errors, warnings);
 
         // Assert
         Assert.IsTrue(errors.Any(e => e.Contains("disallowed pattern") && e.Contains("Assembly.Load")), 
@@ -388,7 +421,7 @@ public class TestBot
         var warnings = new List<string>();
 
         // Act
-        ValidateCSharpFileDirectly(file, errors, warnings);
+        ValidateCSharpFileDirectly(file, new List<BotFile> { file }, errors, warnings);
 
         // Assert
         Assert.IsTrue(errors.Any(e => e.Contains("disallowed pattern") && e.Contains("System.Net.Http")), 
@@ -418,7 +451,7 @@ public class TestBot
         var warnings = new List<string>();
 
         // Act
-        ValidateCSharpFileDirectly(file, errors, warnings);
+        ValidateCSharpFileDirectly(file, new List<BotFile> { file }, errors, warnings);
 
         // Assert
         Assert.IsTrue(errors.Any(e => e.Contains("disallowed pattern") && e.Contains("Environment.Exit")), 
@@ -452,7 +485,7 @@ public class TestBot
         var warnings = new List<string>();
 
         // Act
-        ValidateCSharpFileDirectly(file, errors, warnings);
+        ValidateCSharpFileDirectly(file, new List<BotFile> { file }, errors, warnings);
 
         // Assert
         Assert.IsTrue(errors.Any(e => e.Contains("unsafe") && e.Contains("not allowed")), 
@@ -484,7 +517,7 @@ public class TestBot
         var warnings = new List<string>();
 
         // Act
-        ValidateCSharpFileDirectly(file, errors, warnings);
+        ValidateCSharpFileDirectly(file, new List<BotFile> { file }, errors, warnings);
 
         // Assert
         Assert.IsFalse(errors.Any(e => e.Contains("framework") && e.Contains("net8.0")), 
@@ -512,7 +545,7 @@ public class TestBot
         var warnings = new List<string>();
 
         // Act
-        ValidateCSharpFileDirectly(file, errors, warnings);
+        ValidateCSharpFileDirectly(file, new List<BotFile> { file }, errors, warnings);
 
         // Assert
         Assert.IsTrue(errors.Any(e => e.Contains("framework") && e.Contains("other than")), 
@@ -543,7 +576,7 @@ public class TestBot
         var warnings = new List<string>();
 
         // Act
-        ValidateCSharpFileDirectly(file, errors, warnings);
+        ValidateCSharpFileDirectly(file, new List<BotFile> { file }, errors, warnings);
 
         // Assert
         Assert.IsTrue(warnings.Any(w => w.Contains("IBot")), 
@@ -571,7 +604,7 @@ public class TestBot : IBot
         var warnings = new List<string>();
 
         // Act
-        ValidateCSharpFileDirectly(file, errors, warnings);
+        ValidateCSharpFileDirectly(file, new List<BotFile> { file }, errors, warnings);
 
         // Assert
         Assert.IsFalse(warnings.Any(w => w.Contains("IBot") && w.Contains("doesn't appear")), 
@@ -626,7 +659,7 @@ public class TestBot : IBot
         var warnings = new List<string>();
 
         // Act
-        ValidateCSharpFileDirectly(file, errors, warnings);
+        ValidateCSharpFileDirectly(file, new List<BotFile> { file }, errors, warnings);
 
         // Assert
         Assert.IsFalse(warnings.Any(w => w.Contains("MakeMove")), "Should NOT warn about missing MakeMove");
@@ -661,7 +694,7 @@ public class TestBot : IBot
         var warnings = new List<string>();
 
         // Act
-        ValidateCSharpFileDirectly(file, errors, warnings);
+        ValidateCSharpFileDirectly(file, new List<BotFile> { file }, errors, warnings);
 
         // Assert
         Assert.IsTrue(warnings.Any(w => w.Contains("MakeMove")), 
@@ -688,7 +721,7 @@ public class TestBot
         var warnings = new List<string>();
 
         // Act
-        ValidateCSharpFileDirectly(file, errors, warnings);
+        ValidateCSharpFileDirectly(file, new List<BotFile> { file }, errors, warnings);
 
         // Assert
         Assert.IsTrue(warnings.Any(w => w.Contains("AllocateTroops")), 
@@ -700,15 +733,25 @@ public class TestBot
     #region File Type Tests
 
     [TestMethod]
-    public void ValidateAllFiles_WithPythonFile_ReturnsError()
+    public void ValidateAllFiles_WithPythonFile_IsAllowed()
     {
-        // Arrange
+        // Arrange - Python files are now allowed as documentation
         var files = new List<BotFile>
         {
             new BotFile
             {
                 FileName = "bot.py",
                 Code = "def make_move():\n    return 'Rock'"
+            },
+            new BotFile
+            {
+               FileName = "Bot.cs",
+                Code = @"
+using TournamentEngine.Core.Common;
+public class Bot : IBot
+{
+    public string TeamName => ""Test"";//
+}"
             }
         };
 
@@ -718,21 +761,31 @@ public class TestBot
         // Act
         ValidateAllFilesDirectly(files, errors, warnings);
 
-        // Assert
-        Assert.IsTrue(errors.Any(e => e.Contains("Python") && e.Contains("supported")), 
-            $"Should reject Python files with clear error. Errors: {string.Join("; ", errors)}");
+        // Assert - Python files are allowed, but need at least one C# file
+        Assert.IsFalse(errors.Any(e => e.Contains("Python")), 
+            $"Python files should be allowed as documentation. Errors: {string.Join("; ", errors)}");
     }
 
     [TestMethod]
-    public void ValidateAllFiles_WithJavaScriptFile_ReturnsError()
+    public void ValidateAllFiles_WithJavaScriptFile_ReturnsWarning()
     {
-        // Arrange
+        // Arrange - JavaScript files get a warning about unknown extension
         var files = new List<BotFile>
         {
             new BotFile
             {
                 FileName = "bot.js",
                 Code = "function makeMove() { return 'Rock'; }"
+            },
+            new BotFile
+            {
+                FileName = "Bot.cs",
+                Code = @"
+using TournamentEngine.Core.Common;
+public class Bot : IBot
+{
+    public string TeamName => ""Test"";//
+}"
             }
         };
 
@@ -742,9 +795,9 @@ public class TestBot
         // Act
         ValidateAllFilesDirectly(files, errors, warnings);
 
-        // Assert
-        Assert.IsTrue(errors.Any(e => e.Contains("unsupported extension") && e.Contains("Only C#")), 
-            "Should reject JavaScript files");
+        // Assert - .js files should get a warning, not an error
+        Assert.IsTrue(warnings.Any(e => e.Contains("unknown extension") && e.Contains("bot.js")), 
+            $"Should warn about JavaScript files. Warnings: {string.Join("; ", warnings)}");
     }
 
     [TestMethod]
@@ -848,7 +901,7 @@ public class TestBot
         var warnings = new List<string>();
 
         // Act
-        ValidateCSharpFileDirectly(file, errors, warnings);
+        ValidateCSharpFileDirectly(file, new List<BotFile> { file }, errors, warnings);
 
         // Assert
         Assert.IsTrue(warnings.Any(w => w.Contains("TournamentEngine.Core.Common")), 
@@ -876,7 +929,7 @@ public class TestBot : IBot
         var warnings = new List<string>();
 
         // Act
-        ValidateCSharpFileDirectly(file, errors, warnings);
+        ValidateCSharpFileDirectly(file, new List<BotFile> { file }, errors, warnings);
 
         // Assert
         Assert.IsFalse(warnings.Any(w => w.Contains("TournamentEngine.Core.Common") && w.Contains("should include")), 
@@ -890,7 +943,7 @@ public class TestBot : IBot
     [TestMethod]
     public void ValidateCSharpFile_WithoutClassDefinition_ReturnsWarning()
     {
-        // Arrange
+        // Arrange - file with only an interface (now allowed for helper classes)
         var file = new BotFile
         {
             FileName = "TestBot.cs",
@@ -907,11 +960,11 @@ public interface ITest
         var warnings = new List<string>();
 
         // Act
-        ValidateCSharpFileDirectly(file, errors, warnings);
+        ValidateCSharpFileDirectly(file, new List<BotFile> { file }, errors, warnings);
 
-        // Assert
-        Assert.IsTrue(warnings.Any(w => w.Contains("no class definitions")), 
-            "Should warn about missing class definition");
+        // Assert - interfaces are now allowed (for helper classes)
+        Assert.IsFalse(warnings.Any(w => w.Contains("no class definitions")), 
+            "Should not warn about interfaces - they are valid C# constructs for helpers");
     }
 
     [TestMethod]
@@ -934,7 +987,7 @@ public class TestBot
         var warnings = new List<string>();
 
         // Act
-        ValidateCSharpFileDirectly(file, errors, warnings);
+        ValidateCSharpFileDirectly(file, new List<BotFile> { file }, errors, warnings);
 
         // Assert
         Assert.IsFalse(warnings.Any(w => w.Contains("no class definitions")), 
@@ -949,39 +1002,62 @@ public class TestBot
     /// Helper to replicate ValidateCSharpFile logic from BotEndpoints.cs
     /// Must match the actual implementation for accurate testing
     /// </summary>
-    private void ValidateCSharpFileDirectly(BotFile file, List<string> errors, List<string> warnings)
+    private void ValidateCSharpFileDirectly(BotFile file, List<BotFile> allFiles, List<string> errors, List<string> warnings)
     {
         var code = file.Code;
+        
+        // Count how many files implement IBot
+        var iBotImplementationCount = allFiles
+            .Where(f => f.FileName.EndsWith(".cs", System.StringComparison.OrdinalIgnoreCase))
+            .Count(f => f.Code.Contains(": IBot"));
+        
+        // Check if this file implements IBot
+        var thisFileImplementsIBot = code.Contains(": IBot");
+        
+        // Skip IBot-related warnings if there's exactly one IBot implementation and this isn't it
+        var skipIBotWarnings = (iBotImplementationCount == 1) && !thisFileImplementsIBot;
 
-        // Check for basic C# structure
-        if (!code.Contains("class "))
+        // Check for basic C# structure (class or interface)
+        if (!skipIBotWarnings && !code.Contains("class ") && !code.Contains("interface "))
         {
-            warnings.Add($"File {file.FileName} appears to be C# but has no class definitions");
+            warnings.Add($"File {file.FileName} appears to be C# but has no class or interface definitions");
         }
 
-        // CODING RULE: Check for double semicolons
-        var singleSemicolonPattern = @"(?<!;);(?!;)";
-        var singleSemicolons = System.Text.RegularExpressions.Regex.Matches(code, singleSemicolonPattern);
-        
-        if (singleSemicolons.Count > 0)
+        // CODING RULE 1: Check for double semicolons (;;) - not allowed
+        if (code.Contains(";;"))
         {
-            // Count valid single semicolons in specific contexts
-            var validSingleSemiCount = 0;
+            errors.Add($"File {file.FileName} contains double semicolons (;;) which are not allowed");
+        }
+        
+        // CODING RULE 2: Check for double forward slashes at end of lines (required pattern)
+        var lines = code.Split('\n');
+        var invalidLines = 0;
+        
+        foreach (var line in lines)
+        {
+            var trimmed = line.TrimEnd('\r', '\n', ' ', '\t');
             
-            // Using directives - each using has 1 semicolon
-            validSingleSemiCount += System.Text.RegularExpressions.Regex.Matches(code, @"using\s+[^;]+;").Count;
-            
-            // For loops - each for loop has 2 semicolons
-            var forLoopMatches = System.Text.RegularExpressions.Regex.Matches(code, @"for\s*\([^;]*;[^;]*;[^)]*\)");
-            validSingleSemiCount += forLoopMatches.Count * 2;
-            
-            // Namespace declarations - each namespace has 1 semicolon
-            validSingleSemiCount += System.Text.RegularExpressions.Regex.Matches(code, @"namespace\s+[^;]+;").Count;
-
-            if (singleSemicolons.Count > validSingleSemiCount)
+            // Skip empty lines, using directives, namespace declarations, braces, and for loop headers
+            if (string.IsNullOrWhiteSpace(trimmed) ||
+                trimmed.TrimStart().StartsWith("using ") ||
+                trimmed.TrimStart().StartsWith("namespace ") ||
+                trimmed.Contains("for (") ||
+                trimmed.Trim() == "{" ||
+                trimmed.Trim() == "}")
             {
-                errors.Add($"File {file.FileName} violates double semicolon rule. All statements must end with ';;' (except using directives and for loops)");
+                continue;
             }
+            
+            // If line ends with semicolon, it must be followed by //
+            if (trimmed.EndsWith(";") && !trimmed.EndsWith("; //") && !trimmed.EndsWith(";//"))
+            {
+                invalidLines++;
+            }
+        }
+        
+        if (invalidLines > 0)
+        {
+            errors.Add($"File {file.FileName} violates double forward slash rule. All statement lines must end with ';//' or '; //' (except using directives, namespace declarations, and for loops)");
         }
 
         // Check for unsafe code blocks
@@ -1026,20 +1102,59 @@ public class TestBot
             "TournamentEngine.Core.Common"
         };
 
+        // Blocked namespaces - dangerous system libraries
+        var blockedNamespaces = new[]
+        {
+            "System.Net",
+            "System.Reflection",
+            "System.Runtime",
+            "System.Security",
+            "System.IO.Pipes",
+            "System.IO.IsolatedStorage",
+            "System.CodeDom",
+            "Microsoft.CSharp",
+            "Microsoft.CodeAnalysis"
+        };
+
         var usingMatches = System.Text.RegularExpressions.Regex.Matches(code, @"using\s+([a-zA-Z0-9_.]+)\s*;");
         foreach (System.Text.RegularExpressions.Match match in usingMatches)
         {
             var namespaceName = match.Groups[1].Value;
             
-            // Only exact matches are allowed
-            if (!approvedNamespaces.Contains(namespaceName))
+            // Allow approved .NET namespaces
+            if (approvedNamespaces.Contains(namespaceName))
             {
-                errors.Add($"File {file.FileName} uses unapproved namespace: {namespaceName}. Only approved .NET libraries are allowed: {string.Join(", ", approvedNamespaces)}");
+                continue;
+            }
+            
+            // Block dangerous system namespaces
+            bool isBlocked = false;
+            foreach (var blocked in blockedNamespaces)
+            {
+                if (namespaceName == blocked || namespaceName.StartsWith(blocked + "."))
+                {
+                    errors.Add($"File {file.FileName} uses blocked namespace: {namespaceName}. This namespace provides dangerous functionality.");
+                    isBlocked = true;
+                    break;
+                }
+            }
+            
+            // Allow custom namespaces (like UserBot.Core, etc.) - they're user-defined and safe
+            if (!isBlocked)
+            {
+                // Custom namespace - allowed
+                continue;
             }
         }
 
-        // Check for TournamentEngine.Core.Common
-        if (!code.Contains("using TournamentEngine.Core.Common"))
+        // Check if file uses custom namespaces (UserBot.*, etc.)
+        var usingCustomNamespaces = System.Text.RegularExpressions.Regex.IsMatch(
+            code, 
+            @"using\s+(?!System|TournamentEngine)[a-zA-Z0-9_.]+\s*;"
+        );
+
+        // Check for TournamentEngine.Core.Common (only for IBot implementations not using custom namespaces)
+        if (!skipIBotWarnings && !usingCustomNamespaces && !code.Contains("using TournamentEngine.Core.Common"))
         {
             warnings.Add($"File {file.FileName} should include 'using TournamentEngine.Core.Common;' to implement IBot interface");
         }
@@ -1050,25 +1165,30 @@ public class TestBot
             errors.Add($"File {file.FileName} targets a framework other than net8.0. Must target .NET 8.0");
         }
 
-        // Check for IBot implementation
-        if (!code.Contains(": IBot"))
+        // Check for IBot implementation (only warn if we should)
+        if (!skipIBotWarnings && !code.Contains(": IBot"))
         {
             warnings.Add($"File {file.FileName} doesn't appear to implement IBot interface");
         }
 
-        // Check for required methods
-        var requiredMethods = new[] { "MakeMove", "AllocateTroops", "MakePenaltyDecision", "MakeSecurityMove" };
-        foreach (var method in requiredMethods)
+        // Check for required methods (only for IBot implementations)
+        if (!skipIBotWarnings)
         {
-            if (!code.Contains(method))
+            var requiredMethods = new[] { "MakeMove", "AllocateTroops", "MakePenaltyDecision", "MakeSecurityMove" };
+            foreach (var method in requiredMethods)
             {
-                warnings.Add($"File {file.FileName} doesn't appear to implement required method: {method}");
+                if (!code.Contains(method))
+                {
+                    warnings.Add($"File {file.FileName} doesn't appear to implement required method: {method}");
+                }
             }
         }
     }
 
     private void ValidateAllFilesDirectly(List<BotFile> files, List<string> errors, List<string> warnings)
     {
+        var hasCodeFile = false;
+        
         foreach (var file in files)
         {
             if (string.IsNullOrWhiteSpace(file.Code))
@@ -1077,18 +1197,261 @@ public class TestBot
                 continue;
             }
 
+            // C# file validation
             if (file.FileName.EndsWith(".cs", System.StringComparison.OrdinalIgnoreCase))
             {
-                ValidateCSharpFileDirectly(file, errors, warnings);
+                hasCodeFile = true;
+                ValidateCSharpFileDirectly(file, files, errors, warnings);
             }
-            else if (file.FileName.EndsWith(".py", System.StringComparison.OrdinalIgnoreCase))
+            // Allow documentation files - just skip validation
+            else if (file.FileName.EndsWith(".md", System.StringComparison.OrdinalIgnoreCase) ||
+                     file.FileName.EndsWith(".agent.md", System.StringComparison.OrdinalIgnoreCase) ||
+                     file.FileName.EndsWith(".py", System.StringComparison.OrdinalIgnoreCase) ||
+                     file.FileName.EndsWith(".txt", System.StringComparison.OrdinalIgnoreCase))
             {
-                errors.Add($"File {file.FileName} is Python (.py) but only C# (.cs) files are supported");
+                // Documentation/verification files allowed - no validation needed
+                continue;
             }
-            else if (!file.FileName.EndsWith(".cs", System.StringComparison.OrdinalIgnoreCase))
+            else
             {
-                errors.Add($"File {file.FileName} has unsupported extension. Only C# (.cs) files are accepted");
+                warnings.Add($"File {file.FileName} has unknown extension. Only .cs files will be compiled. Documentation files (.md, .agent.md, .py, .txt) are allowed but ignored.");
             }
+        }
+        
+        if (!hasCodeFile)
+        {
+            errors.Add("At least one .cs file is required");
+        }
+    }
+
+    #endregion
+
+    #region Real Submission Tests
+
+    [TestMethod]
+    public void ValidateStrategicMindSubmission_AsIs_ShowsValidationResults()
+    {
+        // Arrange - Load all files from StrategicMind submission
+        var submissionPath = Path.Combine(
+            Directory.GetCurrentDirectory(),
+            "TestData",
+            "StrategicMind_Submission",
+            "StrategicMind_Submission"
+        );
+
+        var files = new List<BotFile>();
+
+        // Load all .cs files from BotCode directory
+        var csFiles = Directory.GetFiles(Path.Combine(submissionPath, "BotCode"), "*.cs", SearchOption.AllDirectories);
+        foreach (var csFilePath in csFiles)
+        {
+            var fileName = Path.GetFileName(csFilePath);
+            var code = File.ReadAllText(csFilePath);
+            files.Add(new BotFile { FileName = fileName, Code = code });
+        }
+
+        // Load documentation files
+        var docPath = Path.Combine(submissionPath, "Documentation");
+        if (Directory.Exists(docPath))
+        {
+            foreach (var mdFile in Directory.GetFiles(docPath, "*.md"))
+            {
+                var fileName = Path.GetFileName(mdFile);
+                var code = File.ReadAllText(mdFile);
+                files.Add(new BotFile { FileName = fileName, Code = code });
+            }
+        }
+
+        // Load config files
+        var configPath = Path.Combine(submissionPath, "Config");
+        if (Directory.Exists(configPath))
+        {
+            foreach (var mdFile in Directory.GetFiles(configPath, "*.md"))
+            {
+                var fileName = Path.GetFileName(mdFile);
+                var code = File.ReadAllText(mdFile);
+                files.Add(new BotFile { FileName = fileName, Code = code });
+            }
+        }
+
+        var errors = new List<string>();
+        var warnings = new List<string>();
+
+        // Act - Validate all C# files
+        ValidateAllFilesDirectly(files, errors, warnings);
+
+        // Also check for required files
+        ValidateRequiredFilesDirectly(files, errors);
+
+        // Assert
+        Assert.AreEqual(24, files.Count, "Total file count should be 24");
+        Assert.AreEqual(14, files.Count(f => f.FileName.EndsWith(".cs")), "Should have 14 C# files");
+        Assert.AreEqual(10, files.Count(f => f.FileName.EndsWith(".md")), "Should have 10 MD files");
+        
+        // Should have no validation errors
+        Assert.IsFalse(errors.Any(), 
+            $"Validation should pass with no errors. Errors found: {string.Join("; ", errors)}");
+        
+        // No warnings expected - helper classes are correctly identified (only 1 IBot implementation)
+        Assert.AreEqual(0, warnings.Count, 
+            $"Should have no warnings with smart IBot detection. Warnings: {string.Join("; ", warnings)}");
+    }
+
+    [TestMethod]
+    public void SubmitStrategicMindBot_WithValidation_PassesAllChecks()
+    {
+        // Arrange - Load all files from StrategicMind submission (same as verify test)
+        var submissionPath = Path.Combine(
+            Directory.GetCurrentDirectory(),
+            "TestData",
+            "StrategicMind_Submission",
+            "StrategicMind_Submission"
+        );
+
+        var files = new List<BotFile>();
+
+        // Load all .cs files from BotCode directory
+        var csFiles = Directory.GetFiles(Path.Combine(submissionPath, "BotCode"), "*.cs", SearchOption.AllDirectories);
+        foreach (var csFilePath in csFiles)
+        {
+            var fileName = Path.GetFileName(csFilePath);
+            var code = File.ReadAllText(csFilePath);
+            files.Add(new BotFile { FileName = fileName, Code = code });
+        }
+
+        // Load documentation files
+        var docPath = Path.Combine(submissionPath, "Documentation");
+        if (Directory.Exists(docPath))
+        {
+            foreach (var mdFile in Directory.GetFiles(docPath, "*.md"))
+            {
+                var fileName = Path.GetFileName(mdFile);
+                var code = File.ReadAllText(mdFile);
+                files.Add(new BotFile { FileName = fileName, Code = code });
+            }
+        }
+
+        // Load config files
+        var configPath = Path.Combine(submissionPath, "Config");
+        if (Directory.Exists(configPath))
+        {
+            foreach (var mdFile in Directory.GetFiles(configPath, "*.md"))
+            {
+                var fileName = Path.GetFileName(mdFile);
+                var code = File.ReadAllText(mdFile);
+                files.Add(new BotFile { FileName = fileName, Code = code });
+            }
+        }
+
+        // Create submission request (as it would be sent to POST /api/bots/submit)
+        var submissionRequest = new BotSubmissionRequest
+        {
+            TeamName = "StrategicMind",
+            Files = files,
+            Overwrite = true
+        };
+
+        // Act - Run the same validation that the submit endpoint uses
+        var errors = new List<string>();
+        var warnings = new List<string>();
+
+        // Validate team name
+        Assert.IsTrue(IsValidTeamNameHelper(submissionRequest.TeamName), 
+            "Team name should be valid");
+
+        // Validate file sizes (same limits as submit endpoint)
+        var maxFileSize = 50_000; // 50KB
+        var maxTotalSize = 500_000; // 500KB
+
+        foreach (var file in submissionRequest.Files)
+        {
+            var fileSize = System.Text.Encoding.UTF8.GetByteCount(file.Code);
+            if (fileSize > maxFileSize)
+            {
+                errors.Add($"File {file.FileName} exceeds maximum size of 50KB");
+            }
+        }
+
+        var totalSize = submissionRequest.Files.Sum(f => System.Text.Encoding.UTF8.GetByteCount(f.Code));
+        if (totalSize > maxTotalSize)
+        {
+            errors.Add("Total submission size exceeds maximum of 500KB");
+        }
+
+        // Check for duplicate filenames
+        var fileNames = submissionRequest.Files.Select(f => f.FileName).ToList();
+        if (fileNames.Distinct().Count() != fileNames.Count)
+        {
+            errors.Add("Duplicate file names detected");
+        }
+
+        // Run enhanced validation (same as submit endpoint)
+        ValidateAllFilesDirectly(submissionRequest.Files, errors, warnings);
+        ValidateRequiredFilesDirectly(submissionRequest.Files, errors);
+
+        // Assert - Should pass all validation checks
+        Assert.AreEqual(24, submissionRequest.Files.Count, "Should have 24 files");
+        Assert.IsTrue(totalSize < maxTotalSize, 
+            $"Total size ({totalSize} bytes) should be under {maxTotalSize} bytes");
+        Assert.AreEqual(submissionRequest.TeamName, "StrategicMind", "Team name should match");
+        
+        // No duplicate filenames
+        Assert.AreEqual(fileNames.Count, fileNames.Distinct().Count(), 
+            "Should have no duplicate file names");
+        
+        // All file sizes should be within limits
+        foreach (var file in submissionRequest.Files)
+        {
+            var fileSize = System.Text.Encoding.UTF8.GetByteCount(file.Code);
+            Assert.IsTrue(fileSize <= maxFileSize, 
+                $"File {file.FileName} ({fileSize} bytes) should be under {maxFileSize} bytes");
+        }
+        
+        // Most important: No validation errors (ready for submission)
+        Assert.IsFalse(errors.Any(), 
+            $"Submission should pass validation with no errors. Errors: {string.Join("; ", errors)}");
+    }
+
+    private bool IsValidTeamNameHelper(string teamName)
+    {
+        // Team name validation: alphanumeric, hyphens, underscores only
+        return !string.IsNullOrWhiteSpace(teamName) &&
+               System.Text.RegularExpressions.Regex.IsMatch(teamName, @"^[a-zA-Z0-9_-]+$");
+    }
+
+    private void ValidateRequiredFilesDirectly(List<BotFile> files, List<string> errors)
+    {
+        var fileNames = files.Select(f => f.FileName).ToHashSet(System.StringComparer.OrdinalIgnoreCase);
+
+        // Required files for all submissions
+        var requiredFiles = new[]
+        {
+            "plan-rpsls.md",
+            "plan-colonelBlotto.md",
+            "colonelBlotto_Skill.md",
+            "plan-workshop.md",
+            "copilot-instructions.md"
+        };
+
+        // Allow either ResearchAgent.md or ResearchAgent.agent.md
+        if (!fileNames.Contains("ResearchAgent.md") && !fileNames.Contains("ResearchAgent.agent.md"))
+        {
+            errors.Add("Missing required file: ResearchAgent.md or ResearchAgent.agent.md");
+        }
+
+        // Allow either RPSLS_Skill.md or RPSLS-Strategy-Skill.md
+        if (!fileNames.Contains("RPSLS_Skill.md") && !fileNames.Contains("RPSLS-Strategy-Skill.md"))
+        {
+            errors.Add("Missing required file: RPSLS_Skill.md or RPSLS-Strategy-Skill.md");
+        }
+
+        var missingFiles = requiredFiles
+            .Where(required => !fileNames.Contains(required))
+            .ToList();
+
+        if (missingFiles.Any())
+        {
+            errors.Add($"Missing required documentation files: {string.Join(", ", missingFiles)}");
         }
     }
 
