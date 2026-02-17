@@ -133,6 +133,7 @@ public static class BotEndpoints
         var validationErrors = new List<string>();
         var validationWarnings = new List<string>();
         ValidateAllFiles(request.Files, validationErrors, validationWarnings);
+        ValidateRequiredFiles(request.Files, validationErrors);
 
         if (validationErrors.Count > 0)
         {
@@ -426,6 +427,7 @@ public static class BotEndpoints
 
         // Run enhanced validation
         ValidateAllFiles(request.Files, errors, warnings);
+        ValidateRequiredFiles(request.Files, errors);
 
         // Game-type specific validation (if specified)
         if (request.GameType.HasValue)
@@ -614,6 +616,40 @@ public static class BotEndpoints
                     warnings.Add("Security Game bot should handle target selection logic");
                 }
                 break;
+        }
+    }
+
+    /// <summary>
+    /// Validate that required documentation files are present.
+    /// Penalty Kicks and Security Game files are optional (bonus games).
+    /// </summary>
+    private static void ValidateRequiredFiles(List<BotFile> files, List<string> errors)
+    {
+        var fileNames = files.Select(f => f.FileName).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        // Required files for all submissions
+        var requiredFiles = new[]
+        {
+            "plan-rpsls.md",
+            "plan-colonelBlotto.md",
+            "RPSLS_Skill.md",
+            "colonelBlotto_Skill.md",
+            "ResearchAgent.md",
+            "plan-workshop.md",
+            "copilot-instructions.md"
+        };
+
+        // Optional files (bonus games - not mandatory for submission)
+        // penaltyKicks_Skill.md, securityGame_Skill.md
+        // plan-penaltyKicks.md, plan-securityGame.md
+
+        var missingFiles = requiredFiles
+            .Where(required => !fileNames.Contains(required))
+            .ToList();
+
+        if (missingFiles.Any())
+        {
+            errors.Add($"Missing required documentation files: {string.Join(", ", missingFiles)}");
         }
     }
 }

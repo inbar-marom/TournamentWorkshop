@@ -141,7 +141,7 @@ public class ContractsTests
         Assert.AreEqual(TimeSpan.FromSeconds(5), config.ImportTimeout);
         Assert.AreEqual(TimeSpan.FromSeconds(1), config.MoveTimeout);
         Assert.AreEqual(512, config.MemoryLimitMB);
-        Assert.AreEqual(50, config.MaxRoundsRPSLS);
+        Assert.AreEqual(10, config.MaxRoundsRPSLS);
         Assert.AreEqual("INFO", config.LogLevel);
         Assert.AreEqual("tournament_log.txt", config.LogFilePath);
         Assert.AreEqual("bots", config.BotsDirectory);

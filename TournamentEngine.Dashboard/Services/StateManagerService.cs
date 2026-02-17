@@ -46,12 +46,19 @@ public class StateManagerService
             // Create a fresh copy with recent matches populated
             var stateCopy = new DashboardStateDto
             {
+                TournamentId = currentState.TournamentId,
+                TournamentName = currentState.TournamentName,
+                Champion = currentState.Champion,
                 Status = currentState.Status,
                 Message = currentState.Message,
-                LastUpdated = DateTime.UtcNow,
+                TournamentProgress = currentState.TournamentProgress,
                 TournamentState = currentState.TournamentState,
+                CurrentEvent = currentState.CurrentEvent,
                 OverallLeaderboard = currentState.OverallLeaderboard,
-                RecentMatches = GetRecentMatches(20)
+                GroupStandings = currentState.GroupStandings,
+                RecentMatches = GetRecentMatches(20),
+                NextMatch = currentState.NextMatch,
+                LastUpdated = DateTime.UtcNow
             };
             
             _logger.LogDebug("GetCurrentStateAsync: Status={Status}, RecentMatches={Count}", 

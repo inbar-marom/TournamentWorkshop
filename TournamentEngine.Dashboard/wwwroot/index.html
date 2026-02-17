@@ -254,6 +254,58 @@
             margin-left: 8px;
         }
 
+        .event-tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 18px;
+            padding-bottom: 18px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .event-tab {
+            padding: 10px 18px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            background: #f7f7f4;
+            color: var(--muted);
+            cursor: pointer;
+            font-size: 0.9em;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .event-tab:hover {
+            background: var(--accent-soft);
+            border-color: var(--accent);
+            color: var(--accent-strong);
+        }
+
+        .event-tab.active {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent-strong);
+            font-weight: 600;
+        }
+
+        .event-tab.running {
+            border: 2px solid var(--accent);
+            border-style: dashed;
+        }
+
+        .event-tab.active.running {
+            background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+            border-style: solid;
+            box-shadow: 0 0 12px rgba(15, 118, 110, 0.3);
+        }
+
+        .event-tab-indicator {
+            font-size: 1.1em;
+        }
+
         .details-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -537,17 +589,14 @@
 
         <section class="card">
             <h2>Events Details</h2>
+            <div class="event-tabs" id="eventTabs">
+                <div class="status-message">No events configured</div>
+            </div>
             <div class="details-grid">
                 <div>
                     <div class="panel-title">Recent Matches</div>
                     <div id="recentMatches">
                         <div class="status-message">No matches yet</div>
-                    </div>
-                </div>
-                <div>
-                    <div class="panel-title">Now Running Event</div>
-                    <div id="nowRunningEvent">
-                        <div class="status-message">Waiting for tournament data...</div>
                     </div>
                 </div>
                 <div>
@@ -595,6 +644,10 @@
         let matchesPerPage = 5;
         let matchCarouselTimer = null;
         let lastMatchCarouselTime = 0;
+        
+        // Event tabs state
+        let selectedEventIndex = 0;
+        let tournamentSteps = [];
 
         connection.on("reconnected", (connectionId) => {
             connectionRetries = 0;
@@ -711,6 +764,54 @@
             return map[value] || value.replace(/([a-z])([A-Z])/g, '$1 $2');
         }
 
+        function updateEventTabs(steps) {
+            const container = document.getElementById('eventTabs');
+            if (!steps || steps.length === 0) {
+                container.innerHTML = '<div class="status-message">No events configured</div>';
+                return;
+            }
+
+            // Find currently running event
+            const runningIndex = steps.findIndex(step => formatStepStatus(step.Status || step.status) === 'InProgress');
+            
+            // Set default selected event to running event or first event
+            if (selectedEventIndex === 0 && runningIndex >= 0) {
+                selectedEventIndex = runningIndex;
+            }
+            
+            // Ensure selectedEventIndex is within bounds
+            selectedEventIndex = Math.min(selectedEventIndex, steps.length - 1);
+
+            container.innerHTML = steps.map((step, index) => {
+                const status = formatStepStatus(step.Status || step.status);
+                const isRunning = status === 'InProgress';
+                const isActive = index === selectedEventIndex;
+                const gameType = step.GameType || step.gameType;
+                const label = formatGameType(gameType) || `Event ${step.StepIndex || step.stepIndex || (index + 1)}`;
+                
+                const classes = ['event-tab'];
+                if (isActive) classes.push('active');
+                if (isRunning) classes.push('running');
+                
+                const indicator = isRunning ? '<span class="event-tab-indicator">⧖</span>' : '';
+                
+                return `<button class="${classes.join(' ')}" onclick="selectEventTab(${index})">${indicator}${label}</button>`;
+            }).join('');
+        }
+
+        function selectEventTab(index) {
+            if (index === selectedEventIndex) return; // Already selected
+            
+            selectedEventIndex = index;
+            updateEventTabs(tournamentSteps);
+            
+            // Refresh data displays with filtered data
+            if (lastState) {
+                updateGroupStandings(lastState.GroupStandings || lastState.groupStandings || []);
+                updateRecentMatches(recentMatches);
+            }
+        }
+
         function updateFromState(state) {
             const tournamentState = state.TournamentState || state.tournamentState;
             const steps = tournamentState?.Steps || tournamentState?.steps || [];
@@ -726,12 +827,15 @@
                 recentMatches = stateMatches;
             }
 
+            // Update tournament steps and event tabs
+            tournamentSteps = steps;
+            updateEventTabs(steps);
+
             updateStatusPill(status);
             updateProgress(progressPercent);
             updateStepTrack(steps);
             updateEventChampions(steps);
             updateOverallLeaders(state.OverallLeaderboard || state.overallLeaderboard || [], isTournamentComplete);
-            updateNowRunning(state, steps, isTournamentComplete);
             updateGroupStandings(state.GroupStandings || state.groupStandings || []);
             updateRecentMatches(recentMatches);
         }
@@ -835,50 +939,36 @@
             }).join('');
         }
 
-        function updateNowRunning(state, steps, isTournamentComplete = false) {
-            const container = document.getElementById('nowRunningEvent');
-            
-            // If tournament is complete, show completion message instead of event details
-            if (isTournamentComplete) {
-                container.innerHTML = `<div class="status-message">All events completed</div>`;
-                return;
-            }
-            
-            const currentStep = steps.find(step => formatStepStatus(step.Status || step.status) === 'InProgress');
-            const currentEvent = state.CurrentEvent || state.currentEvent;
-            const gameType = currentStep?.GameType || currentStep?.gameType || currentEvent?.GameType || currentEvent?.gameType;
-            const eventName = currentEvent?.EventName || currentEvent?.eventName || formatGameType(gameType);
-            const stage = currentEvent?.Stage || currentEvent?.stage;
-            const progress = currentEvent?.ProgressPercentage || currentEvent?.progressPercentage;
-            const matchesCompleted = currentEvent?.MatchesCompleted || currentEvent?.matchesCompleted;
-            const totalMatches = currentEvent?.TotalMatches || currentEvent?.totalMatches;
-            const statusMessage = state.Message || state.message || 'Awaiting updates';
-
-            if (!currentStep && !currentEvent) {
-                container.innerHTML = `<div class="status-message">${statusMessage}</div>`;
-                return;
-            }
-
-            container.innerHTML = `
-                <div class="list-item">
-                    <span>Event Name</span>
-                    <span>${eventName || 'In progress'}</span>
-                </div>
-                <div class="list-item">
-                    <span>Stage</span>
-                    <span>${stage || 'Group Stage'}</span>
-                </div>
-                <div class="list-item">
-                    <span>Matches</span>
-                    <span>${matchesCompleted ?? 0} / ${totalMatches ?? 0}</span>
-                </div>
-                <div class="status-message">${progress ? `${Math.round(progress)}% complete` : statusMessage}</div>
-            `;
-        }
-
         function updateGroupStandings(groups) {
+            const container = document.getElementById('groupStandings');
+            
             if (!groups || groups.length === 0) {
-                document.getElementById('groupStandings').innerHTML = '<div class="status-message">No group data yet</div>';
+                container.innerHTML = '<div class="status-message">No group data yet</div>';
+                return;
+            }
+
+            // Filter groups by selected event if we have event context
+            let filteredGroups = groups;
+            if (tournamentSteps.length > 0 && selectedEventIndex >= 0 && selectedEventIndex < tournamentSteps.length) {
+                const selectedStep = tournamentSteps[selectedEventIndex];
+                const selectedGameType = selectedStep?.GameType || selectedStep?.gameType;
+                const selectedEventId = selectedStep?.EventId || selectedStep?.eventId;
+                
+                // Filter groups that belong to this event
+                // Groups might have EventId or we can infer from group naming
+                filteredGroups = groups.filter(group => {
+                    // If group has explicit EventId, use that
+                    if (group.EventId || group.eventId) {
+                        return (group.EventId || group.eventId) === selectedEventId;
+                    }
+                    // Otherwise, this is a multi-event tournament, show all for now
+                    // In a real implementation, we'd need better event-to-group mapping
+                    return true;
+                });
+            }
+
+            if (filteredGroups.length === 0) {
+                container.innerHTML = '<div class="status-message">No group data yet for this event</div>';
                 return;
             }
 
@@ -886,13 +976,15 @@
                 clearInterval(groupCycleTimer);
             }
 
-            groupCycleIndex = Math.min(groupCycleIndex, groups.length - 1);
-            renderGroup(groups[groupCycleIndex]);
+            groupCycleIndex = Math.min(groupCycleIndex, filteredGroups.length - 1);
+            renderGroup(filteredGroups[groupCycleIndex]);
 
-            groupCycleTimer = setInterval(() => {
-                groupCycleIndex = (groupCycleIndex + 1) % groups.length;
-                renderGroup(groups[groupCycleIndex]);
-            }, 5000);
+            if (filteredGroups.length > 1) {
+                groupCycleTimer = setInterval(() => {
+                    groupCycleIndex = (groupCycleIndex + 1) % filteredGroups.length;
+                    renderGroup(filteredGroups[groupCycleIndex]);
+                }, 5000);
+            }
         }
 
         function renderGroup(group) {
@@ -921,7 +1013,24 @@
                 return;
             }
 
-            const totalPages = Math.ceil(matches.length / matchesPerPage);
+            // Filter matches by selected event's GameType
+            let filteredMatches = matches;
+            if (tournamentSteps.length > 0 && selectedEventIndex >= 0 && selectedEventIndex < tournamentSteps.length) {
+                const selectedStep = tournamentSteps[selectedEventIndex];
+                const selectedGameType = (selectedStep?.GameType || selectedStep?.gameType || '').toString();
+                
+                filteredMatches = matches.filter(match => {
+                    const matchGameType = (match.GameType || match.gameType || '').toString();
+                    return matchGameType === selectedGameType;
+                });
+            }
+
+            if (filteredMatches.length === 0) {
+                container.innerHTML = '<div class="status-message">No matches yet for this event</div>';
+                return;
+            }
+
+            const totalPages = Math.ceil(filteredMatches.length / matchesPerPage);
             const maxPage = Math.max(0, totalPages - 1);
             
             // Reset page if out of bounds
@@ -931,7 +1040,7 @@
 
             const startIdx = currentMatchPage * matchesPerPage;
             const endIdx = startIdx + matchesPerPage;
-            const pageMatches = matches.slice(startIdx, endIdx).reverse();
+            const pageMatches = filteredMatches.slice(startIdx, endIdx).reverse();
 
             const pageHTML = pageMatches.map(match => {
                 const bot1 = match.Bot1Name || match.bot1Name;
