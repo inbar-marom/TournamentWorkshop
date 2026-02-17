@@ -41,7 +41,6 @@ public class GameHistoryTests
         {
             ImportTimeout = config.ImportTimeout,
             MoveTimeout = config.MoveTimeout,
-            MaxParallelMatches = config.MaxParallelMatches,
             MemoryLimitMB = config.MemoryLimitMB,
             MaxRoundsRPSLS = 10, // Ensure multiple rounds
             LogLevel = config.LogLevel,
@@ -77,7 +76,6 @@ public class GameHistoryTests
         {
             ImportTimeout = config.ImportTimeout,
             MoveTimeout = config.MoveTimeout,
-            MaxParallelMatches = config.MaxParallelMatches,
             MemoryLimitMB = config.MemoryLimitMB,
             MaxRoundsRPSLS = 5,
             LogLevel = config.LogLevel,

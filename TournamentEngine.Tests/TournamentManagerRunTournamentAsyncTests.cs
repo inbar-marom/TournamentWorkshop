@@ -229,11 +229,11 @@ public class TournamentManagerRunTournamentAsyncTests
     }
 
     [TestMethod]
-    public async Task RunTournamentAsync_WithParallelConfig_ExecutesMatchesConcurrently()
+    public async Task RunTournamentAsync_WithMultipleMatches_ExecutesConcurrently()
     {
         // Arrange
         var bots = TestHelpers.CreateDummyBotInfos(4);
-        var config = CreateConfigWithParallelism(2);
+        var config = TestHelpers.CreateDefaultConfig();
 
         var dummyBots = TestHelpers.CreateDummyBots(4);
         var gameRunner = new DelayedGameRunner(TimeSpan.FromMilliseconds(150));
@@ -250,67 +250,16 @@ public class TournamentManagerRunTournamentAsyncTests
         // Act
         await manager.RunTournamentAsync(bots, GameType.RPSLS, config);
 
-        // Assert
-        Assert.IsTrue(gameRunner.MaxConcurrent >= 2, "Expected matches to run concurrently when MaxParallelMatches > 1");
+        // Assert - Matches run concurrently via Task.WhenAll
+        Assert.IsTrue(gameRunner.MaxConcurrent >= 2, "Expected matches to run concurrently");
     }
 
     [TestMethod]
-    public async Task RunTournamentAsync_WithMaxParallelMatchesOne_ExecutesSequentially()
+    public async Task RunTournamentAsync_WithConcurrentExecution_RecordsAllResults()
     {
         // Arrange
         var bots = TestHelpers.CreateDummyBotInfos(4);
-        var config = CreateConfigWithParallelism(1);
-        var dummyBots = TestHelpers.CreateDummyBots(4);
-        var gameRunner = new DelayedGameRunner(TimeSpan.FromMilliseconds(150));
-        var engine = new MockTournamentEngine();
-        var manager = new TournamentManager(engine, gameRunner);
-
-        engine.MatchBatches.Enqueue(new List<(IBot, IBot)>
-        {
-            (dummyBots[0], dummyBots[1]),
-            (dummyBots[2], dummyBots[3])
-        });
-        engine.MatchBatches.Enqueue(new List<(IBot, IBot)>());
-
-        // Act
-        await manager.RunTournamentAsync(bots, GameType.RPSLS, config);
-
-        // Assert
-        Assert.AreEqual(1, gameRunner.MaxConcurrent, "Expected sequential execution when MaxParallelMatches is 1");
-    }
-
-    [TestMethod]
-    public async Task RunTournamentAsync_WithParallelConfig_RespectsMaxDegreeOfParallelism()
-    {
-        // Arrange
-        var bots = TestHelpers.CreateDummyBotInfos(6);
-        var config = CreateConfigWithParallelism(2);
-        var dummyBots = TestHelpers.CreateDummyBots(6);
-        var gameRunner = new DelayedGameRunner(TimeSpan.FromMilliseconds(200));
-        var engine = new MockTournamentEngine();
-        var manager = new TournamentManager(engine, gameRunner);
-
-        engine.MatchBatches.Enqueue(new List<(IBot, IBot)>
-        {
-            (dummyBots[0], dummyBots[1]),
-            (dummyBots[2], dummyBots[3]),
-            (dummyBots[4], dummyBots[5])
-        });
-        engine.MatchBatches.Enqueue(new List<(IBot, IBot)>());
-
-        // Act
-        await manager.RunTournamentAsync(bots, GameType.RPSLS, config);
-
-        // Assert
-        Assert.AreEqual(2, gameRunner.MaxConcurrent, "Expected to cap concurrent matches at MaxParallelMatches");
-    }
-
-    [TestMethod]
-    public async Task RunTournamentAsync_WithParallelConfig_RecordsResultsInMatchOrder()
-    {
-        // Arrange
-        var bots = TestHelpers.CreateDummyBotInfos(4);
-        var config = CreateConfigWithParallelism(2);
+        var config = TestHelpers.CreateDefaultConfig();
         var dummyBots = TestHelpers.CreateDummyBots(4);
         var gameRunner = new VariableDelayGameRunner(new Dictionary<string, TimeSpan>
         {
@@ -330,8 +279,8 @@ public class TournamentManagerRunTournamentAsyncTests
         // Act
         await manager.RunTournamentAsync(bots, GameType.RPSLS, config);
 
-        // Assert
-        Assert.IsTrue(gameRunner.MaxConcurrent >= 2, "Expected parallel execution for order stability test");
+        // Assert - All results should be recorded
+        Assert.IsTrue(gameRunner.MaxConcurrent >= 2, "Expected concurrent execution");
         var recordCalls = engine.MethodCalls
             .Where(call => call.StartsWith("RecordMatchResult(", StringComparison.Ordinal))
             .ToList();
@@ -342,11 +291,11 @@ public class TournamentManagerRunTournamentAsyncTests
     }
 
     [TestMethod]
-    public async Task RunTournamentAsync_WithParallelConfig_CanBeCanceledDuringExecution()
+    public async Task RunTournamentAsync_WithConcurrentExecution_CanBeCanceledDuringExecution()
     {
         // Arrange
         var bots = TestHelpers.CreateDummyBotInfos(4);
-        var config = CreateConfigWithParallelism(2);
+        var config = TestHelpers.CreateDefaultConfig();
         var dummyBots = TestHelpers.CreateDummyBots(4);
         var gameRunner = new DelayedGameRunner(TimeSpan.FromMilliseconds(500));
         var engine = new MockTournamentEngine();
@@ -372,7 +321,7 @@ public class TournamentManagerRunTournamentAsyncTests
 
         Assert.IsNotNull(exception, "Expected cancellation exception");
         Assert.IsTrue(exception is OperationCanceledException, "Expected cancellation exception");
-        Assert.IsTrue(gameRunner.MaxConcurrent >= 2, "Expected parallel execution before cancellation");
+        Assert.IsTrue(gameRunner.MaxConcurrent >= 2, "Expected concurrent execution before cancellation");
     }
 
     private sealed class DelayedGameRunner : IGameRunner
@@ -472,23 +421,6 @@ public class TournamentManagerRunTournamentAsyncTests
                     break;
             }
         }
-    }
-
-    private static TournamentConfig CreateConfigWithParallelism(int maxParallelMatches)
-    {
-        var baseConfig = TestHelpers.CreateDefaultConfig();
-        return new TournamentConfig
-        {
-            ImportTimeout = baseConfig.ImportTimeout,
-            MoveTimeout = baseConfig.MoveTimeout,
-            MaxParallelMatches = maxParallelMatches,
-            MemoryLimitMB = baseConfig.MemoryLimitMB,
-            MaxRoundsRPSLS = baseConfig.MaxRoundsRPSLS,
-            LogLevel = baseConfig.LogLevel,
-            LogFilePath = baseConfig.LogFilePath,
-            BotsDirectory = baseConfig.BotsDirectory,
-            ResultsFilePath = baseConfig.ResultsFilePath
-        };
     }
 
     private static string MatchKey(IBot bot1, IBot bot2)

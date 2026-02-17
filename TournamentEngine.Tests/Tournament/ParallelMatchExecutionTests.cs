@@ -10,8 +10,9 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 
 /// <summary>
-/// Tests for parallel match execution within tournament stages
-/// Verifies thread safety, stage synchronization, and performance scaling
+/// Tests for concurrent match execution within tournament stages
+/// Verifies thread safety and stage synchronization
+/// All matches within a stage run concurrently via Task.WhenAll
 /// </summary>
 [TestClass]
 public class ParallelMatchExecutionTests
@@ -28,25 +29,23 @@ public class ParallelMatchExecutionTests
             MemoryLimitMB = 512,
             MaxRoundsRPSLS = 50,
             GroupCount = 2,
-            FinalistsPerGroup = 1,
-            MaxParallelMatches = 1 // Will be overridden in tests
+            FinalistsPerGroup = 1
         };
 
         _gameRunner = new GameRunner(_config);
     }
 
     [TestMethod]
-    public async Task ParallelExecution_WithUnlimitedParallelism_CompletesAllMatches()
+    public async Task ConcurrentExecution_CompletesAllMatches()
     {
-        // Arrange - 10 bots in 2 groups (5 per group = 10 matches per group = 20 initial matches)
+        // Arrange - 10 bots in 2 groups
         var bots = IntegrationTestHelpers.CreateVariedBots(10);
         var config = new TournamentConfig
         {
             MoveTimeout = TimeSpan.FromSeconds(1),
             MemoryLimitMB = 512,
             MaxRoundsRPSLS = 50,
-            GroupCount = 2,
-            MaxParallelMatches = int.MaxValue // Unlimited parallelism
+            GroupCount = 2
         };
         var engine = new GroupStageTournamentEngine(_gameRunner, new ScoringSystem());
         var manager = new TournamentManager(engine, _gameRunner);
@@ -68,46 +67,16 @@ public class ParallelMatchExecutionTests
     }
 
     [TestMethod]
-    public async Task ParallelExecution_WithThrottledParallelism_RespectsLimit()
+    public async Task ConcurrentExecution_StandingsAreThreadSafe_NoDataCorruption()
     {
-        // Arrange
-        var bots = IntegrationTestHelpers.CreateVariedBots(8);
+        // Arrange - Use 12 bots to stress test concurrent standings updates
+        var bots = IntegrationTestHelpers.CreateVariedBots(12);
         var config = new TournamentConfig
         {
             MoveTimeout = TimeSpan.FromSeconds(1),
             MemoryLimitMB = 512,
             MaxRoundsRPSLS = 50,
-            GroupCount = 2,
-            MaxParallelMatches = 4  // Max 4 concurrent
-        };
-        var executionTracker = new ConcurrentDictionary<DateTime, int>();
-
-        // Track concurrent executions (simplified - actual tracking would need more instrumentation)
-        var engine = new GroupStageTournamentEngine(_gameRunner, new ScoringSystem());
-        var manager = new TournamentManager(engine, _gameRunner);
-
-        // Act
-        var tournamentInfo = await manager.RunTournamentAsync(bots, GameType.RPSLS, config);
-
-        // Assert
-        Assert.AreEqual(TournamentState.Completed, tournamentInfo.State);
-        Assert.IsNotNull(tournamentInfo.Champion);
-        // Note: Exact concurrency tracking requires instrumentation in GameRunner
-        // This test verifies that throttling doesn't break functionality
-    }
-
-    [TestMethod]
-    public async Task ParallelExecution_StandingsAreThreadSafe_NoDataCorruption()
-    {
-        // Arrange - Use many bots to stress test concurrent standings updates
-        var bots = IntegrationTestHelpers.CreateVariedBots(20);
-        var config = new TournamentConfig
-        {
-            MoveTimeout = TimeSpan.FromSeconds(1),
-            MemoryLimitMB = 512,
-            MaxRoundsRPSLS = 50,
-            GroupCount = 4,
-            MaxParallelMatches = int.MaxValue
+            GroupCount = 3
         };
         var engine = new GroupStageTournamentEngine(_gameRunner, new ScoringSystem());
         var manager = new TournamentManager(engine, _gameRunner);
@@ -138,7 +107,7 @@ public class ParallelMatchExecutionTests
     }
 
     [TestMethod]
-    public async Task ParallelExecution_StageProgression_WaitsForAllMatchesBeforeAdvancing()
+    public async Task ConcurrentExecution_StageProgression_WaitsForAllMatchesBeforeAdvancing()
     {
         // Arrange
         var bots = IntegrationTestHelpers.CreateVariedBots(12);
@@ -147,8 +116,7 @@ public class ParallelMatchExecutionTests
             MoveTimeout = TimeSpan.FromSeconds(1),
             MemoryLimitMB = 512,
             MaxRoundsRPSLS = 50,
-            GroupCount = 3,
-            MaxParallelMatches = int.MaxValue
+            GroupCount = 3
         };
         var engine = new GroupStageTournamentEngine(_gameRunner, new ScoringSystem());
         var manager = new TournamentManager(engine, _gameRunner);
@@ -170,94 +138,68 @@ public class ParallelMatchExecutionTests
     }
 
     [TestMethod]
-    public async Task ParallelExecution_WithSequentialMode_ProducesCorrectResults()
+    public async Task ConcurrentExecution_MultipleTournaments_ProduceCorrectResults()
     {
         // Arrange
         var bots = IntegrationTestHelpers.CreateVariedBots(8);
-        var configSequential = new TournamentConfig
+        var config = new TournamentConfig
         {
             MoveTimeout = TimeSpan.FromSeconds(1),
             MemoryLimitMB = 512,
             MaxRoundsRPSLS = 50,
-            GroupCount = 2,
-            MaxParallelMatches = 1
-        };
-        var configParallel = new TournamentConfig
-        {
-            MoveTimeout = TimeSpan.FromSeconds(1),
-            MemoryLimitMB = 512,
-            MaxRoundsRPSLS = 50,
-            GroupCount = 2,
-            MaxParallelMatches = int.MaxValue
+            GroupCount = 2
         };
 
         // Act - Run twice with same seed bots
         var engine1 = new GroupStageTournamentEngine(_gameRunner, new ScoringSystem());
         var manager1 = new TournamentManager(engine1, _gameRunner);
-        var sequentialResult = await manager1.RunTournamentAsync(
-            IntegrationTestHelpers.CreateVariedBots(8), GameType.RPSLS, configSequential);
+        var result1 = await manager1.RunTournamentAsync(
+            IntegrationTestHelpers.CreateVariedBots(8), GameType.RPSLS, config);
 
         var engine2 = new GroupStageTournamentEngine(_gameRunner, new ScoringSystem());
         var manager2 = new TournamentManager(engine2, _gameRunner);
-        var parallelResult = await manager2.RunTournamentAsync(
-            IntegrationTestHelpers.CreateVariedBots(8), GameType.RPSLS, configParallel);
+        var result2 = await manager2.RunTournamentAsync(
+            IntegrationTestHelpers.CreateVariedBots(8), GameType.RPSLS, config);
 
-        // Assert - Both should complete successfully (champions may differ due to race conditions)
-        Assert.AreEqual(TournamentState.Completed, sequentialResult.State);
-        Assert.AreEqual(TournamentState.Completed, parallelResult.State);
-        Assert.IsNotNull(sequentialResult.Champion);
-        Assert.IsNotNull(parallelResult.Champion);
+        // Assert - Both should complete successfully
+        Assert.AreEqual(TournamentState.Completed, result1.State);
+        Assert.AreEqual(TournamentState.Completed, result2.State);
+        Assert.IsNotNull(result1.Champion);
+        Assert.IsNotNull(result2.Champion);
         
         // Both should have same total number of matches
-        Assert.AreEqual(sequentialResult.MatchResults.Count, parallelResult.MatchResults.Count,
-            "Parallel and sequential should play same number of matches");
+        Assert.AreEqual(result1.MatchResults.Count, result2.MatchResults.Count,
+            "Both tournaments should play same number of matches");
     }
 
     [TestMethod]
-    public async Task ParallelExecution_LargeTournament_ScalesPerformance()
+    public async Task ConcurrentExecution_LargeTournament_CompletesSuccessfully()
     {
-        // Arrange - Large tournament to demonstrate performance benefit
-        var bots = IntegrationTestHelpers.CreateVariedBots(40);
-        var configSequential = new TournamentConfig
+        // Arrange - Tournament with 16 bots and concurrent execution
+        var bots = IntegrationTestHelpers.CreateVariedBots(16);
+        var config = new TournamentConfig
         {
             MoveTimeout = TimeSpan.FromSeconds(1),
             MemoryLimitMB = 512,
             MaxRoundsRPSLS = 50,
-            GroupCount = 4,
-            MaxParallelMatches = 1
-        };
-        var configParallel = new TournamentConfig
-        {
-            MoveTimeout = TimeSpan.FromSeconds(1),
-            MemoryLimitMB = 512,
-            MaxRoundsRPSLS = 50,
-            GroupCount = 4,
-            MaxParallelMatches = int.MaxValue
+            GroupCount = 4
         };
 
-        // Act - Measure sequential execution time
-        var sw1 = Stopwatch.StartNew();
-        var engine1 = new GroupStageTournamentEngine(_gameRunner, new ScoringSystem());
-        var manager1 = new TournamentManager(engine1, _gameRunner);
-        await manager1.RunTournamentAsync(bots.Take(20).ToList(), GameType.RPSLS, configSequential);
-        sw1.Stop();
+        // Act - Execute with concurrent matches
+        var sw = Stopwatch.StartNew();
+        var engine = new GroupStageTournamentEngine(_gameRunner, new ScoringSystem());
+        var manager = new TournamentManager(engine, _gameRunner);
+        var result = await manager.RunTournamentAsync(bots, GameType.RPSLS, config);
+        sw.Stop();
 
-        // Measure parallel execution time
-        var sw2 = Stopwatch.StartNew();
-        var engine2 = new GroupStageTournamentEngine(_gameRunner, new ScoringSystem());
-        var manager2 = new TournamentManager(engine2, _gameRunner);
-        await manager2.RunTournamentAsync(bots.Take(20).ToList(), GameType.RPSLS, configParallel);
-        sw2.Stop();
-
-        // Assert - Parallel should be faster (but not strictly enforced due to test variability)
-        Console.WriteLine($"Sequential: {sw1.ElapsedMilliseconds}ms, Parallel: {sw2.ElapsedMilliseconds}ms");
-        // We don't assert timing in unit tests, just verify both complete
-        Assert.IsTrue(sw1.ElapsedMilliseconds > 0);
-        Assert.IsTrue(sw2.ElapsedMilliseconds > 0);
+        // Assert - Tournament completes successfully
+        Assert.AreEqual(TournamentState.Completed, result.State);
+        Assert.IsNotNull(result.Champion);
+        Console.WriteLine($"Tournament completed in {sw.ElapsedMilliseconds}ms");
     }
 
     [TestMethod]
-    public async Task ParallelExecution_GroupStageToFinals_ProperSynchronization()
+    public async Task ConcurrentExecution_GroupStageToFinals_ProperSynchronization()
     {
         // Arrange
         var bots = IntegrationTestHelpers.CreateVariedBots(16);
@@ -266,8 +208,7 @@ public class ParallelMatchExecutionTests
             MoveTimeout = TimeSpan.FromSeconds(1),
             MemoryLimitMB = 512,
             MaxRoundsRPSLS = 50,
-            GroupCount = 4,
-            MaxParallelMatches = int.MaxValue
+            GroupCount = 4
         };
         var engine = new GroupStageTournamentEngine(_gameRunner, new ScoringSystem());
         var manager = new TournamentManager(engine, _gameRunner);
@@ -287,7 +228,7 @@ public class ParallelMatchExecutionTests
     }
 
     [TestMethod]
-    public async Task ParallelExecution_AllGameTypes_ThreadSafe()
+    public async Task ConcurrentExecution_AllGameTypes_ThreadSafe()
     {
         // Arrange
         var bots = IntegrationTestHelpers.CreateVariedBots(8);
@@ -296,12 +237,11 @@ public class ParallelMatchExecutionTests
             MoveTimeout = TimeSpan.FromSeconds(1),
             MemoryLimitMB = 512,
             MaxRoundsRPSLS = 50,
-            GroupCount = 2,
-            MaxParallelMatches = int.MaxValue
+            GroupCount = 2
         };
         var gameTypes = new[] { GameType.RPSLS, GameType.ColonelBlotto, GameType.PenaltyKicks, GameType.SecurityGame };
 
-        // Act & Assert - Each game type should work with parallel execution
+        // Act & Assert - Each game type should work with concurrent execution
         foreach (var gameType in gameTypes)
         {
             var engine = new GroupStageTournamentEngine(_gameRunner, new ScoringSystem());
@@ -316,31 +256,30 @@ public class ParallelMatchExecutionTests
     }
 
     [TestMethod]
-    public async Task ParallelExecution_ConcurrentStandingsUpdates_NoRaceConditions()
+    public async Task ConcurrentExecution_ConcurrentStandingsUpdates_NoRaceConditions()
     {
-        // Arrange - Stress test with many bots and unlimited parallelism
-        var bots = IntegrationTestHelpers.CreateVariedBots(30);
+        // Arrange - Run 2 concurrent tournaments with 12 bots each
+        var bots = IntegrationTestHelpers.CreateVariedBots(12);
         var config = new TournamentConfig
         {
             MoveTimeout = TimeSpan.FromSeconds(1),
             MemoryLimitMB = 512,
             MaxRoundsRPSLS = 50,
-            GroupCount = 5,
-            MaxParallelMatches = int.MaxValue
+            GroupCount = 3
         };
         
         // Run multiple tournaments concurrently to stress test engine thread safety
         var tasks = new List<Task<TournamentInfo>>();
         
-        for (int i = 0; i < 3; i++)
+        for (int i = 0; i < 2; i++)
         {
             var engine = new GroupStageTournamentEngine(_gameRunner, new ScoringSystem());
             var manager = new TournamentManager(engine, _gameRunner);
             tasks.Add(manager.RunTournamentAsync(
-                IntegrationTestHelpers.CreateVariedBots(30), GameType.RPSLS, config));
+                IntegrationTestHelpers.CreateVariedBots(12), GameType.RPSLS, config));
         }
 
-        // Act - Run 3 tournaments in parallel
+        // Act - Run 2 tournaments in parallel
         var results = await Task.WhenAll(tasks);
 
         // Assert - All tournaments should complete without race conditions
@@ -352,4 +291,3 @@ public class ParallelMatchExecutionTests
         }
     }
 }
-

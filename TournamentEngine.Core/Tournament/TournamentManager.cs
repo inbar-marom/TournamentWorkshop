@@ -90,91 +90,63 @@ public class TournamentManager : ITournamentManager
                 continue;
             }
 
-            // Execute all matches in the current batch/stage
-            // THREAD SAFETY: All matches within a stage can run in parallel
+            // Execute all matches in the current stage concurrently
+            // THREAD SAFETY: All matches within a stage run in parallel via Task.WhenAll
             // The engine's RecordMatchResult() is thread-safe (uses lock)
             // We wait for ALL matches to complete before advancing to next stage
-            if (config.MaxParallelMatches > 1)
+            // Throttle to prevent overwhelming the system (2x processor count is reasonable)
+            var maxConcurrency = Environment.ProcessorCount * 2;
+            using var semaphore = new SemaphoreSlim(maxConcurrency);
+            var tasks = matches.Select(async match =>
             {
-                // Parallel execution with optional throttle
-                // MaxParallelMatches = int.MaxValue means unlimited parallelization within stage
-                // MaxParallelMatches = N means at most N concurrent matches
-                var throttleLimit = config.MaxParallelMatches == int.MaxValue 
-                    ? matches.Count 
-                    : config.MaxParallelMatches;
-                    
-                using var semaphore = new SemaphoreSlim(throttleLimit);
-                var tasks = new List<Task<MatchResult>>(matches.Count);
-
-                // Launch all matches in parallel (throttled by semaphore)
-                foreach (var (bot1, bot2) in matches)
+                await semaphore.WaitAsync(cancellationToken);
+                try
                 {
-                    tasks.Add(ExecuteMatchWithThrottleAsync(
-                        semaphore, bot1, bot2, gameType, cancellationToken));
+                    var (bot1, bot2) = match;
+                    return await _gameRunner.ExecuteMatch(bot1, bot2, gameType, cancellationToken);
                 }
-
-                // STAGE SYNCHRONIZATION: Wait for ALL matches in this stage to complete
-                // This ensures we don't advance to the next stage until all current matches finish
-                var results = await Task.WhenAll(tasks);
-
-                // Record all results (thread-safe, but done sequentially after all matches complete)
-                foreach (var result in results)
+                finally
                 {
-                    _engine.RecordMatchResult(result);
-                    
-                    // Publish match completed event
-                    if (_eventPublisher != null)
+                    semaphore.Release();
+                }
+            }).ToList();
+
+            // STAGE SYNCHRONIZATION: Wait for ALL matches in this stage to complete
+            var results = await Task.WhenAll(tasks);
+
+            // Record all results and publish events concurrently
+            // Recording is thread-safe (engine uses locks), and we publish all events in parallel
+            var publishTasks = new List<Task>();
+            
+            foreach (var result in results)
+            {
+                _engine.RecordMatchResult(result);
+                
+                // Publish match completed event (fire in parallel, don't block)
+                if (_eventPublisher != null)
+                {
+                    var matchEvent = new MatchCompletedDto
                     {
-                        var matchEvent = new MatchCompletedDto
-                        {
-                            TournamentId = tournamentId,
-                            TournamentName = tournamentName,
-                            Bot1Name = result.Bot1Name,
-                            Bot2Name = result.Bot2Name,
-                            Outcome = result.Outcome,
-                            GameType = gameType,
-                            CompletedAt = DateTime.UtcNow,
-                            Bot1Score = result.Bot1Score,
-                            Bot2Score = result.Bot2Score,
-                            MatchId = Guid.NewGuid().ToString(),
-                            WinnerName = result.WinnerName
-                        };
-                        await _eventPublisher.PublishMatchCompletedAsync(matchEvent);
-                    }
+                        TournamentId = tournamentId,
+                        TournamentName = tournamentName,
+                        Bot1Name = result.Bot1Name,
+                        Bot2Name = result.Bot2Name,
+                        Outcome = result.Outcome,
+                        GameType = gameType,
+                        CompletedAt = DateTime.UtcNow,
+                        Bot1Score = result.Bot1Score,
+                        Bot2Score = result.Bot2Score,
+                        MatchId = Guid.NewGuid().ToString(),
+                        WinnerName = result.WinnerName
+                    };
+                    publishTasks.Add(_eventPublisher.PublishMatchCompletedAsync(matchEvent));
                 }
             }
-            else
+            
+            // Wait for all event publishes to complete in parallel
+            if (publishTasks.Count > 0)
             {
-                // Sequential execution (MaxParallelMatches = 1) - deterministic order
-                foreach (var (bot1, bot2) in matches)
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-
-                    var matchResult = await _gameRunner.ExecuteMatch(
-                        bot1, bot2, gameType, cancellationToken);
-
-                    _engine.RecordMatchResult(matchResult);
-                    
-                    // Publish match completed event
-                    if (_eventPublisher != null)
-                    {
-                        var matchEvent = new MatchCompletedDto
-                        {
-                            TournamentId = tournamentId,
-                            TournamentName = tournamentName,
-                            Bot1Name = matchResult.Bot1Name,
-                            Bot2Name = matchResult.Bot2Name,
-                            Outcome = matchResult.Outcome,
-                            GameType = gameType,
-                            CompletedAt = DateTime.UtcNow,
-                            Bot1Score = matchResult.Bot1Score,
-                            Bot2Score = matchResult.Bot2Score,
-                            MatchId = Guid.NewGuid().ToString(),
-                            WinnerName = matchResult.WinnerName
-                        };
-                        await _eventPublisher.PublishMatchCompletedAsync(matchEvent);
-                    }
-                }
+                await Task.WhenAll(publishTasks);
             }
 
             // Publish standings updated event after each round of matches
@@ -219,24 +191,6 @@ public class TournamentManager : ITournamentManager
         }
 
         return finalTournamentInfo;
-    }
-
-    private async Task<MatchResult> ExecuteMatchWithThrottleAsync(
-        SemaphoreSlim semaphore,
-        IBot bot1,
-        IBot bot2,
-        GameType gameType,
-        CancellationToken cancellationToken)
-    {
-        await semaphore.WaitAsync(cancellationToken);
-        try
-        {
-            return await _gameRunner.ExecuteMatch(bot1, bot2, gameType, cancellationToken);
-        }
-        finally
-        {
-            semaphore.Release();
-        }
     }
 
     /// <summary>
