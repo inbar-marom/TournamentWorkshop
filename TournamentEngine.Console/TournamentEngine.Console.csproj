@@ -6,6 +6,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Exclude bots folder from compilation - bots are loaded dynamically at runtime -->
+    <Compile Remove="bots\**\*.cs" />
+    <None Include="bots\**\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\TournamentEngine.Core\TournamentEngine.Core.csproj" />
   </ItemGroup>
 

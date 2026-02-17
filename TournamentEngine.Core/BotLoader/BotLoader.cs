@@ -119,7 +119,7 @@ public class BotLoader : IBotLoader
                 };
             }
 
-            var csFiles = Directory.GetFiles(teamFolder, "*.cs");
+            var csFiles = Directory.GetFiles(teamFolder, "*.cs", SearchOption.AllDirectories);
             if (csFiles.Length == 0)
             {
                 return new BotInfo
@@ -154,12 +154,60 @@ public class BotLoader : IBotLoader
                 };
             }
 
-            // 3. Parse each file into a syntax tree and validate namespaces
+            // 3. Add implicit usings as .NET 6+ does with <ImplicitUsings>enable</ImplicitUsings>
+            // We'll prepend these to all user bot files
+            var implicitUsings = @"using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Net.Http;
+using System.Threading;
+using System.Threading.Tasks;
+";
+
             var syntaxTrees = new List<SyntaxTree>();
+
+            // 3.1. Add UserBot.Core interface definitions if the bot uses UserBot.Core namespace
+            // This allows bots to reference UserBot.Core.IBot without including the source files
+            // Determine workspace root from bot folder path:
+            // Bot folder is typically: workspace/TournamentEngine.Console/bots/BotName_v1
+            // or: workspace/TournamentEngine.Dashboard/bots/BotName_v1
+            var botFolderInfo = new DirectoryInfo(teamFolder);
+            var botsDir = botFolderInfo.Parent; // bots/
+            var projectDir = botsDir?.Parent; // TournamentEngine.Console or TournamentEngine.Dashboard  
+            var workspaceRoot = projectDir?.Parent; // workspace root
+            
+            string? userBotCorePath = null;
+            if (workspaceRoot != null && workspaceRoot.Exists)
+            {
+                userBotCorePath = Path.Combine(workspaceRoot.FullName, "UserBot", "UserBot.Core");
+            }
+            
+            if (userBotCorePath != null && Directory.Exists(userBotCorePath))
+            {
+                var userBotCoreFiles = new[] { "IBot.cs", "GameState.cs", "GameType.cs" };
+                foreach (var fileName in userBotCoreFiles)
+                {
+                    var filePath = Path.Combine(userBotCorePath, fileName);
+                    if (File.Exists(filePath))
+                    {
+                        var userBotCode = await File.ReadAllTextAsync(filePath, cancellationToken);
+                        // Prepend implicit usings to UserBot.Core files too
+                        var codeWithUsings = implicitUsings + "\n" + userBotCode;
+                        syntaxTrees.Add(CSharpSyntaxTree.ParseText(codeWithUsings, path: fileName, cancellationToken: cancellationToken));
+                    }
+                }
+            }
+
+            // 4. Parse each file into a syntax tree and validate namespaces
             foreach (var filePath in csFiles)
             {
                 var code = await File.ReadAllTextAsync(filePath, cancellationToken);
-                var syntaxTree = CSharpSyntaxTree.ParseText(code, path: filePath, cancellationToken: cancellationToken);
+                
+                // Prepend implicit usings to bot files (simulates <ImplicitUsings>enable</ImplicitUsings>)
+                var codeWithUsings = implicitUsings + "\n" + code;
+                
+                var syntaxTree = CSharpSyntaxTree.ParseText(codeWithUsings, path: filePath, cancellationToken: cancellationToken);
                 syntaxTrees.Add(syntaxTree);
 
                 // Validate namespaces in this file
@@ -354,6 +402,7 @@ public class BotLoader : IBotLoader
         refs.Add(MetadataReference.CreateFromFile(typeof(Console).Assembly.Location)); // System.Console
         refs.Add(MetadataReference.CreateFromFile(typeof(IEnumerable<>).Assembly.Location)); // System.Collections
         refs.Add(MetadataReference.CreateFromFile(typeof(Enumerable).Assembly.Location)); // System.Linq
+        refs.Add(MetadataReference.CreateFromFile(typeof(System.Net.Http.HttpClient).Assembly.Location)); // System.Net.Http
         
         // Add runtime assemblies
         refs.Add(MetadataReference.CreateFromFile(Assembly.Load("System.Runtime").Location));
