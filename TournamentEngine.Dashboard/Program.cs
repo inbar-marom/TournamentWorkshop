@@ -99,6 +99,7 @@ builder.Services.AddSingleton<ITournamentManager>(sp =>
     new TournamentManager(
         sp.GetRequiredService<ITournamentEngine>(),
         sp.GetRequiredService<IGameRunner>(),
+        sp.GetRequiredService<IScoringSystem>(),
         sp.GetRequiredService<ITournamentEventPublisher>()));
 builder.Services.AddSingleton<TournamentSeriesManager>(sp =>
     new TournamentSeriesManager(

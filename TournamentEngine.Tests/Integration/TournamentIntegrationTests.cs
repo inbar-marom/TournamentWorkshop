@@ -29,7 +29,7 @@ public class TournamentIntegrationTests
         _gameRunner = new GameRunner(_config);
         _scoringSystem = new ScoringSystem();
         _engine = new GroupStageTournamentEngine(_gameRunner, _scoringSystem);
-        _tournamentManager = new TournamentManager(_engine, _gameRunner);
+        _tournamentManager = new TournamentManager(_engine, _gameRunner, _scoringSystem);
     }
 
     [TestMethod]

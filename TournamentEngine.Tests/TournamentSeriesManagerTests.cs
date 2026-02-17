@@ -32,7 +32,7 @@ public class TournamentSeriesManagerTests
         var gameRunner = new MockGameRunner();
         var scoringSystem = new Core.Scoring.ScoringSystem();
         var engine = new GroupStageTournamentEngine(gameRunner, scoringSystem);
-        var tournamentManager = new TournamentManager(engine, gameRunner);
+        var tournamentManager = new TournamentManager(engine, gameRunner, scoringSystem);
         var seriesManager = new TournamentSeriesManager(tournamentManager, scoringSystem);
 
         // Act
@@ -72,7 +72,7 @@ public class TournamentSeriesManagerTests
         var gameRunner = new MockGameRunner();
         var scoringSystem = new Core.Scoring.ScoringSystem();
         var engine = new GroupStageTournamentEngine(gameRunner, scoringSystem);
-        var tournamentManager = new TournamentManager(engine, gameRunner);
+        var tournamentManager = new TournamentManager(engine, gameRunner, scoringSystem);
         var eventPublisher = new Mock<ITournamentEventPublisher>();
         var seriesManager = new TournamentSeriesManager(tournamentManager, scoringSystem, eventPublisher.Object);
 
@@ -122,7 +122,7 @@ public class TournamentSeriesManagerTests
         var gameRunner = new MockGameRunner();
         var scoringSystem = new Core.Scoring.ScoringSystem();
         var engine = new GroupStageTournamentEngine(gameRunner, scoringSystem);
-        var tournamentManager = new TournamentManager(engine, gameRunner);
+        var tournamentManager = new TournamentManager(engine, gameRunner, scoringSystem);
         var seriesManager = new TournamentSeriesManager(tournamentManager, scoringSystem);
 
         // Act
@@ -178,7 +178,7 @@ public class TournamentSeriesManagerTests
         var gameRunner = new MockGameRunner();
         var scoringSystem = new Core.Scoring.ScoringSystem();
         var engine = new GroupStageTournamentEngine(gameRunner, scoringSystem);
-        var tournamentManager = new TournamentManager(engine, gameRunner);
+        var tournamentManager = new TournamentManager(engine, gameRunner, scoringSystem);
         var seriesManager = new TournamentSeriesManager(tournamentManager, scoringSystem);
 
         // Act
@@ -222,7 +222,7 @@ public class TournamentSeriesManagerTests
         var gameRunner = new MockGameRunner();
         var scoringSystem = new Core.Scoring.ScoringSystem();
         var engine = new GroupStageTournamentEngine(gameRunner, scoringSystem);
-        var tournamentManager = new TournamentManager(engine, gameRunner);
+        var tournamentManager = new TournamentManager(engine, gameRunner, scoringSystem);
         var seriesManager = new TournamentSeriesManager(tournamentManager, scoringSystem);
 
         // Act
@@ -261,7 +261,7 @@ public class TournamentSeriesManagerTests
         var gameRunner = new MockGameRunner();
         var scoringSystem = new Core.Scoring.ScoringSystem();
         var engine = new GroupStageTournamentEngine(gameRunner, scoringSystem);
-        var tournamentManager = new TournamentManager(engine, gameRunner);
+        var tournamentManager = new TournamentManager(engine, gameRunner, scoringSystem);
         var seriesManager = new TournamentSeriesManager(tournamentManager, scoringSystem);
 
         // Act
@@ -299,7 +299,7 @@ public class TournamentSeriesManagerTests
         var gameRunner = new MockGameRunner();
         var scoringSystem = new Core.Scoring.ScoringSystem();
         var engine = new GroupStageTournamentEngine(gameRunner, scoringSystem);
-        var tournamentManager = new TournamentManager(engine, gameRunner);
+        var tournamentManager = new TournamentManager(engine, gameRunner, scoringSystem);
         var seriesManager = new TournamentSeriesManager(tournamentManager, scoringSystem);
 
         var cts = new System.Threading.CancellationTokenSource();
@@ -326,7 +326,7 @@ public class TournamentSeriesManagerTests
         var gameRunner = new MockGameRunner();
         var scoringSystem = new Core.Scoring.ScoringSystem();
         var engine = new GroupStageTournamentEngine(gameRunner, scoringSystem);
-        var tournamentManager = new TournamentManager(engine, gameRunner);
+        var tournamentManager = new TournamentManager(engine, gameRunner, scoringSystem);
         var seriesManager = new TournamentSeriesManager(tournamentManager, scoringSystem);
 
         // Act & Assert
@@ -344,7 +344,7 @@ public class TournamentSeriesManagerTests
         var gameRunner = new MockGameRunner();
         var scoringSystem = new Core.Scoring.ScoringSystem();
         var engine = new GroupStageTournamentEngine(gameRunner, scoringSystem);
-        var tournamentManager = new TournamentManager(engine, gameRunner);
+        var tournamentManager = new TournamentManager(engine, gameRunner, scoringSystem);
         var seriesManager = new TournamentSeriesManager(tournamentManager, scoringSystem);
 
         // Act & Assert
@@ -366,7 +366,7 @@ public class TournamentSeriesManagerTests
         var gameRunner = new MockGameRunner();
         var scoringSystem = new Core.Scoring.ScoringSystem();
         var engine = new GroupStageTournamentEngine(gameRunner, scoringSystem);
-        var tournamentManager = new TournamentManager(engine, gameRunner);
+        var tournamentManager = new TournamentManager(engine, gameRunner, scoringSystem);
         var seriesManager = new TournamentSeriesManager(tournamentManager, scoringSystem);
 
         // Act

@@ -48,7 +48,8 @@ public class ParallelMatchExecutionTests
             GroupCount = 2
         };
         var engine = new GroupStageTournamentEngine(_gameRunner, new ScoringSystem());
-        var manager = new TournamentManager(engine, _gameRunner);
+        var scoringSystem = new ScoringSystem();
+        var manager = new TournamentManager(engine, _gameRunner, scoringSystem);
 
         // Act
         var tournamentInfo = await manager.RunTournamentAsync(bots, GameType.RPSLS, config);
@@ -79,7 +80,8 @@ public class ParallelMatchExecutionTests
             GroupCount = 3
         };
         var engine = new GroupStageTournamentEngine(_gameRunner, new ScoringSystem());
-        var manager = new TournamentManager(engine, _gameRunner);
+        var scoringSystem = new ScoringSystem();
+        var manager = new TournamentManager(engine, _gameRunner, scoringSystem);
 
         // Act
         var tournamentInfo = await manager.RunTournamentAsync(bots, GameType.RPSLS, config);
@@ -119,7 +121,8 @@ public class ParallelMatchExecutionTests
             GroupCount = 3
         };
         var engine = new GroupStageTournamentEngine(_gameRunner, new ScoringSystem());
-        var manager = new TournamentManager(engine, _gameRunner);
+        var scoringSystem = new ScoringSystem();
+        var manager = new TournamentManager(engine, _gameRunner, scoringSystem);
 
         var stageSnapshots = new List<(int matchCount, TournamentState state)>();
 
@@ -151,13 +154,14 @@ public class ParallelMatchExecutionTests
         };
 
         // Act - Run twice with same seed bots
+        var scoringSystem = new ScoringSystem();
         var engine1 = new GroupStageTournamentEngine(_gameRunner, new ScoringSystem());
-        var manager1 = new TournamentManager(engine1, _gameRunner);
+        var manager1 = new TournamentManager(engine1, _gameRunner, scoringSystem);
         var result1 = await manager1.RunTournamentAsync(
             IntegrationTestHelpers.CreateVariedBots(8), GameType.RPSLS, config);
 
         var engine2 = new GroupStageTournamentEngine(_gameRunner, new ScoringSystem());
-        var manager2 = new TournamentManager(engine2, _gameRunner);
+        var manager2 = new TournamentManager(engine2, _gameRunner, scoringSystem);
         var result2 = await manager2.RunTournamentAsync(
             IntegrationTestHelpers.CreateVariedBots(8), GameType.RPSLS, config);
 
@@ -188,7 +192,8 @@ public class ParallelMatchExecutionTests
         // Act - Execute with concurrent matches
         var sw = Stopwatch.StartNew();
         var engine = new GroupStageTournamentEngine(_gameRunner, new ScoringSystem());
-        var manager = new TournamentManager(engine, _gameRunner);
+        var scoringSystem = new ScoringSystem();
+        var manager = new TournamentManager(engine, _gameRunner, scoringSystem);
         var result = await manager.RunTournamentAsync(bots, GameType.RPSLS, config);
         sw.Stop();
 
@@ -211,7 +216,8 @@ public class ParallelMatchExecutionTests
             GroupCount = 4
         };
         var engine = new GroupStageTournamentEngine(_gameRunner, new ScoringSystem());
-        var manager = new TournamentManager(engine, _gameRunner);
+        var scoringSystem = new ScoringSystem();
+        var manager = new TournamentManager(engine, _gameRunner, scoringSystem);
 
         // Act
         var result = await manager.RunTournamentAsync(bots, GameType.RPSLS, config);
@@ -245,7 +251,8 @@ public class ParallelMatchExecutionTests
         foreach (var gameType in gameTypes)
         {
             var engine = new GroupStageTournamentEngine(_gameRunner, new ScoringSystem());
-            var manager = new TournamentManager(engine, _gameRunner);
+            var scoringSystem = new ScoringSystem();
+            var manager = new TournamentManager(engine, _gameRunner, scoringSystem);
             var result = await manager.RunTournamentAsync(bots, gameType, config);
 
             Assert.AreEqual(TournamentState.Completed, result.State, 
@@ -274,7 +281,8 @@ public class ParallelMatchExecutionTests
         for (int i = 0; i < 2; i++)
         {
             var engine = new GroupStageTournamentEngine(_gameRunner, new ScoringSystem());
-            var manager = new TournamentManager(engine, _gameRunner);
+            var scoringSystem = new ScoringSystem();
+            var manager = new TournamentManager(engine, _gameRunner, scoringSystem);
             tasks.Add(manager.RunTournamentAsync(
                 IntegrationTestHelpers.CreateVariedBots(12), GameType.RPSLS, config));
         }

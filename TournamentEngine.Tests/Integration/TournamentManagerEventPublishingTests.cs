@@ -4,6 +4,7 @@ using Moq;
 using TournamentEngine.Core.Common;
 using TournamentEngine.Core.Common.Dashboard;
 using TournamentEngine.Core.Events;
+using TournamentEngine.Core.Scoring;
 using TournamentEngine.Core.Tournament;
 using TournamentEngine.Tests.Helpers;
 
@@ -27,9 +28,10 @@ public class TournamentManagerEventPublishingTests
         _mockPublisher = new Mock<ITournamentEventPublisher>();
         _gameRunner = new MockGameRunner();
         _mockEngine = new MockTournamentEngine();
+        var scoringSystem = new ScoringSystem();
         
         // TournamentManager constructor should accept optional ITournamentEventPublisher
-        _manager = new TournamentManager(_mockEngine, _gameRunner, _mockPublisher.Object);
+        _manager = new TournamentManager(_mockEngine, _gameRunner, scoringSystem, _mockPublisher.Object);
     }
 
     [TestMethod]
@@ -190,9 +192,10 @@ public class TournamentManagerEventPublishingTests
         // Arrange
         var bots = TestHelpers.CreateDummyBotInfos(4);
         var config = TestHelpers.CreateDefaultConfig();
+        var scoringSystem = new ScoringSystem();
         
         // Should be able to run without publisher (publisher is optional)
-        var managerWithoutPublisher = new TournamentManager(_mockEngine, _gameRunner, eventPublisher: null);
+        var managerWithoutPublisher = new TournamentManager(_mockEngine, _gameRunner, scoringSystem, eventPublisher: null);
 
         // Act & Assert - should not throw
         await managerWithoutPublisher.RunTournamentAsync(bots, GameType.RPSLS, config);

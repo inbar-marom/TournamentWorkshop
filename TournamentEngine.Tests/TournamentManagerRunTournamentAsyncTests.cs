@@ -3,6 +3,7 @@ namespace TournamentEngine.Tests;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using TournamentEngine.Core.Common;
+using TournamentEngine.Core.Scoring;
 using TournamentEngine.Core.Tournament;
 using TournamentEngine.Tests.Helpers;
 
@@ -15,6 +16,7 @@ public class TournamentManagerRunTournamentAsyncTests
 {
     private MockGameRunner _gameRunner = null!;
     private MockTournamentEngine _mockEngine = null!;
+    private IScoringSystem _scoringSystem = null!;
     private TournamentManager _manager = null!;
 
     [TestInitialize]
@@ -22,7 +24,8 @@ public class TournamentManagerRunTournamentAsyncTests
     {
         _gameRunner = new MockGameRunner();
         _mockEngine = new MockTournamentEngine();
-        _manager = new TournamentManager(_mockEngine, _gameRunner);
+        _scoringSystem = new ScoringSystem();
+        _manager = new TournamentManager(_mockEngine, _gameRunner, _scoringSystem);
     }
 
     [TestMethod]
@@ -238,7 +241,8 @@ public class TournamentManagerRunTournamentAsyncTests
         var dummyBots = TestHelpers.CreateDummyBots(4);
         var gameRunner = new DelayedGameRunner(TimeSpan.FromMilliseconds(150));
         var engine = new MockTournamentEngine();
-        var manager = new TournamentManager(engine, gameRunner);
+        var scoringSystem = new ScoringSystem();
+        var manager = new TournamentManager(engine, gameRunner, scoringSystem);
 
         engine.MatchBatches.Enqueue(new List<(IBot, IBot)>
         {
@@ -267,7 +271,8 @@ public class TournamentManagerRunTournamentAsyncTests
             [MatchKey(dummyBots[2], dummyBots[3])] = TimeSpan.FromMilliseconds(20)
         });
         var engine = new MockTournamentEngine();
-        var manager = new TournamentManager(engine, gameRunner);
+        var scoringSystem = new ScoringSystem();
+        var manager = new TournamentManager(engine, gameRunner, scoringSystem);
 
         engine.MatchBatches.Enqueue(new List<(IBot, IBot)>
         {
@@ -299,7 +304,8 @@ public class TournamentManagerRunTournamentAsyncTests
         var dummyBots = TestHelpers.CreateDummyBots(4);
         var gameRunner = new DelayedGameRunner(TimeSpan.FromMilliseconds(500));
         var engine = new MockTournamentEngine();
-        var manager = new TournamentManager(engine, gameRunner);
+        var scoringSystem = new ScoringSystem();
+        var manager = new TournamentManager(engine, gameRunner, scoringSystem);
         var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
 
         engine.MatchBatches.Enqueue(new List<(IBot, IBot)>

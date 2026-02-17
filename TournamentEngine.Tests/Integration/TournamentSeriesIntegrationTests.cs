@@ -34,7 +34,7 @@ public class TournamentSeriesIntegrationTests
         _gameRunner = new GameRunner(_baseConfig);
         _scoringSystem = new ScoringSystem();
         _engine = new GroupStageTournamentEngine(_gameRunner, _scoringSystem);
-        _tournamentManager = new TournamentManager(_engine, _gameRunner);
+        _tournamentManager = new TournamentManager(_engine, _gameRunner, _scoringSystem);
         _seriesManager = new TournamentSeriesManager(_tournamentManager, _scoringSystem);
     }
 

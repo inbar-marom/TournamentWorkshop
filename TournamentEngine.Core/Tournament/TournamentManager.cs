@@ -16,13 +16,15 @@ public class TournamentManager : ITournamentManager
 {
     private readonly ITournamentEngine _engine;
     private readonly IGameRunner _gameRunner;
+    private readonly IScoringSystem _scoringSystem;
     private readonly ITournamentEventPublisher? _eventPublisher;
     private static int _tournamentCounter = 0;
 
-    public TournamentManager(ITournamentEngine engine, IGameRunner gameRunner, ITournamentEventPublisher? eventPublisher = null)
+    public TournamentManager(ITournamentEngine engine, IGameRunner gameRunner, IScoringSystem scoringSystem, ITournamentEventPublisher? eventPublisher = null)
     {
         _engine = engine ?? throw new ArgumentNullException(nameof(engine));
         _gameRunner = gameRunner ?? throw new ArgumentNullException(nameof(gameRunner));
+        _scoringSystem = scoringSystem ?? throw new ArgumentNullException(nameof(scoringSystem));
         _eventPublisher = eventPublisher;
     }
 
@@ -194,12 +196,12 @@ public class TournamentManager : ITournamentManager
     }
 
     /// <summary>
-    /// Calculate current standings from match results
+    /// Calculate current standings from match results using tournament scoring (3 pts for win, 1 for draw, 0 for loss)
     /// </summary>
     private List<TeamStandingDto> CalculateStandingsFromMatches(TournamentInfo tournamentInfo)
     {
-        // Aggregate scores from all matches
-        var botScores = new Dictionary<string, (int wins, int totalScore)>();
+        // Aggregate tournament points from all matches using scoring system
+        var botScores = new Dictionary<string, (int wins, int tournamentPoints)>();
 
         // Initialize with all bots
         foreach (var bot in tournamentInfo.Bots)
@@ -207,16 +209,19 @@ public class TournamentManager : ITournamentManager
             botScores[bot.TeamName] = (0, 0);
         }
 
-        // Calculate wins and total scores from match results
+        // Calculate wins and tournament points from match results
         foreach (var match in tournamentInfo.MatchResults ?? new List<MatchResult>())
         {
+            // Use scoring system to calculate tournament points (3 for win, 1 for draw, 0 for loss)
+            var (player1Points, player2Points) = _scoringSystem.CalculateMatchScore(match);
+
             // Handle Bot1
             if (!botScores.ContainsKey(match.Bot1Name))
                 botScores[match.Bot1Name] = (0, 0);
             
             var bot1Stats = botScores[match.Bot1Name];
-            bot1Stats.totalScore += match.Bot1Score;
-            if (match.Outcome == MatchOutcome.Player1Wins)
+            bot1Stats.tournamentPoints += player1Points;
+            if (match.Outcome == MatchOutcome.Player1Wins || match.Outcome == MatchOutcome.Player2Error)
                 bot1Stats.wins++;
             botScores[match.Bot1Name] = bot1Stats;
 
@@ -225,21 +230,21 @@ public class TournamentManager : ITournamentManager
                 botScores[match.Bot2Name] = (0, 0);
             
             var bot2Stats = botScores[match.Bot2Name];
-            bot2Stats.totalScore += match.Bot2Score;
-            if (match.Outcome == MatchOutcome.Player2Wins)
+            bot2Stats.tournamentPoints += player2Points;
+            if (match.Outcome == MatchOutcome.Player2Wins || match.Outcome == MatchOutcome.Player1Error)
                 bot2Stats.wins++;
             botScores[match.Bot2Name] = bot2Stats;
         }
 
-        // Sort by wins first, then by total score
+        // Sort by tournament points first, then by wins
         var sortedStandings = botScores
-            .OrderByDescending(kv => kv.Value.wins)
-            .ThenByDescending(kv => kv.Value.totalScore)
+            .OrderByDescending(kv => kv.Value.tournamentPoints)
+            .ThenByDescending(kv => kv.Value.wins)
             .Select((kv, index) => new TeamStandingDto
             {
                 Rank = index + 1,
                 TeamName = kv.Key,
-                TotalPoints = kv.Value.totalScore
+                TotalPoints = kv.Value.tournamentPoints
             })
             .ToList();
 

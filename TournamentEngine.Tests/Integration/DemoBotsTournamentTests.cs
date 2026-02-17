@@ -81,7 +81,7 @@ public class DemoBotsTournamentTests
         var runner = new TournamentEngine.Core.GameRunner.GameRunner(config);
         var scoring = new ScoringSystem();
         var engine = new GroupStageTournamentEngine(runner, scoring);
-        var manager = new TournamentManager(engine, runner);
+        var manager = new TournamentManager(engine, runner, scoring);
 
         // Act: run tournament
         var info = await manager.RunTournamentAsync(bots, GameType.RPSLS, config, CancellationToken.None);
