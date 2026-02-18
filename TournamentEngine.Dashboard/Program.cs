@@ -59,6 +59,11 @@ builder.Services.AddSingleton(sp =>
     new BotStorageService(resolvedBotsDir, sp.GetRequiredService<ILogger<BotStorageService>>()));
 builder.Services.AddSingleton<IBotLoader>(sp =>
     new BotLoader());
+builder.Services.AddSingleton<BotLoader>(sp =>
+    new BotLoader());
+
+// Register development settings service for bypass verification feature
+builder.Services.AddSingleton<DevelopmentSettingsService>();
 
 // Default tournament config for runtime services (can be extended to read from config later)
 var tournamentConfig = new TournamentConfig

@@ -282,6 +282,13 @@ public class BotStorageService
                 var filePath = Path.Combine(folderPath, file.FileName);
                 var fileContent = System.Text.Encoding.UTF8.GetBytes(file.Code);
                 
+                // Ensure the directory exists for this file (handles subdirectories in FileName)
+                var fileDirectory = Path.GetDirectoryName(filePath);
+                if (!string.IsNullOrEmpty(fileDirectory) && !Directory.Exists(fileDirectory))
+                {
+                    Directory.CreateDirectory(fileDirectory);
+                }
+                
                 // Write with retry logic
                 for (int retry = 0; retry < 3; retry++)
                 {

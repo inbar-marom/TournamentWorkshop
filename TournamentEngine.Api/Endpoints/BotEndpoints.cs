@@ -5,6 +5,8 @@ using Services;
 using Microsoft.AspNetCore.Builder;
 using System.Text.RegularExpressions;
 using System.Linq;
+using TournamentEngine.Core.BotLoader;
+using TournamentEngine.Core.Common;
 
 /// <summary>
 /// API endpoints for bot submission, listing, and management
@@ -48,103 +50,63 @@ public static class BotEndpoints
     private static async Task<IResult> SubmitBot(
         BotSubmissionRequest request,
         BotStorageService botStorage,
+        BotLoader botLoader,
+        DevelopmentSettingsService devSettings,
         ILogger<Program> logger)
     {
         logger.LogInformation("Received bot submission for team {TeamName} with {FileCount} files",
             request.TeamName, request.Files?.Count ?? 0);
 
-        // Validate request
-        if (request == null || string.IsNullOrWhiteSpace(request.TeamName))
-            return Results.BadRequest(new BotSubmissionResult
-            {
-                Success = false,
-                Message = "Team name is required",
-                Errors = new() { "TeamName cannot be empty" }
-            });
-
-        if (request.Files == null || request.Files.Count == 0)
-            return Results.BadRequest(new BotSubmissionResult
-            {
-                Success = false,
-                Message = "At least one file is required",
-                Errors = new() { "Files collection is empty" }
-            });
-
-        // Validate team name
-        if (!IsValidTeamName(request.TeamName))
-            return Results.BadRequest(new BotSubmissionResult
-            {
-                Success = false,
-                TeamName = request.TeamName,
-                Message = "Invalid team name",
-                Errors = new() { "Team name must contain only alphanumeric characters, hyphens, and underscores" }
-            });
-
-        // Validate file sizes
-        var maxFileSize = 50_000; // 50KB
-        var maxTotalSize = 500_000; // 500KB
-
-        foreach (var file in request.Files)
+        // Check if verification is bypassed
+        bool bypassEnabled = devSettings.IsVerificationBypassed();
+        if (bypassEnabled)
         {
-            var fileSize = System.Text.Encoding.UTF8.GetByteCount(file.Code);
-            if (fileSize > maxFileSize)
+            logger.LogWarning("⚠️ VERIFICATION BYPASSED - Accepting bot without validation for team {TeamName}", request.TeamName);
+            
+            // Attempt to store bot without validation
+            var bypassResult = await botStorage.StoreBotAsync(request);
+
+            if (!bypassResult.Success)
             {
-                logger.LogWarning("File {FileName} for team {TeamName} exceeds size limit: {Size} > {Max}",
-                    file.FileName, request.TeamName, fileSize, maxFileSize);
-                return Results.Json(new BotSubmissionResult
+                if (bypassResult.Message.Contains("already exists") && !request.Overwrite)
+                {
+                    return Results.Conflict(bypassResult);
+                }
+                return Results.BadRequest(bypassResult);
+            }
+
+            logger.LogInformation("Bot submitted successfully (verification bypassed) for team {TeamName}: {SubmissionId}",
+                request.TeamName, bypassResult.SubmissionId);
+            return Results.Ok(bypassResult);
+        }
+
+        // Validate and compile bot
+        var validationResult = await ValidateAndCompileBot(
+            request.TeamName,
+            request.Files,
+            null, // No game type specified
+            botLoader,
+            logger);
+
+        if (!validationResult.IsValid)
+        {
+            logger.LogWarning("Bot submission validation/compilation failed for team {TeamName}: {ErrorCount} errors",
+                request.TeamName, validationResult.Errors.Count);
+            return validationResult.PayloadTooLarge
+                ? Results.Json(new BotSubmissionResult
                 {
                     Success = false,
                     TeamName = request.TeamName,
-                    Message = $"File {file.FileName} exceeds maximum size of 50KB",
-                    Errors = new() { $"File {file.FileName} is too large" }
-                }, statusCode: StatusCodes.Status413PayloadTooLarge);
-            }
-        }
-
-        var totalSize = request.Files.Sum(f => System.Text.Encoding.UTF8.GetByteCount(f.Code));
-        if (totalSize > maxTotalSize)
-        {
-            logger.LogWarning("Total submission size for team {TeamName} exceeds limit: {Size} > {Max}",
-                request.TeamName, totalSize, maxTotalSize);
-            return Results.Json(new BotSubmissionResult
-            {
-                Success = false,
-                TeamName = request.TeamName,
-                Message = "Total submission size exceeds maximum of 500KB",
-                Errors = new() { "Submitted files are too large in total" }
-            }, statusCode: StatusCodes.Status413PayloadTooLarge);
-        }
-
-        // Check for duplicate filenames
-        var fileNames = request.Files.Select(f => f.FileName).ToList();
-        if (fileNames.Distinct().Count() != fileNames.Count)
-        {
-            logger.LogWarning("Duplicate file names in submission for team {TeamName}", request.TeamName);
-            return Results.BadRequest(new BotSubmissionResult
-            {
-                Success = false,
-                TeamName = request.TeamName,
-                Message = "Duplicate file names detected",
-                Errors = new() { "File names must be unique" }
-            });
-        }
-
-        // Run enhanced validation (same as verify endpoint)
-        var validationErrors = new List<string>();
-        var validationWarnings = new List<string>();
-        ValidateAllFiles(request.Files, validationErrors, validationWarnings);
-        ValidateRequiredFiles(request.Files, validationErrors);
-
-        if (validationErrors.Count > 0)
-        {
-            logger.LogWarning("Bot submission validation failed for team {TeamName}: {ErrorCount} errors", request.TeamName, validationErrors.Count);
-            return Results.BadRequest(new BotSubmissionResult
-            {
-                Success = false,
-                TeamName = request.TeamName,
-                Message = "Bot validation failed",
-                Errors = validationErrors
-            });
+                    Message = validationResult.Message,
+                    Errors = validationResult.Errors
+                }, statusCode: StatusCodes.Status413PayloadTooLarge)
+                : Results.BadRequest(new BotSubmissionResult
+                {
+                    Success = false,
+                    TeamName = request.TeamName,
+                    Message = validationResult.Message,
+                    Errors = validationResult.Errors
+                });
         }
 
         // Attempt to store bot
@@ -322,9 +284,10 @@ public static class BotEndpoints
     /// Shared validation logic for all bot file submissions
     /// Validates file types, content, approved libraries, and coding rules
     /// </summary>
-    private static void ValidateAllFiles(List<BotFile> files, List<string> errors, List<string> warnings)
+    private static void ValidateAllFiles(List<BotFile> files, List<string> errors, List<string> warnings, ILogger<Program>? logger = null)
     {
         var hasCodeFile = false;
+        var hasIBotImplementation = false;
         
         foreach (var file in files)
         {
@@ -339,6 +302,14 @@ public static class BotEndpoints
             {
                 hasCodeFile = true;
                 ValidateCSharpFile(file, errors, warnings);
+                
+                // Check if this file implements IBot
+                var hasIBot = System.Text.RegularExpressions.Regex.IsMatch(file.Code, @":\s*IBot\b");
+                
+                if (hasIBot)
+                {
+                    hasIBotImplementation = true;
+                }
             }
             // Allow documentation files - just skip validation
             else if (file.FileName.EndsWith(".md", StringComparison.OrdinalIgnoreCase) ||
@@ -358,52 +329,126 @@ public static class BotEndpoints
         {
             errors.Add("At least one .cs file is required");
         }
+        
+        // Verify at least one file implements IBot interface
+        if (hasCodeFile && !hasIBotImplementation)
+        {
+            errors.Add("No class implementing IBot found in bot code. At least one .cs file must contain a class declaration like 'class YourBot : IBot'");
+        }
     }
 
     /// <summary>
     /// POST /api/bots/verify - Verify a bot before submission
-    /// Enhanced validation including .NET library checks and syntax validation
+    /// Enhanced validation including .NET library checks, syntax validation, and compilation test
     /// NOTE: Only C# (.cs) files are supported - Python is NOT supported
     /// </summary>
     private static async Task<IResult> VerifyBot(
         BotVerificationRequest request,
         BotStorageService botStorage,
+        BotLoader botLoader,
+        DevelopmentSettingsService devSettings,
         ILogger<Program> logger)
     {
         logger.LogInformation("Verifying bot for team {TeamName}", request.TeamName);
 
-        if (string.IsNullOrWhiteSpace(request.TeamName))
+        // Check if verification is bypassed
+        bool bypassEnabled = devSettings.IsVerificationBypassed();
+        if (bypassEnabled)
+        {
+            logger.LogWarning("⚠️ VERIFICATION BYPASSED - Accepting bot without validation for team {TeamName}", request.TeamName);
+            return Results.Ok(new BotVerificationResult
+            {
+                Success = true,
+                IsValid = true,
+                Message = "Bot accepted (verification bypassed by development settings).",
+                Errors = new(),
+                Warnings = new() { "⚠️ Verification was bypassed - bot was not validated or compiled" }
+            });
+        }
+
+        // Validate and compile bot
+        var validationResult = await ValidateAndCompileBot(
+            request.TeamName,
+            request.Files,
+            request.GameType,
+            botLoader,
+            logger);
+
+        if (!validationResult.IsValid)
+        {
+            logger.LogWarning("Bot verification failed for team {TeamName}: {ErrorCount} errors",
+                request.TeamName, validationResult.Errors.Count);
             return Results.BadRequest(new BotVerificationResult
+            {
+                Success = false,
+                IsValid = false,
+                Message = validationResult.Message,
+                Errors = validationResult.Errors,
+                Warnings = validationResult.Warnings
+            });
+        }
+
+        logger.LogInformation("Bot verification successful for team {TeamName}", request.TeamName);
+        return Results.Ok(new BotVerificationResult
+        {
+            Success = true,
+            IsValid = true,
+            Message = "Bot verification and compilation successful. Ready for submission.",
+            Errors = new(),
+            Warnings = validationResult.Warnings
+        });
+    }
+
+    /// <summary>
+    /// Shared validation and compilation logic for both submit and verify endpoints
+    /// </summary>
+    private static async Task<ValidationCompilationResult> ValidateAndCompileBot(
+        string? teamName,
+        List<BotFile>? files,
+        GameType? gameType,
+        BotLoader botLoader,
+        ILogger<Program> logger)
+    {
+        var errors = new List<string>();
+        var warnings = new List<string>();
+
+        // Basic validation
+        if (string.IsNullOrWhiteSpace(teamName))
+        {
+            return new ValidationCompilationResult
             {
                 IsValid = false,
                 Message = "Team name is required",
                 Errors = new() { "TeamName cannot be empty" }
-            });
+            };
+        }
 
-        if (request.Files == null || request.Files.Count == 0)
-            return Results.BadRequest(new BotVerificationResult
+        if (files == null || files.Count == 0)
+        {
+            return new ValidationCompilationResult
             {
                 IsValid = false,
                 Message = "At least one file is required",
                 Errors = new() { "Files collection is empty" }
-            });
+            };
+        }
 
         // Validate team name format
-        if (!IsValidTeamName(request.TeamName))
-            return Results.BadRequest(new BotVerificationResult
+        if (!IsValidTeamName(teamName))
+        {
+            return new ValidationCompilationResult
             {
                 IsValid = false,
                 Message = "Invalid team name format",
                 Errors = new() { "Team name must contain only alphanumeric characters, hyphens, and underscores" }
-            });
+            };
+        }
 
         // Validate file sizes (same limits as submission)
-        var maxFileSize = 50_000;
-        var maxTotalSize = 500_000;
-        var errors = new List<string>();
-        var warnings = new List<string>();
+        var maxFileSize = 50_000; // 50KB
+        var maxTotalSize = 500_000; // 500KB
 
-        foreach (var file in request.Files)
+        foreach (var file in files)
         {
             var fileSize = System.Text.Encoding.UTF8.GetByteCount(file.Code);
             if (fileSize > maxFileSize)
@@ -412,49 +457,205 @@ public static class BotEndpoints
             }
         }
 
-        var totalSize = request.Files.Sum(f => System.Text.Encoding.UTF8.GetByteCount(f.Code));
+        var totalSize = files.Sum(f => System.Text.Encoding.UTF8.GetByteCount(f.Code));
         if (totalSize > maxTotalSize)
         {
-            errors.Add($"Total submission size exceeds maximum of 500KB ({totalSize} bytes)");
+            return new ValidationCompilationResult
+            {
+                IsValid = false,
+                Message = "Total submission size exceeds maximum of 500KB",
+                Errors = new() { $"Total size ({totalSize} bytes) exceeds 500KB limit" },
+                PayloadTooLarge = true
+            };
         }
 
         // Check for duplicate filenames
-        var fileNames = request.Files.Select(f => f.FileName).ToList();
+        var fileNames = files.Select(f => f.FileName).ToList();
         if (fileNames.Distinct().Count() != fileNames.Count)
         {
             errors.Add("Duplicate file names detected");
         }
 
         // Run enhanced validation
-        ValidateAllFiles(request.Files, errors, warnings);
-        ValidateRequiredFiles(request.Files, errors);
+        ValidateAllFiles(files, errors, warnings, logger);
+        ValidateRequiredFiles(files, errors);
 
         // Game-type specific validation (if specified)
-        if (request.GameType.HasValue)
+        if (gameType.HasValue)
         {
-            ValidateForGameType(request.GameType.Value, request.Files, warnings);
+            ValidateForGameType(gameType.Value, files, warnings);
         }
 
         if (errors.Count > 0)
         {
-            logger.LogWarning("Bot verification failed for team {TeamName}: {ErrorCount} errors", request.TeamName, errors.Count);
-            return Results.BadRequest(new BotVerificationResult
+            return new ValidationCompilationResult
             {
                 IsValid = false,
-                Message = "Bot verification failed",
+                Message = "Bot validation failed",
                 Errors = errors,
                 Warnings = warnings
-            });
+            };
         }
 
-        logger.LogInformation("Bot verification successful for team {TeamName}", request.TeamName);
-        return Results.Ok(new BotVerificationResult
+        // Test compilation
+        var compilationResult = await CompileBot(teamName, files, botLoader, logger);
+        
+        if (!compilationResult.Success)
+        {
+            return new ValidationCompilationResult
+            {
+                IsValid = false,
+                Message = "Bot compilation failed",
+                Errors = compilationResult.Errors,
+                Warnings = warnings
+            };
+        }
+
+        // Add any compilation warnings
+        if (compilationResult.Warnings.Count > 0)
+        {
+            warnings.AddRange(compilationResult.Warnings);
+        }
+
+        return new ValidationCompilationResult
         {
             IsValid = true,
-            Message = "Bot verification successful. Ready for submission.",
+            Message = "Bot validation and compilation successful",
             Errors = new(),
             Warnings = warnings
-        });
+        };
+    }
+
+    /// <summary>
+    /// Compile bot using BotLoader to verify it can be loaded
+    /// </summary>
+    private static async Task<CompilationResult> CompileBot(
+        string teamName,
+        List<BotFile> files,
+        BotLoader botLoader,
+        ILogger<Program> logger)
+    {
+        try
+        {
+            // Create temporary workspace structure that mimics real workspace
+            // Structure: tempWorkspace/TournamentEngine.Api/bots/teamName/
+            //            tempWorkspace/UserBot/UserBot.Core/
+            var tempWorkspace = Path.Combine(Path.GetTempPath(), $"bot_workspace_{Guid.NewGuid()}");
+            var tempBotDir = Path.Combine(tempWorkspace, "TournamentEngine.Api", "bots", teamName);
+            Directory.CreateDirectory(tempBotDir);
+
+            try
+            {
+                // Copy UserBot.Core files to temp workspace (required for bots using UserBot.Core namespace)
+                var workspaceRoot = FindWorkspaceRoot();
+                var userBotCorePath = Path.Combine(workspaceRoot, "UserBot", "UserBot.Core");
+                
+                if (Directory.Exists(userBotCorePath))
+                {
+                    var tempUserBotCore = Path.Combine(tempWorkspace, "UserBot", "UserBot.Core");
+                    Directory.CreateDirectory(tempUserBotCore);
+                    
+                    var coreFiles = new[] { "IBot.cs", "GameState.cs", "GameType.cs" };
+                    foreach (var fileName in coreFiles)
+                    {
+                        var sourceFile = Path.Combine(userBotCorePath, fileName);
+                        if (File.Exists(sourceFile))
+                        {
+                            var destFile = Path.Combine(tempUserBotCore, fileName);
+                            File.Copy(sourceFile, destFile);
+                        }
+                        else
+                        {
+                            logger.LogWarning("UserBot.Core file not found: {FilePath}", sourceFile);
+                        }
+                    }
+                }
+                else
+                {
+                    logger.LogWarning("UserBot.Core directory not found at: {Path}", userBotCorePath);
+                }
+
+                // Write all bot files to temp directory
+                foreach (var file in files)
+                {
+                    var filePath = Path.Combine(tempBotDir, file.FileName);
+                    var fileDir = Path.GetDirectoryName(filePath);
+                    if (!string.IsNullOrEmpty(fileDir))
+                    {
+                        Directory.CreateDirectory(fileDir);
+                    }
+                    await File.WriteAllTextAsync(filePath, file.Code);
+                }
+
+                // Try to load the bot
+                var botInfo = await botLoader.LoadBotFromFolderAsync(tempBotDir, null, CancellationToken.None);
+
+                if (!botInfo.IsValid)
+                {
+                    logger.LogWarning("Bot compilation failed for team {TeamName}: {Errors}",
+                        teamName, string.Join("; ", botInfo.ValidationErrors));
+                    return new CompilationResult
+                    {
+                        Success = false,
+                        Errors = botInfo.ValidationErrors.ToList()
+                    };
+                }
+
+                logger.LogInformation("Bot compiled successfully for team {TeamName}", teamName);
+                return new CompilationResult
+                {
+                    Success = true,
+                    Errors = new(),
+                    Warnings = new()
+                };
+            }
+            finally
+            {
+                // Clean up temp workspace
+                try
+                {
+                    if (Directory.Exists(tempWorkspace))
+                    {
+                        Directory.Delete(tempWorkspace, recursive: true);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Failed to clean up temp workspace {TempWorkspace}", tempWorkspace);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Exception during bot compilation for team {TeamName}", teamName);
+            return new CompilationResult
+            {
+                Success = false,
+                Errors = new() { $"Compilation exception: {ex.Message}" }
+            };
+        }
+    }
+
+    /// <summary>
+    /// Result of validation and compilation check
+    /// </summary>
+    private class ValidationCompilationResult
+    {
+        public bool IsValid { get; init; }
+        public string Message { get; init; } = "";
+        public List<string> Errors { get; init; } = new();
+        public List<string> Warnings { get; init; } = new();
+        public bool PayloadTooLarge { get; init; }
+    }
+
+    /// <summary>
+    /// Result of compilation check
+    /// </summary>
+    private class CompilationResult
+    {
+        public bool Success { get; init; }
+        public List<string> Errors { get; init; } = new();
+        public List<string> Warnings { get; init; } = new();
     }
 
     /// <summary>
@@ -543,18 +744,14 @@ public static class BotEndpoints
         {
             var namespaceName = match.Groups[1].Value;
             
-            // Only exact matches are allowed - no hierarchical namespace approval
-            // This prevents System.Net.Http from being approved just because "System" is approved
-            if (!ApprovedNamespaces.Contains(namespaceName))
+            // Allow user-defined namespaces (anything that doesn't start with "System" or "Microsoft")
+            // Only validate .NET framework namespaces against approved list
+            var isSystemNamespace = namespaceName.StartsWith("System") || namespaceName.StartsWith("Microsoft");
+            
+            if (isSystemNamespace && !ApprovedNamespaces.Contains(namespaceName))
             {
-                errors.Add($"File {file.FileName} uses unapproved namespace: {namespaceName}. Only approved .NET libraries are allowed: {string.Join(", ", ApprovedNamespaces)}");
+                errors.Add($"File {file.FileName} uses unapproved .NET namespace: {namespaceName}. Only approved .NET libraries are allowed: {string.Join(", ", ApprovedNamespaces)}");
             }
-        }
-
-        // Check for TournamentEngine.Core.Common namespace (required for IBot)
-        if (!code.Contains("using TournamentEngine.Core.Common"))
-        {
-            warnings.Add($"File {file.FileName} should include 'using TournamentEngine.Core.Common;' to implement IBot interface");
         }
 
         // Check for .NET 8.0 target framework hints (strict enforcement)
@@ -563,21 +760,8 @@ public static class BotEndpoints
             errors.Add($"File {file.FileName} targets a framework other than net8.0. Must target .NET 8.0");
         }
 
-        // Check for required IBot implementation
-        if (!code.Contains(": IBot"))
-        {
-            warnings.Add($"File {file.FileName} doesn't appear to implement IBot interface");
-        }
-
-        // Check for required method signatures (all 4 game methods)
-        var requiredMethods = new[] { "MakeMove", "AllocateTroops", "MakePenaltyDecision", "MakeSecurityMove" };
-        foreach (var method in requiredMethods)
-        {
-            if (!code.Contains(method))
-            {
-                warnings.Add($"File {file.FileName} doesn't appear to implement required method: {method}");
-            }
-        }
+        // Note: IBot implementation check moved to ValidateAllFiles
+        // Individual files are no longer required to implement IBot - only one file in the submission needs to
     }
 
     /// <summary>
@@ -622,34 +806,75 @@ public static class BotEndpoints
     /// <summary>
     /// Validate that required documentation files are present.
     /// Penalty Kicks and Security Game files are optional (bonus games).
+    /// Uses flexible matching - accepts files containing key terms.
     /// </summary>
     private static void ValidateRequiredFiles(List<BotFile> files, List<string> errors)
     {
-        var fileNames = files.Select(f => f.FileName).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var fileNames = files.Select(f => f.FileName).ToList();
 
-        // Required files for all submissions
-        var requiredFiles = new[]
+        // Required file patterns - checks if filename contains all the key terms (case-insensitive)
+        var requiredPatterns = new[]
         {
-            "plan-rpsls.md",
-            "plan-colonelBlotto.md",
-            "RPSLS_Skill.md",
-            "colonelBlotto_Skill.md",
-            "Research.agent.md",
-            "plan-workshop.md",
-            "copilot-instructions.md"
+            new { Name = "plan-rpsls.md", Terms = new[] { "plan", "rpsls", ".md" } },
+            new { Name = "plan-colonelBlotto.md", Terms = new[] { "plan", "colonel", "blotto", ".md" } },
+            new { Name = "RPSLS_Skill.md", Terms = new[] { "rpsls", "sk", ".md" } },  // "sk" matches "skill" or "Sk" 
+            new { Name = "colonelBlotto_Skill.md", Terms = new[] { "colonel", "blotto", "sk", ".md" } },
+            new { Name = "Research.agent.md", Terms = new[] { "research", "agent", ".md" } },
+            new { Name = "plan-workshop.md", Terms = new[] { "plan", "workshop", ".md" } },
+            new { Name = "copilot-instructions.md", Terms = new[] { "copilot", "instruction", ".md" } }
         };
 
         // Optional files (bonus games - not mandatory for submission)
         // penaltyKicks_Skill.md, securityGame_Skill.md
         // plan-penaltyKicks.md, plan-securityGame.md
 
-        var missingFiles = requiredFiles
-            .Where(required => !fileNames.Contains(required))
-            .ToList();
+        var missingFiles = new List<string>();
+        
+        foreach (var pattern in requiredPatterns)
+        {
+            // Check if any file contains all required terms (case-insensitive)
+            var hasMatch = fileNames.Any(fileName => 
+                pattern.Terms.All(term => fileName.Contains(term, StringComparison.OrdinalIgnoreCase))
+            );
+            
+            if (!hasMatch)
+            {
+                missingFiles.Add(pattern.Name);
+            }
+        }
 
         if (missingFiles.Any())
         {
-            errors.Add($"Missing required documentation files: {string.Join(", ", missingFiles)}");
+            errors.Add($"Missing required documentation files (or similar): {string.Join(", ", missingFiles)}");
         }
+    }
+
+    /// <summary>
+    /// Find workspace root by walking up directory tree looking for .sln file
+    /// or checking for UserBot.Core in published scenarios
+    /// </summary>
+    private static string FindWorkspaceRoot()
+    {
+        var currentDir = Directory.GetCurrentDirectory();
+        
+        // First check if UserBot/UserBot.Core exists in current directory (published scenario)
+        if (Directory.Exists(Path.Combine(currentDir, "UserBot", "UserBot.Core")))
+        {
+            return currentDir;
+        }
+        
+        // Walk up directory tree looking for .sln file (development scenario)
+        var searchDir = new DirectoryInfo(currentDir);
+        while (searchDir != null)
+        {
+            if (File.Exists(Path.Combine(searchDir.FullName, "TournamentEngine.sln")))
+            {
+                return searchDir.FullName;
+            }
+            searchDir = searchDir.Parent;
+        }
+
+        // Fallback to current directory if not found
+        return currentDir;
     }
 }

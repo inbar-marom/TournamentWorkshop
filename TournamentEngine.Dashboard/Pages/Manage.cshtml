@@ -360,6 +360,38 @@
         </div>
     </div>
 
+    <!-- Development Settings (Collapsible) -->
+    <div class="card">
+        <div class="card-header" style="cursor: pointer;" onclick="toggleDevSettings()">
+            <span id="devSettingsToggle">▶</span> 🔧 Development Settings
+        </div>
+        <div id="devSettingsBody" class="card-body" style="display: none;">
+            <div id="bypassWarningBanner" class="alert alert-warning" style="display: none;">
+                ⚠️ <strong>WARNING:</strong> Bot verification is currently bypassed. All bots will be accepted without validation!
+            </div>
+            <div class="form-group">
+                <label for="bypassVerificationStatus">Bot Verification Status:</label>
+                <div style="margin-top: 10px;">
+                    <span id="bypassVerificationStatus" class="badge badge-info">Checking...</span>
+                </div>
+            </div>
+            <div class="buttons-grid" style="margin-top: 15px;">
+                <button id="btnEnableBypass" class="btn btn-danger" onclick="toggleBypassVerification(true)" 
+                        title="⚠️ WARNING: This will accept ALL bots without any validation or security checks!">
+                    ⚠️ Bypass Verification (Enable)
+                </button>
+                <button id="btnDisableBypass" class="btn btn-success" onclick="toggleBypassVerification(false)" 
+                        title="Re-enable bot verification for security">
+                    ✅ Enable Verification (Disable Bypass)
+                </button>
+            </div>
+            <div style="margin-top: 15px; font-size: 0.85em; color: #666;">
+                <strong>Note:</strong> Bypassing verification allows any bot code to be submitted without security checks. 
+                Use only in controlled development environments.
+            </div>
+        </div>
+    </div>
+
     <!-- Alerts -->
     <div id="alertContainer"></div>
 </div>
@@ -608,7 +640,76 @@ document.getElementById("btnStop").addEventListener("click", () => makeRequest("
 document.getElementById("btnClear").addEventListener("click", () => makeRequest("clear"));
 document.getElementById("btnRerun").addEventListener("click", () => makeRequest("clear")); // Only clear, not start
 
+// Development Settings Functions
+function toggleDevSettings() {
+    const body = document.getElementById("devSettingsBody");
+    const toggle = document.getElementById("devSettingsToggle");
+    
+    if (body.style.display === "none") {
+        body.style.display = "block";
+        toggle.textContent = "▼";
+    } else {
+        body.style.display = "none";
+        toggle.textContent = "▶";
+    }
+}
+
+async function toggleBypassVerification(enable) {
+    try {
+        const response = await fetch("/api/dev/bypass-verification", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ bypass: enable })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            const action = enable ? "enabled" : "disabled";
+            showAlert(enable ? "warning" : "success", 
+                      `✅ Verification bypass ${action}: ${data.message}`);
+            updateBypassStatus();
+        } else {
+            showAlert("danger", `❌ Failed to toggle bypass: ${data.message || response.statusText}`);
+        }
+    } catch (error) {
+        showAlert("danger", `Error: ${error.message}`);
+    }
+}
+
+async function updateBypassStatus() {
+    try {
+        const response = await fetch("/api/dev/bypass-verification");
+        const data = await response.json();
+        
+        const statusBadge = document.getElementById("bypassVerificationStatus");
+        const warningBanner = document.getElementById("bypassWarningBanner");
+        const btnEnable = document.getElementById("btnEnableBypass");
+        const btnDisable = document.getElementById("btnDisableBypass");
+        
+        if (data.verificationBypassed) {
+            statusBadge.className = "badge badge-danger";
+            statusBadge.textContent = "⚠️ BYPASSED - All bots accepted without validation";
+            warningBanner.style.display = "block";
+            btnEnable.disabled = true;
+            btnDisable.disabled = false;
+        } else {
+            statusBadge.className = "badge badge-success";
+            statusBadge.textContent = "✅ ACTIVE - Bots are validated before acceptance";
+            warningBanner.style.display = "none";
+            btnEnable.disabled = false;
+            btnDisable.disabled = true;
+        }
+    } catch (error) {
+        console.error("Error fetching bypass status:", error);
+        const statusBadge = document.getElementById("bypassVerificationStatus");
+        statusBadge.className = "badge badge-secondary";
+        statusBadge.textContent = "❌ Error checking status";
+    }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
     initializeSignalR();
+    updateBypassStatus(); // Check bypass status on page load
 });
 </script>
