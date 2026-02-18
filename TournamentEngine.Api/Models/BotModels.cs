@@ -128,6 +128,7 @@ public class BotVerificationRequest
 /// </summary>
 public class BotVerificationResult
 {
+    public bool Success { get; init; }
     public bool IsValid { get; init; }
     public List<string> Errors { get; init; } = new();
     public List<string> Warnings { get; init; } = new();

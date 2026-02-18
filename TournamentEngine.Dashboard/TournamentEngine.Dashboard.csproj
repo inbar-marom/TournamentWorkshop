@@ -29,4 +29,13 @@
     </Content>
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Copy UserBot.Core files to publish output for bot compilation -->
+    <Content Include="..\UserBot\UserBot.Core\*.cs">
+      <Link>UserBot\UserBot.Core\%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+
 </Project>

@@ -1,0 +1,12 @@
+{
+    "servers": {
+        "bot-submission-api": {
+            "type": "stdio",
+            "command": "C:\\Users\\saplizki\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "args": [".vscode/server.py"],
+            "env": {
+                "BOT_API_URL": "http://localhost:8080"
+            }
+        }
+    }
+}

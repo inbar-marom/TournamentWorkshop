@@ -557,58 +557,75 @@ public class TestBot
     #region IBot Implementation Tests
 
     [TestMethod]
-    public void ValidateCSharpFile_WithoutIBotImplementation_ReturnsWarning()
+    public void ValidateAllFiles_WithoutIBotImplementation_ReturnsError()
     {
-        // Arrange
-        var file = new BotFile
+        // Arrange - No file implements IBot
+        var files = new List<BotFile>
         {
-            FileName = "TestBot.cs",
-            Code = @"
+            new BotFile
+            {
+                FileName = "TestBot.cs",
+                Code = @"
 using System;
 
 public class TestBot
 {
-    public string TeamName => ""Test"";;
+    public string TeamName => ""Test"";//
 }"
-        };
+            }
+        };//
 
-        var errors = new List<string>();
-        var warnings = new List<string>();
+        var errors = new List<string>();//
+        var warnings = new List<string>();//
 
         // Act
-        ValidateCSharpFileDirectly(file, new List<BotFile> { file }, errors, warnings);
+        ValidateAllFilesDirectly(files, errors, warnings);//
 
         // Assert
-        Assert.IsTrue(warnings.Any(w => w.Contains("IBot")), 
-            "Should warn about missing IBot implementation");
+        Assert.IsTrue(errors.Any(e => e.Contains("No class implementing IBot")), 
+            $"Should error when no file implements IBot. Errors: {string.Join(" | ", errors)}");
     }
 
     [TestMethod]
-    public void ValidateCSharpFile_WithIBotImplementation_NoWarning()
+    public void ValidateAllFiles_WithIBotImplementation_NoError()
     {
-        // Arrange
-        var file = new BotFile
+        // Arrange - One file implements IBot
+        var files = new List<BotFile>
         {
-            FileName = "TestBot.cs",
-            Code = @"
+            new BotFile
+            {
+                FileName = "HelperClass.cs",
+                Code = @"
+using System;
+
+public class Helper
+{
+    public string GetValue() => ""Test"";//
+}"
+            },
+            new BotFile
+            {
+                FileName = "TestBot.cs",
+                Code = @"
 using System;
 using TournamentEngine.Core.Common;
 
 public class TestBot : IBot
 {
-    public string TeamName => ""Test"";;
+    public string TeamName => ""Test"";//
 }"
-        };
+            }
+        };//
 
-        var errors = new List<string>();
-        var warnings = new List<string>();
+        var errors = new List<string>();//
+        var warnings = new List<string>();//
 
         // Act
-        ValidateCSharpFileDirectly(file, new List<BotFile> { file }, errors, warnings);
+        ValidateAllFilesDirectly(files, errors, warnings);//
 
         // Assert
-        Assert.IsFalse(warnings.Any(w => w.Contains("IBot") && w.Contains("doesn't appear")), 
-            "Should NOT warn when IBot is implemented");
+        Assert.IsFalse(errors.Any(e => e.Contains("No class implementing IBot")), 
+            $"Should NOT error when at least one file implements IBot. Errors: {string.Join(" | ", errors)}");
     }
 
     #endregion
@@ -668,65 +685,8 @@ public class TestBot : IBot
         Assert.IsFalse(warnings.Any(w => w.Contains("MakeSecurityMove")), "Should NOT warn about missing MakeSecurityMove");
     }
 
-    [TestMethod]
-    public void ValidateCSharpFile_WithoutMakeMove_ReturnsWarning()
-    {
-        // Arrange
-        var file = new BotFile
-        {
-            FileName = "TestBot.cs",
-            Code = @"
-using System;
-using TournamentEngine.Core.Common;
-
-public class TestBot : IBot
-{
-    public string TeamName => ""Test"";;
-    
-    public async Task<List<int>> AllocateTroops(GameState state, CancellationToken ct)
-    {
-        return await Task.FromResult(new List<int>());;
-    }
-}"
-        };
-
-        var errors = new List<string>();
-        var warnings = new List<string>();
-
-        // Act
-        ValidateCSharpFileDirectly(file, new List<BotFile> { file }, errors, warnings);
-
-        // Assert
-        Assert.IsTrue(warnings.Any(w => w.Contains("MakeMove")), 
-            "Should warn about missing MakeMove method");
-    }
-
-    [TestMethod]
-    public void ValidateCSharpFile_WithoutAllocateTroops_ReturnsWarning()
-    {
-        // Arrange
-        var file = new BotFile
-        {
-            FileName = "TestBot.cs",
-            Code = @"
-using System;
-
-public class TestBot
-{
-    public async Task<string> MakeMove() { return ""Rock"";;  }
-}"
-        };
-
-        var errors = new List<string>();
-        var warnings = new List<string>();
-
-        // Act
-        ValidateCSharpFileDirectly(file, new List<BotFile> { file }, errors, warnings);
-
-        // Assert
-        Assert.IsTrue(warnings.Any(w => w.Contains("AllocateTroops")), 
-            "Should warn about missing AllocateTroops method");
-    }
+    // Note: Per-file validation tests for missing methods removed
+    // New validation only checks if at least one file implements IBot (tested above)
 
     #endregion
 
@@ -880,61 +840,10 @@ public class TestBot
     #endregion
 
     #region Missing Namespace Tests
-
-    [TestMethod]
-    public void ValidateCSharpFile_WithoutTournamentEngineNamespace_ReturnsWarning()
-    {
-        // Arrange
-        var file = new BotFile
-        {
-            FileName = "TestBot.cs",
-            Code = @"
-using System;
-
-public class TestBot
-{
-    public string TeamName => ""Test"";;
-}"
-        };
-
-        var errors = new List<string>();
-        var warnings = new List<string>();
-
-        // Act
-        ValidateCSharpFileDirectly(file, new List<BotFile> { file }, errors, warnings);
-
-        // Assert
-        Assert.IsTrue(warnings.Any(w => w.Contains("TournamentEngine.Core.Common")), 
-            "Should warn about missing TournamentEngine.Core.Common namespace");
-    }
-
-    [TestMethod]
-    public void ValidateCSharpFile_WithTournamentEngineNamespace_NoWarning()
-    {
-        // Arrange
-        var file = new BotFile
-        {
-            FileName = "TestBot.cs",
-            Code = @"
-using System;
-using TournamentEngine.Core.Common;
-
-public class TestBot : IBot
-{
-    public string TeamName => ""Test"";;
-}"
-        };
-
-        var errors = new List<string>();
-        var warnings = new List<string>();
-
-        // Act
-        ValidateCSharpFileDirectly(file, new List<BotFile> { file }, errors, warnings);
-
-        // Assert
-        Assert.IsFalse(warnings.Any(w => w.Contains("TournamentEngine.Core.Common") && w.Contains("should include")), 
-            "Should NOT warn when TournamentEngine.Core.Common is included");
-    }
+    
+    // Note: Per-file namespace validation removed
+    // Individual files no longer need to include TournamentEngine.Core.Common
+    // Only requirement is at least one file implements IBot (tested in IBot Implementation Tests)
 
     #endregion
 
@@ -1006,22 +915,8 @@ public class TestBot
     {
         var code = file.Code;
         
-        // Count how many files implement IBot
-        var iBotImplementationCount = allFiles
-            .Where(f => f.FileName.EndsWith(".cs", System.StringComparison.OrdinalIgnoreCase))
-            .Count(f => f.Code.Contains(": IBot"));
-        
-        // Check if this file implements IBot
-        var thisFileImplementsIBot = code.Contains(": IBot");
-        
-        // Skip IBot-related warnings if there's exactly one IBot implementation and this isn't it
-        var skipIBotWarnings = (iBotImplementationCount == 1) && !thisFileImplementsIBot;
-
-        // Check for basic C# structure (class or interface)
-        if (!skipIBotWarnings && !code.Contains("class ") && !code.Contains("interface "))
-        {
-            warnings.Add($"File {file.FileName} appears to be C# but has no class or interface definitions");
-        }
+        // Note: IBot validation moved to ValidateAllFilesDirectly
+        // Individual files no longer checked for IBot - only requirement is at least one file in submission has it
 
         // CODING RULE 1: Check for double semicolons (;;) - not allowed
         if (code.Contains(";;"))
@@ -1147,47 +1042,20 @@ public class TestBot
             }
         }
 
-        // Check if file uses custom namespaces (UserBot.*, etc.)
-        var usingCustomNamespaces = System.Text.RegularExpressions.Regex.IsMatch(
-            code, 
-            @"using\s+(?!System|TournamentEngine)[a-zA-Z0-9_.]+\s*;"
-        );
-
-        // Check for TournamentEngine.Core.Common (only for IBot implementations not using custom namespaces)
-        if (!skipIBotWarnings && !usingCustomNamespaces && !code.Contains("using TournamentEngine.Core.Common"))
-        {
-            warnings.Add($"File {file.FileName} should include 'using TournamentEngine.Core.Common;' to implement IBot interface");
-        }
-
         // Check for target framework
         if (code.Contains("<TargetFramework>") && !code.Contains("<TargetFramework>net8.0</TargetFramework>"))
         {
             errors.Add($"File {file.FileName} targets a framework other than net8.0. Must target .NET 8.0");
         }
 
-        // Check for IBot implementation (only warn if we should)
-        if (!skipIBotWarnings && !code.Contains(": IBot"))
-        {
-            warnings.Add($"File {file.FileName} doesn't appear to implement IBot interface");
-        }
-
-        // Check for required methods (only for IBot implementations)
-        if (!skipIBotWarnings)
-        {
-            var requiredMethods = new[] { "MakeMove", "AllocateTroops", "MakePenaltyDecision", "MakeSecurityMove" };
-            foreach (var method in requiredMethods)
-            {
-                if (!code.Contains(method))
-                {
-                    warnings.Add($"File {file.FileName} doesn't appear to implement required method: {method}");
-                }
-            }
-        }
+        // Note: IBot implementation check moved to ValidateAllFilesDirectly
+        // Individual files are no longer required to implement IBot - only one file in the submission needs to
     }
 
     private void ValidateAllFilesDirectly(List<BotFile> files, List<string> errors, List<string> warnings)
     {
         var hasCodeFile = false;
+        var hasIBotImplementation = false;
         
         foreach (var file in files)
         {
@@ -1202,6 +1070,13 @@ public class TestBot
             {
                 hasCodeFile = true;
                 ValidateCSharpFileDirectly(file, files, errors, warnings);
+                
+                // Check if this file implements IBot (handle various formatting)
+                // Matches: ": IBot", ":IBot", ":\s*IBot"
+                if (System.Text.RegularExpressions.Regex.IsMatch(file.Code, @":\s*IBot\b"))
+                {
+                    hasIBotImplementation = true;
+                }
             }
             // Allow documentation files - just skip validation
             else if (file.FileName.EndsWith(".md", System.StringComparison.OrdinalIgnoreCase) ||
@@ -1221,6 +1096,12 @@ public class TestBot
         if (!hasCodeFile)
         {
             errors.Add("At least one .cs file is required");
+        }
+        
+        // Verify at least one file implements IBot interface
+        if (hasCodeFile && !hasIBotImplementation)
+        {
+            errors.Add("No class implementing IBot found in bot code. At least one .cs file must contain a class declaration like 'class YourBot : IBot'");
         }
     }
 

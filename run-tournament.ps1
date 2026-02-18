@@ -87,7 +87,7 @@ $colors = @{
 }
 
 function Write-Info { Write-Host "[INFO]  $args" -ForegroundColor $colors.info }
-function Write-Success { Write-Host "[✓] $args" -ForegroundColor $colors.success }
+function Write-Success { Write-Host "[OK] $args" -ForegroundColor $colors.success }
 function Write-Error { Write-Host "[ERROR] $args" -ForegroundColor $colors.error }
 function Write-Warning { Write-Host "[WARN] $args" -ForegroundColor $colors.warning }
 

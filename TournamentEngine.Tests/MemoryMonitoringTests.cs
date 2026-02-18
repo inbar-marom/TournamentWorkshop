@@ -5,6 +5,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using TournamentEngine.Core.BotLoader;
+using BotLoaderClass = TournamentEngine.Core.BotLoader.BotLoader;
 using TournamentEngine.Core.Common;
 using GameRunnerClass = TournamentEngine.Core.GameRunner.GameRunner;
 
@@ -313,7 +314,7 @@ public class SimpleBot : IBot
         System.IO.File.WriteAllText(System.IO.Path.Combine(botDir, "Bot.cs"), simpleBotCode);
 
         var config = new TournamentConfig { MemoryLimitMB = 512 };
-        var botLoader = new BotLoader();
+        var botLoader = new BotLoaderClass();
 
         try
         {
@@ -381,7 +382,7 @@ public class SimpleBot : IBot
 }";
         System.IO.File.WriteAllText(System.IO.Path.Combine(botDir, "Bot.cs"), simpleBotCode);
 
-        var botLoader = new BotLoader();
+        var botLoader = new BotLoaderClass();
 
         try
         {
@@ -603,7 +604,7 @@ public class NormalBot : IBot
                 MoveTimeout = TimeSpan.FromSeconds(5),
                 MaxRoundsRPSLS = 50
             };
-            var botLoader = new BotLoader();
+            var botLoader = new BotLoaderClass();
             var memoryHogInfo = await botLoader.LoadBotFromFolderAsync(memoryHogBotDir, config);
             var normalBotInfo = await botLoader.LoadBotFromFolderAsync(normalBotDir, config);
 

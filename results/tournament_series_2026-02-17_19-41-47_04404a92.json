@@ -1,0 +1,538 @@
+{
+  "seriesId": "04404a92-4753-4d7c-b9b8-789905a5d962",
+  "seriesName": "Local Tournament Series",
+  "exportedAt": "2026-02-17T19:41:47.9183886Z",
+  "startTime": "2026-02-17T19:41:38.35265Z",
+  "endTime": "2026-02-17T19:41:47.9007853Z",
+  "totalMatches": 38,
+  "champion": "Alpha_Team_001",
+  "tournamentCount": 4,
+  "gameTypes": [
+    "RPSLS",
+    "ColonelBlotto",
+    "PenaltyKicks",
+    "SecurityGame"
+  ],
+  "tournaments": [
+    {
+      "tournamentIndex": 1,
+      "tournamentId": "103ca8e6-fc8f-4aff-8b9a-98cde7fd037f",
+      "gameType": "RPSLS",
+      "champion": "Bravo_Team_002",
+      "totalMatches": 7,
+      "startTime": "2026-02-17T19:41:38.35265Z",
+      "endTime": "2026-02-17T19:41:42.9694616Z",
+      "matches": [
+        {
+          "matchId": "39b65803-4cf1-41aa-9387-addd650dd99c",
+          "bot1Name": "Bravo_Team_002",
+          "bot2Name": "Alpha_Team_001",
+          "bot1Score": 20,
+          "bot2Score": 20,
+          "outcome": "Draw",
+          "durationSeconds": 0.8041853
+        },
+        {
+          "matchId": "bd239c57-2818-4002-84da-6e903bae2e04",
+          "bot1Name": "Bravo_Team_002",
+          "bot2Name": "StrategicMind",
+          "bot1Score": 22,
+          "bot2Score": 16,
+          "outcome": "Player1Wins",
+          "winnerName": "Bravo_Team_002",
+          "durationSeconds": 2.0029114
+        },
+        {
+          "matchId": "292d8289-8a96-47fb-a3c0-1a1feb056a70",
+          "bot1Name": "Alpha_Team_001",
+          "bot2Name": "StrategicMind",
+          "bot1Score": 23,
+          "bot2Score": 17,
+          "outcome": "Player1Wins",
+          "winnerName": "Alpha_Team_001",
+          "durationSeconds": 1.9171048
+        },
+        {
+          "matchId": "0dc9d722-50c3-412b-a489-dca3e3831c67",
+          "bot1Name": "Alpha_Team_001",
+          "bot2Name": "Bravo_Team_002",
+          "bot1Score": 20,
+          "bot2Score": 20,
+          "outcome": "Draw",
+          "durationSeconds": 0.6021632
+        },
+        {
+          "matchId": "c61428e3-6ac4-457c-83d2-45449ecf4860",
+          "bot1Name": "Alpha_Team_001",
+          "bot2Name": "Bravo_Team_002",
+          "bot1Score": 20,
+          "bot2Score": 20,
+          "outcome": "Draw",
+          "durationSeconds": 0.6421999
+        },
+        {
+          "matchId": "87b3650f-d599-4846-9d72-63a3f1ad5b0c",
+          "bot1Name": "Alpha_Team_001",
+          "bot2Name": "Bravo_Team_002",
+          "bot1Score": 20,
+          "bot2Score": 20,
+          "outcome": "Draw",
+          "durationSeconds": 0.6114304
+        },
+        {
+          "matchId": "b53f7124-9146-4d74-ac49-c9fbbad8dfc0",
+          "bot1Name": "Alpha_Team_001",
+          "bot2Name": "Bravo_Team_002",
+          "bot1Score": 20,
+          "bot2Score": 20,
+          "outcome": "Draw",
+          "durationSeconds": 0.684203
+        }
+      ],
+      "finalStandings": [
+        {
+          "botName": "Bravo_Team_002",
+          "points": 8,
+          "wins": 1,
+          "losses": 0,
+          "draws": 5,
+          "tournamentWins": 0
+        },
+        {
+          "botName": "Alpha_Team_001",
+          "points": 8,
+          "wins": 1,
+          "losses": 0,
+          "draws": 5,
+          "tournamentWins": 0
+        },
+        {
+          "botName": "StrategicMind",
+          "points": 0,
+          "wins": 0,
+          "losses": 2,
+          "draws": 0,
+          "tournamentWins": 0
+        }
+      ]
+    },
+    {
+      "tournamentIndex": 2,
+      "tournamentId": "87a81d50-cb7f-4a0d-9d02-acf5aaf34aeb",
+      "gameType": "ColonelBlotto",
+      "champion": "Bravo_Team_002",
+      "totalMatches": 7,
+      "startTime": "2026-02-17T19:41:43.5998075Z",
+      "endTime": "2026-02-17T19:41:43.7119231Z",
+      "matches": [
+        {
+          "matchId": "fb197dff-7ea6-415f-a7d6-f4c87c27ec98",
+          "bot1Name": "Alpha_Team_001",
+          "bot2Name": "Bravo_Team_002",
+          "bot1Score": 0,
+          "bot2Score": 0,
+          "outcome": "Draw",
+          "durationSeconds": 0.0488558
+        },
+        {
+          "matchId": "e52aadeb-6542-44f3-9d07-d01231c92ba4",
+          "bot1Name": "Alpha_Team_001",
+          "bot2Name": "StrategicMind",
+          "bot1Score": 5,
+          "bot2Score": 0,
+          "outcome": "Player1Wins",
+          "winnerName": "Alpha_Team_001",
+          "durationSeconds": 0.0487447
+        },
+        {
+          "matchId": "35b03676-6393-4df3-9140-080c2dadc2c8",
+          "bot1Name": "Bravo_Team_002",
+          "bot2Name": "StrategicMind",
+          "bot1Score": 5,
+          "bot2Score": 0,
+          "outcome": "Player1Wins",
+          "winnerName": "Bravo_Team_002",
+          "durationSeconds": 0.0488334
+        },
+        {
+          "matchId": "24233cae-b3fd-4bb2-b256-ec28b72dc216",
+          "bot1Name": "Alpha_Team_001",
+          "bot2Name": "Bravo_Team_002",
+          "bot1Score": 0,
+          "bot2Score": 0,
+          "outcome": "Draw",
+          "durationSeconds": 0.01487
+        },
+        {
+          "matchId": "726a9b05-9981-4aaa-addb-ddf31d8cdb03",
+          "bot1Name": "Alpha_Team_001",
+          "bot2Name": "Bravo_Team_002",
+          "bot1Score": 0,
+          "bot2Score": 0,
+          "outcome": "Draw",
+          "durationSeconds": 0.0169913
+        },
+        {
+          "matchId": "0ddaab82-8bd7-4ba7-b8d5-c11f331bdfeb",
+          "bot1Name": "Alpha_Team_001",
+          "bot2Name": "Bravo_Team_002",
+          "bot1Score": 0,
+          "bot2Score": 0,
+          "outcome": "Draw",
+          "durationSeconds": 0.0113435
+        },
+        {
+          "matchId": "69a6666a-fd8d-45b6-86ef-c3f891cd1a0c",
+          "bot1Name": "Alpha_Team_001",
+          "bot2Name": "Bravo_Team_002",
+          "bot1Score": 0,
+          "bot2Score": 0,
+          "outcome": "Draw",
+          "durationSeconds": 0.0117023
+        }
+      ],
+      "finalStandings": [
+        {
+          "botName": "Alpha_Team_001",
+          "points": 8,
+          "wins": 1,
+          "losses": 0,
+          "draws": 5,
+          "tournamentWins": 0
+        },
+        {
+          "botName": "Bravo_Team_002",
+          "points": 8,
+          "wins": 1,
+          "losses": 0,
+          "draws": 5,
+          "tournamentWins": 0
+        },
+        {
+          "botName": "StrategicMind",
+          "points": 0,
+          "wins": 0,
+          "losses": 2,
+          "draws": 0,
+          "tournamentWins": 0
+        }
+      ]
+    },
+    {
+      "tournamentIndex": 3,
+      "tournamentId": "91266bd8-1bf0-4ff7-aaa7-d6c01bb72767",
+      "gameType": "PenaltyKicks",
+      "champion": "StrategicMind",
+      "totalMatches": 12,
+      "startTime": "2026-02-17T19:41:44.1679783Z",
+      "endTime": "2026-02-17T19:41:45.6489137Z",
+      "matches": [
+        {
+          "matchId": "6d1683d8-fd9f-4577-94d0-fcf2ba24f34f",
+          "bot1Name": "StrategicMind",
+          "bot2Name": "Bravo_Team_002",
+          "bot1Score": 0,
+          "bot2Score": 0,
+          "outcome": "BothError",
+          "durationSeconds": 0.3419983
+        },
+        {
+          "matchId": "4ae05ecb-2760-4098-be8a-e4b80e676198",
+          "bot1Name": "StrategicMind",
+          "bot2Name": "Alpha_Team_001",
+          "bot1Score": 0,
+          "bot2Score": 0,
+          "outcome": "BothError",
+          "durationSeconds": 0.3450954
+        },
+        {
+          "matchId": "5642c869-9152-4266-a463-95856eda9e1e",
+          "bot1Name": "Bravo_Team_002",
+          "bot2Name": "Alpha_Team_001",
+          "bot1Score": 0,
+          "bot2Score": 0,
+          "outcome": "BothError",
+          "durationSeconds": 0.2152771
+        },
+        {
+          "matchId": "45d3f0f5-e7aa-46ec-9197-3e9b68e3d17b",
+          "bot1Name": "Alpha_Team_001",
+          "bot2Name": "Bravo_Team_002",
+          "bot1Score": 0,
+          "bot2Score": 0,
+          "outcome": "BothError",
+          "durationSeconds": 0.2365637
+        },
+        {
+          "matchId": "2d10a4c0-5ac2-4ca1-aeb2-1bded2d6d2ba",
+          "bot1Name": "Alpha_Team_001",
+          "bot2Name": "StrategicMind",
+          "bot1Score": 0,
+          "bot2Score": 0,
+          "outcome": "BothError",
+          "durationSeconds": 0.3652022
+        },
+        {
+          "matchId": "6b91d11f-4ab7-403a-a471-f06263b1cc33",
+          "bot1Name": "Bravo_Team_002",
+          "bot2Name": "StrategicMind",
+          "bot1Score": 0,
+          "bot2Score": 0,
+          "outcome": "BothError",
+          "durationSeconds": 0.3652112
+        },
+        {
+          "matchId": "6de9b0e1-735e-4d24-b6c2-0a9407bfca4e",
+          "bot1Name": "Alpha_Team_001",
+          "bot2Name": "Bravo_Team_002",
+          "bot1Score": 0,
+          "bot2Score": 0,
+          "outcome": "BothError",
+          "durationSeconds": 0.1183758
+        },
+        {
+          "matchId": "bb7ce2c6-a52f-46f9-b72f-4e9a58e6c20f",
+          "bot1Name": "Alpha_Team_001",
+          "bot2Name": "Bravo_Team_002",
+          "bot1Score": 0,
+          "bot2Score": 0,
+          "outcome": "BothError",
+          "durationSeconds": 0.1177785
+        },
+        {
+          "matchId": "370ba1c0-0d02-4e97-a9a9-a28784fe79ce",
+          "bot1Name": "Alpha_Team_001",
+          "bot2Name": "Bravo_Team_002",
+          "bot1Score": 0,
+          "bot2Score": 0,
+          "outcome": "BothError",
+          "durationSeconds": 0.1280357
+        },
+        {
+          "matchId": "71c811fb-8a7c-4dc0-81ce-d3e43c823d3d",
+          "bot1Name": "Alpha_Team_001",
+          "bot2Name": "StrategicMind",
+          "bot1Score": 0,
+          "bot2Score": 0,
+          "outcome": "BothError",
+          "durationSeconds": 0.1286115
+        },
+        {
+          "matchId": "15547680-f5a4-426c-a66f-12a905a5aa6f",
+          "bot1Name": "Alpha_Team_001",
+          "bot2Name": "StrategicMind",
+          "bot1Score": 0,
+          "bot2Score": 0,
+          "outcome": "BothError",
+          "durationSeconds": 0.1295948
+        },
+        {
+          "matchId": "4bf418a2-6641-4dd4-aa8d-52d8a2b7cf76",
+          "bot1Name": "Alpha_Team_001",
+          "bot2Name": "StrategicMind",
+          "bot1Score": 0,
+          "bot2Score": 0,
+          "outcome": "BothError",
+          "durationSeconds": 0.138237
+        }
+      ],
+      "finalStandings": [
+        {
+          "botName": "StrategicMind",
+          "points": 0,
+          "wins": 0,
+          "losses": 7,
+          "draws": 0,
+          "tournamentWins": 0
+        },
+        {
+          "botName": "Bravo_Team_002",
+          "points": 0,
+          "wins": 0,
+          "losses": 7,
+          "draws": 0,
+          "tournamentWins": 0
+        },
+        {
+          "botName": "Alpha_Team_001",
+          "points": 0,
+          "wins": 0,
+          "losses": 10,
+          "draws": 0,
+          "tournamentWins": 0
+        }
+      ]
+    },
+    {
+      "tournamentIndex": 4,
+      "tournamentId": "cb7a0767-da19-49e9-b529-786bb2943b4d",
+      "gameType": "SecurityGame",
+      "champion": "Alpha_Team_001",
+      "totalMatches": 12,
+      "startTime": "2026-02-17T19:41:46.1618461Z",
+      "endTime": "2026-02-17T19:41:47.9007853Z",
+      "matches": [
+        {
+          "matchId": "040a59d4-329d-4cdf-8cb9-c1d85bc4f027",
+          "bot1Name": "StrategicMind",
+          "bot2Name": "Alpha_Team_001",
+          "bot1Score": 0,
+          "bot2Score": 0,
+          "outcome": "BothError",
+          "durationSeconds": 0.4831021
+        },
+        {
+          "matchId": "8ddf8d52-84a8-4521-a9ba-d59bd83d6201",
+          "bot1Name": "StrategicMind",
+          "bot2Name": "Bravo_Team_002",
+          "bot1Score": 0,
+          "bot2Score": 0,
+          "outcome": "BothError",
+          "durationSeconds": 0.4830179
+        },
+        {
+          "matchId": "0fe15a46-4445-43fa-9c34-31d996252fd0",
+          "bot1Name": "Alpha_Team_001",
+          "bot2Name": "Bravo_Team_002",
+          "bot1Score": 0,
+          "bot2Score": 0,
+          "outcome": "BothError",
+          "durationSeconds": 0.318439
+        },
+        {
+          "matchId": "9175886e-6c85-4a75-ac08-87a41342839e",
+          "bot1Name": "Alpha_Team_001",
+          "bot2Name": "Bravo_Team_002",
+          "bot1Score": 0,
+          "bot2Score": 0,
+          "outcome": "BothError",
+          "durationSeconds": 0.2308195
+        },
+        {
+          "matchId": "36c23a44-e3ee-485b-8e76-252b284a7a4b",
+          "bot1Name": "Alpha_Team_001",
+          "bot2Name": "StrategicMind",
+          "bot1Score": 0,
+          "bot2Score": 0,
+          "outcome": "BothError",
+          "durationSeconds": 0.4249504
+        },
+        {
+          "matchId": "dd72e88f-5b60-4ee0-8a32-d3c2ea8db367",
+          "bot1Name": "Bravo_Team_002",
+          "bot2Name": "StrategicMind",
+          "bot1Score": 0,
+          "bot2Score": 0,
+          "outcome": "BothError",
+          "durationSeconds": 0.4107068
+        },
+        {
+          "matchId": "8cd60295-9fce-4d9b-a7cc-5b3be1e061c2",
+          "bot1Name": "Alpha_Team_001",
+          "bot2Name": "Bravo_Team_002",
+          "bot1Score": 0,
+          "bot2Score": 0,
+          "outcome": "BothError",
+          "durationSeconds": 0.1414603
+        },
+        {
+          "matchId": "d7cac48a-47b2-4262-ae05-ef9779ebd3bb",
+          "bot1Name": "Alpha_Team_001",
+          "bot2Name": "Bravo_Team_002",
+          "bot1Score": 0,
+          "bot2Score": 0,
+          "outcome": "BothError",
+          "durationSeconds": 0.138936
+        },
+        {
+          "matchId": "c591d7d2-469b-462f-b121-ca051603fc13",
+          "bot1Name": "Alpha_Team_001",
+          "bot2Name": "Bravo_Team_002",
+          "bot1Score": 0,
+          "bot2Score": 0,
+          "outcome": "BothError",
+          "durationSeconds": 0.1336628
+        },
+        {
+          "matchId": "87e8f329-1ec6-4e10-893c-c76fc829a07c",
+          "bot1Name": "Alpha_Team_001",
+          "bot2Name": "StrategicMind",
+          "bot1Score": 0,
+          "bot2Score": 0,
+          "outcome": "BothError",
+          "durationSeconds": 0.1219829
+        },
+        {
+          "matchId": "ffdc4f1a-a0f6-4f97-9406-14eaf4ea5f62",
+          "bot1Name": "Alpha_Team_001",
+          "bot2Name": "StrategicMind",
+          "bot1Score": 0,
+          "bot2Score": 0,
+          "outcome": "BothError",
+          "durationSeconds": 0.1281336
+        },
+        {
+          "matchId": "c4132b58-83b8-4a4d-ac57-fd0ed35494d2",
+          "bot1Name": "Alpha_Team_001",
+          "bot2Name": "StrategicMind",
+          "bot1Score": 0,
+          "bot2Score": 0,
+          "outcome": "BothError",
+          "durationSeconds": 0.1564562
+        }
+      ],
+      "finalStandings": [
+        {
+          "botName": "StrategicMind",
+          "points": 0,
+          "wins": 0,
+          "losses": 7,
+          "draws": 0,
+          "tournamentWins": 0
+        },
+        {
+          "botName": "Alpha_Team_001",
+          "points": 0,
+          "wins": 0,
+          "losses": 10,
+          "draws": 0,
+          "tournamentWins": 0
+        },
+        {
+          "botName": "Bravo_Team_002",
+          "points": 0,
+          "wins": 0,
+          "losses": 7,
+          "draws": 0,
+          "tournamentWins": 0
+        }
+      ]
+    }
+  ],
+  "overallStandings": [
+    {
+      "botName": "Bravo_Team_002",
+      "points": 16,
+      "wins": 2,
+      "losses": 14,
+      "draws": 10,
+      "tournamentWins": 2
+    },
+    {
+      "botName": "Alpha_Team_001",
+      "points": 16,
+      "wins": 2,
+      "losses": 20,
+      "draws": 10,
+      "tournamentWins": 1
+    },
+    {
+      "botName": "StrategicMind",
+      "points": 0,
+      "wins": 0,
+      "losses": 18,
+      "draws": 0,
+      "tournamentWins": 1
+    }
+  ]
+}
