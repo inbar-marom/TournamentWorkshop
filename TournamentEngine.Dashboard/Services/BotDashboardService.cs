@@ -27,6 +27,7 @@ public class BotDashboardService : IDisposable
     private List<BotDashboardDto>? _botsCache;
     private DateTime _cacheExpirationTime = DateTime.MinValue;
     private readonly TimeSpan _cacheDuration = TimeSpan.FromMinutes(5); // Increased from 1 second to 5 minutes
+    private string _cacheFingerprint = string.Empty;
     private readonly object _cacheLock = new();
 
     public BotDashboardService(
@@ -50,17 +51,20 @@ public class BotDashboardService : IDisposable
     {
         try
         {
+            var submissions = _storageService.GetAllSubmissions();
+            var submissionsFingerprint = BuildSubmissionsFingerprint(submissions);
+
             // Check cache first
             lock (_cacheLock)
             {
-                if (_botsCache != null && DateTime.UtcNow < _cacheExpirationTime)
+                if (_botsCache != null
+                    && DateTime.UtcNow < _cacheExpirationTime
+                    && string.Equals(_cacheFingerprint, submissionsFingerprint, StringComparison.Ordinal))
                 {
                     _logger.LogInformation("Returning cached bot list");
                     return new List<BotDashboardDto>(_botsCache);
                 }
             }
-
-            var submissions = _storageService.GetAllSubmissions();
 
             _logger.LogInformation("Loading {Count} bots in parallel...", submissions.Count);
 
@@ -95,6 +99,7 @@ public class BotDashboardService : IDisposable
             {
                 _botsCache = new List<BotDashboardDto>(bots);
                 _cacheExpirationTime = DateTime.UtcNow.Add(_cacheDuration);
+                _cacheFingerprint = submissionsFingerprint;
             }
 
             return bots;
@@ -323,8 +328,21 @@ public class BotDashboardService : IDisposable
         {
             _botsCache = null;
             _cacheExpirationTime = DateTime.MinValue;
+            _cacheFingerprint = string.Empty;
         }
         _logger.LogInformation("Bot cache cleared");
+    }
+
+    private static string BuildSubmissionsFingerprint(List<BotSubmissionMetadata> submissions)
+    {
+        if (submissions.Count == 0)
+        {
+            return "empty";
+        }
+
+        return string.Join('|', submissions
+            .OrderBy(s => s.TeamName, StringComparer.OrdinalIgnoreCase)
+            .Select(s => $"{s.TeamName}:{s.Version}:{s.SubmissionTime.Ticks}:{s.FileCount}:{s.TotalSizeBytes}"));
     }
 
     #region Private Helpers

@@ -2,6 +2,7 @@ namespace TournamentEngine.Api.Services;
 
 using Models;
 using System.Collections.Concurrent;
+using TournamentEngine.Api.Utilities;
 
 /// <summary>
 /// Service for storing and managing bot submissions
@@ -36,6 +37,7 @@ public class BotStorageService
         {
             var submissions = new Dictionary<string, BotSubmissionMetadata>(StringComparer.OrdinalIgnoreCase);
             var folders = Directory.GetDirectories(_storageDirectory);
+            
             foreach (var folderPath in folders)
             {
                 var folderName = Path.GetFileName(folderPath);
@@ -57,14 +59,14 @@ public class BotStorageService
                     continue;
                 }
 
-                var filePaths = Directory.GetFiles(folderPath)
-                    .Select(Path.GetFileName)
+                var filePaths = Directory.GetFiles(folderPath, "*", SearchOption.AllDirectories)
+                    .Select(filePath => Path.GetRelativePath(folderPath, filePath).Replace('\\', '/'))
                     .Where(fileName => !string.IsNullOrWhiteSpace(fileName))
                     .Select(fileName => fileName!)
                     .ToList();
 
                 var totalSize = filePaths
-                    .Select(fileName => new FileInfo(Path.Combine(folderPath, fileName)).Length)
+                    .Select(fileName => new FileInfo(Path.Combine(folderPath, fileName.Replace('/', Path.DirectorySeparatorChar))).Length)
                     .Sum();
 
                 var metadata = new BotSubmissionMetadata
@@ -119,14 +121,21 @@ public class BotStorageService
         if (request.Files == null || request.Files.Count == 0)
             return new BotSubmissionResult { Success = false, Message = "At least one file is required", Errors = new() { "Files collection is empty" } };
 
-        var errors = ValidateSubmission(request);
+        var normalizedRequest = new BotSubmissionRequest
+        {
+            TeamName = request.TeamName.Trim(),
+            Overwrite = request.Overwrite,
+            Files = BotFilePathNormalizer.NormalizeAndEnsureUnique(request.Files, request.TeamName)
+        };
+
+        var errors = ValidateSubmission(normalizedRequest);
         if (errors.Count > 0)
-            return new BotSubmissionResult { Success = false, TeamName = request.TeamName, Message = "Validation failed", Errors = errors };
+            return new BotSubmissionResult { Success = false, TeamName = normalizedRequest.TeamName, Message = "Validation failed", Errors = errors };
 
         await _semaphore.WaitAsync();
         try
         {
-            return await StoreBotInternalAsync(request);
+            return await StoreBotInternalAsync(normalizedRequest);
         }
         finally
         {

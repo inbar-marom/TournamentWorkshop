@@ -52,9 +52,7 @@ builder.Services.AddCors(options =>
 
 // Register bot dashboard services
 var botsDir = builder.Configuration["BotDashboard:BotsDirectory"] ?? "bots/";
-var resolvedBotsDir = Path.IsPathRooted(botsDir)
-    ? botsDir
-    : Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, botsDir));
+var resolvedBotsDir = ResolveBotStorageDirectory(builder.Environment.ContentRootPath, botsDir);
 builder.Services.AddSingleton(sp =>
     new BotStorageService(resolvedBotsDir, sp.GetRequiredService<ILogger<BotStorageService>>()));
 builder.Services.AddSingleton<IBotLoader>(sp =>
@@ -157,4 +155,47 @@ Console.WriteLine("🌐 API: http://localhost:8080/api");
 Console.WriteLine("💻 Access from remote: http://<your-ip>:8080");
 
 app.Run();
+
+static string ResolveBotStorageDirectory(string contentRootPath, string configuredPath)
+{
+    if (Path.IsPathRooted(configuredPath))
+    {
+        return configuredPath;
+    }
+
+    var legacyPath = Path.GetFullPath(Path.Combine(contentRootPath, configuredPath));
+    var solutionRoot = FindSolutionRoot(contentRootPath);
+    var sharedPath = Path.GetFullPath(Path.Combine(solutionRoot ?? contentRootPath, configuredPath));
+
+    if (Directory.Exists(legacyPath) && Directory.Exists(sharedPath))
+    {
+        var legacyHasSubmissions = Directory.GetDirectories(legacyPath).Any();
+        var sharedHasSubmissions = Directory.GetDirectories(sharedPath).Any();
+
+        if (legacyHasSubmissions && !sharedHasSubmissions)
+        {
+            return legacyPath;
+        }
+    }
+
+    return sharedPath;
+}
+
+static string? FindSolutionRoot(string startPath)
+{
+    var current = new DirectoryInfo(startPath);
+
+    while (current != null)
+    {
+        var solutionPath = Path.Combine(current.FullName, "TournamentEngine.sln");
+        if (File.Exists(solutionPath))
+        {
+            return current.FullName;
+        }
+
+        current = current.Parent;
+    }
+
+    return null;
+}
 

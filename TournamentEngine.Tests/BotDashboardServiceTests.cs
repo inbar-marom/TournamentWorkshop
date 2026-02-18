@@ -400,6 +400,32 @@ public class BotDashboardServiceTests
         Assert.AreEqual(firstCall.Count, secondCall.Count);
     }
 
+    [TestMethod]
+    public async Task GetAllBotsAsync_AfterInitialEmptyCache_NewSubmissionIsVisibleWithoutManualClear()
+    {
+        // Arrange - First call populates cache with empty result
+        var initialBots = await _dashboardService!.GetAllBotsAsync();
+        Assert.AreEqual(0, initialBots.Count);
+
+        var submission = new BotSubmissionRequest
+        {
+            TeamName = "NewlySubmittedTeam",
+            Files = new List<BotFile>
+            {
+                new BotFile { FileName = "bot.cs", Code = "public class Bot { }" }
+            }
+        };
+
+        await _storageService!.StoreBotAsync(submission);
+
+        // Act - Should not return stale cached empty list
+        var botsAfterSubmission = await _dashboardService.GetAllBotsAsync();
+
+        // Assert
+        Assert.AreEqual(1, botsAfterSubmission.Count);
+        Assert.AreEqual("NewlySubmittedTeam", botsAfterSubmission[0].TeamName);
+    }
+
     // Helper method to generate mock zip content
     private byte[] GenerateMockZipContent()
     {

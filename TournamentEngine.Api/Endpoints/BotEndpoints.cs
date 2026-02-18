@@ -7,6 +7,7 @@ using System.Text.RegularExpressions;
 using System.Linq;
 using TournamentEngine.Core.BotLoader;
 using TournamentEngine.Core.Common;
+using TournamentEngine.Api.Utilities;
 
 /// <summary>
 /// API endpoints for bot submission, listing, and management
@@ -54,17 +55,25 @@ public static class BotEndpoints
         DevelopmentSettingsService devSettings,
         ILogger<Program> logger)
     {
+        var normalizationWarnings = new List<string>();
+        var normalizedRequest = new BotSubmissionRequest
+        {
+            TeamName = request.TeamName,
+            Overwrite = request.Overwrite,
+            Files = BotFilePathNormalizer.NormalizeAndEnsureUnique(request.Files, request.TeamName, normalizationWarnings)
+        };
+
         logger.LogInformation("Received bot submission for team {TeamName} with {FileCount} files",
-            request.TeamName, request.Files?.Count ?? 0);
+            normalizedRequest.TeamName, normalizedRequest.Files?.Count ?? 0);
 
         // Check if verification is bypassed
         bool bypassEnabled = devSettings.IsVerificationBypassed();
         if (bypassEnabled)
         {
-            logger.LogWarning("⚠️ VERIFICATION BYPASSED - Accepting bot without validation for team {TeamName}", request.TeamName);
+            logger.LogWarning("⚠️ VERIFICATION BYPASSED - Accepting bot without validation for team {TeamName}", normalizedRequest.TeamName);
             
             // Attempt to store bot without validation
-            var bypassResult = await botStorage.StoreBotAsync(request);
+            var bypassResult = await botStorage.StoreBotAsync(normalizedRequest);
 
             if (!bypassResult.Success)
             {
@@ -76,14 +85,14 @@ public static class BotEndpoints
             }
 
             logger.LogInformation("Bot submitted successfully (verification bypassed) for team {TeamName}: {SubmissionId}",
-                request.TeamName, bypassResult.SubmissionId);
+                normalizedRequest.TeamName, bypassResult.SubmissionId);
             return Results.Ok(bypassResult);
         }
 
         // Validate and compile bot
         var validationResult = await ValidateAndCompileBot(
             request.TeamName,
-            request.Files,
+            normalizedRequest.Files,
             null, // No game type specified
             botLoader,
             logger);
@@ -96,21 +105,26 @@ public static class BotEndpoints
                 ? Results.Json(new BotSubmissionResult
                 {
                     Success = false,
-                    TeamName = request.TeamName,
+                    TeamName = normalizedRequest.TeamName,
                     Message = validationResult.Message,
                     Errors = validationResult.Errors
                 }, statusCode: StatusCodes.Status413PayloadTooLarge)
                 : Results.BadRequest(new BotSubmissionResult
                 {
                     Success = false,
-                    TeamName = request.TeamName,
+                    TeamName = normalizedRequest.TeamName,
                     Message = validationResult.Message,
                     Errors = validationResult.Errors
                 });
         }
 
+        if (normalizationWarnings.Count > 0)
+        {
+            validationResult.Warnings.AddRange(normalizationWarnings);
+        }
+
         // Attempt to store bot
-        var result = await botStorage.StoreBotAsync(request);
+        var result = await botStorage.StoreBotAsync(normalizedRequest);
 
         if (!result.Success)
         {
@@ -122,7 +136,7 @@ public static class BotEndpoints
         }
 
         logger.LogInformation("Bot submitted successfully for team {TeamName}: {SubmissionId}",
-            request.TeamName, result.SubmissionId);
+            normalizedRequest.TeamName, result.SubmissionId);
         return Results.Ok(result);
     }
 
@@ -155,14 +169,21 @@ public static class BotEndpoints
 
         var tasks = batchRequest.Bots.Select(async botRequest =>
         {
+            var normalizedBotRequest = new BotSubmissionRequest
+            {
+                TeamName = botRequest.TeamName,
+                Overwrite = botRequest.Overwrite,
+                Files = BotFilePathNormalizer.NormalizeAndEnsureUnique(botRequest.Files, botRequest.TeamName)
+            };
+
             // Basic validation
-            if (string.IsNullOrWhiteSpace(botRequest.TeamName) || botRequest.Files == null || botRequest.Files.Count == 0)
+            if (string.IsNullOrWhiteSpace(normalizedBotRequest.TeamName) || normalizedBotRequest.Files == null || normalizedBotRequest.Files.Count == 0)
             {
                 failureCount++;
                 responses.Add(new BotSubmissionResult
                 {
                     Success = false,
-                    TeamName = botRequest.TeamName,
+                    TeamName = normalizedBotRequest.TeamName,
                     Message = "Invalid submission",
                     Errors = new() { "Team name and files are required" }
                 });
@@ -170,7 +191,7 @@ public static class BotEndpoints
             }
 
             // Attempt to store
-            var result = await botStorage.StoreBotAsync(botRequest);
+            var result = await botStorage.StoreBotAsync(normalizedBotRequest);
             if (result.Success)
                 successCount++;
             else
@@ -178,7 +199,7 @@ public static class BotEndpoints
 
             responses.Add(result);
             logger.LogInformation("Batch submission processed for team {TeamName}: Success={Success}",
-                botRequest.TeamName, result.Success);
+                normalizedBotRequest.TeamName, result.Success);
         });
 
         await Task.WhenAll(tasks);
@@ -349,6 +370,9 @@ public static class BotEndpoints
         DevelopmentSettingsService devSettings,
         ILogger<Program> logger)
     {
+        var normalizationWarnings = new List<string>();
+        var normalizedFiles = BotFilePathNormalizer.NormalizeAndEnsureUnique(request.Files, request.TeamName, normalizationWarnings);
+
         logger.LogInformation("Verifying bot for team {TeamName}", request.TeamName);
 
         // Check if verification is bypassed
@@ -369,10 +393,15 @@ public static class BotEndpoints
         // Validate and compile bot
         var validationResult = await ValidateAndCompileBot(
             request.TeamName,
-            request.Files,
+            normalizedFiles,
             request.GameType,
             botLoader,
             logger);
+
+        if (normalizationWarnings.Count > 0)
+        {
+            validationResult.Warnings.AddRange(normalizationWarnings);
+        }
 
         if (!validationResult.IsValid)
         {
@@ -433,6 +462,8 @@ public static class BotEndpoints
             };
         }
 
+        files = BotFilePathNormalizer.NormalizeAndEnsureUnique(files, teamName);
+
         // Validate team name format
         if (!IsValidTeamName(teamName))
         {
@@ -471,7 +502,7 @@ public static class BotEndpoints
 
         // Check for duplicate filenames
         var fileNames = files.Select(f => f.FileName).ToList();
-        if (fileNames.Distinct().Count() != fileNames.Count)
+        if (fileNames.Distinct(StringComparer.OrdinalIgnoreCase).Count() != fileNames.Count)
         {
             errors.Add("Duplicate file names detected");
         }

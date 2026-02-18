@@ -155,7 +155,6 @@ public class BotLoader : IBotLoader
             }
 
             // 3. Add implicit usings as .NET 6+ does with <ImplicitUsings>enable</ImplicitUsings>
-            // We'll prepend these to all user bot files
             var implicitUsings = @"using System;
 using System.Collections.Generic;
 using System.IO;
@@ -167,21 +166,8 @@ using System.Threading.Tasks;
 
             var syntaxTrees = new List<SyntaxTree>();
 
-            // 3.1. Add UserBot.Core interface definitions if the bot uses UserBot.Core namespace
-            // This allows bots to reference UserBot.Core.IBot without including the source files
-            // Determine workspace root from bot folder path:
-            // Bot folder is typically: workspace/TournamentEngine.Console/bots/BotName_v1
-            // or: workspace/TournamentEngine.Dashboard/bots/BotName_v1
-            var botFolderInfo = new DirectoryInfo(teamFolder);
-            var botsDir = botFolderInfo.Parent; // bots/
-            var projectDir = botsDir?.Parent; // TournamentEngine.Console or TournamentEngine.Dashboard  
-            var workspaceRoot = projectDir?.Parent; // workspace root
-            
-            string? userBotCorePath = null;
-            if (workspaceRoot != null && workspaceRoot.Exists)
-            {
-                userBotCorePath = Path.Combine(workspaceRoot.FullName, "UserBot", "UserBot.Core");
-            }
+            // 3.1. Add UserBot.Core interface definitions if bot uses UserBot.Core namespace
+            var userBotCorePath = ResolveUserBotCorePath(teamFolder);
             
             if (userBotCorePath != null && Directory.Exists(userBotCorePath))
             {
@@ -192,7 +178,6 @@ using System.Threading.Tasks;
                     if (File.Exists(filePath))
                     {
                         var userBotCode = await File.ReadAllTextAsync(filePath, cancellationToken);
-                        // Prepend implicit usings to UserBot.Core files too
                         var codeWithUsings = implicitUsings + "\n" + userBotCode;
                         syntaxTrees.Add(CSharpSyntaxTree.ParseText(codeWithUsings, path: fileName, cancellationToken: cancellationToken));
                     }
@@ -268,8 +253,19 @@ using System.Threading.Tasks;
             ms.Seek(0, SeekOrigin.Begin);
             var assembly = Assembly.Load(ms.ToArray());
             
+            // CRITICAL: Use IBot type from compiled assembly, not from TournamentEngine.Core
+            // The bot may have compiled its own UserBot.Core.IBot which is a different type
+            var iBotType = assembly.GetTypes().FirstOrDefault(t => 
+                t.Name == "IBot" && (t.Namespace == "UserBot.Core" || t.FullName == "TournamentEngine.Core.Common.IBot"));
+            
+            if (iBotType == null)
+            {
+                // Fallback: use TournamentEngine.Core.Common.IBot for old-style bots
+                iBotType = typeof(IBot);
+            }
+            
             var botTypes = assembly.GetTypes()
-                .Where(t => typeof(IBot).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract)
+                .Where(t => iBotType.IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract)
                 .ToList();
 
             if (botTypes.Count == 0)
@@ -301,8 +297,8 @@ using System.Threading.Tasks;
             var botType = botTypes[0];
 
             // 8. Create bot instance
-            var botInstance = (IBot?)Activator.CreateInstance(botType);
-            if (botInstance == null)
+            var rawBotInstance = Activator.CreateInstance(botType);
+            if (rawBotInstance == null)
             {
                 return new BotInfo
                 {
@@ -310,6 +306,24 @@ using System.Threading.Tasks;
                     FolderPath = teamFolder,
                     IsValid = false,
                     ValidationErrors = new List<string> { "Failed to create bot instance" }
+                };
+            }
+
+            // 8.1. Use BotAdapterFactory to automatically detect and wrap bots from different namespaces
+            // This supports bots using UserBot.Core, CustomBot.Core, or any other IBot implementation
+            IBot botInstance;
+            try
+            {
+                botInstance = BotAdapterFactory.CreateAdapterIfNeeded(rawBotInstance);
+            }
+            catch (Exception ex)
+            {
+                return new BotInfo
+                {
+                    TeamName = teamName,
+                    FolderPath = teamFolder,
+                    IsValid = false,
+                    ValidationErrors = new List<string> { $"Failed to create bot adapter: {ex.Message}" }
                 };
             }
 
@@ -439,5 +453,90 @@ using System.Threading.Tasks;
         GC.Collect();
 
         return reloadedBots;
+    }
+
+    private static string? ResolveUserBotCorePath(string teamFolder)
+    {
+        var candidates = new List<string>();
+
+        foreach (var ancestor in EnumerateDirectoryAncestors(teamFolder))
+        {
+            candidates.Add(Path.Combine(ancestor.FullName, "UserBot", "UserBot.Core"));
+
+            var isBotsDir = string.Equals(ancestor.Name, "bots", StringComparison.OrdinalIgnoreCase);
+            if (isBotsDir && ancestor.Parent != null)
+            {
+                candidates.Add(Path.Combine(ancestor.Parent.FullName, "UserBot", "UserBot.Core"));
+            }
+
+            if (File.Exists(Path.Combine(ancestor.FullName, "TournamentEngine.sln")))
+            {
+                candidates.Add(Path.Combine(ancestor.FullName, "UserBot", "UserBot.Core"));
+                break;
+            }
+        }
+
+        candidates.Add(Path.Combine(Directory.GetCurrentDirectory(), "UserBot", "UserBot.Core"));
+        candidates.Add(Path.Combine(AppContext.BaseDirectory, "UserBot", "UserBot.Core"));
+
+        foreach (var candidate in candidates
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Select(Path.GetFullPath)
+            .Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            if (Directory.Exists(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        return null;
+    }
+
+    private static IEnumerable<DirectoryInfo> EnumerateDirectoryAncestors(string path)
+    {
+        var current = new DirectoryInfo(path);
+
+        while (current != null)
+        {
+            yield return current;
+            current = current.Parent;
+        }
+    }
+
+    /// <summary>
+    /// Adapter that bridges UserBot.Core.IBot to TournamentEngine.Core.Common.IBot
+    /// </summary>
+    private class UserBotCoreAdapter : IBot
+    {
+        private readonly dynamic _bot;
+
+        public UserBotCoreAdapter(object bot)
+        {
+            _bot = bot;
+        }
+
+        public string TeamName => _bot.TeamName;
+        public GameType GameType => (GameType)(int)_bot.GameType;
+
+        public Task<string> MakeMove(GameState gameState, CancellationToken cancellationToken)
+        {
+            return _bot.MakeMove(gameState, cancellationToken);
+        }
+
+        public Task<int[]> AllocateTroops(GameState gameState, CancellationToken cancellationToken)
+        {
+            return _bot.AllocateTroops(gameState, cancellationToken);
+        }
+
+        public Task<string> MakePenaltyDecision(GameState gameState, CancellationToken cancellationToken)
+        {
+            return _bot.MakePenaltyDecision(gameState, cancellationToken);
+        }
+
+        public Task<string> MakeSecurityMove(GameState gameState, CancellationToken cancellationToken)
+        {
+            return _bot.MakeSecurityMove(gameState, cancellationToken);
+        }
     }
 }
