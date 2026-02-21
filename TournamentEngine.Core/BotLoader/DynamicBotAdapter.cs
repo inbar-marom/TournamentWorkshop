@@ -162,6 +162,20 @@ public class DynamicBotAdapter : IBotAdapter
         if (engineGameState.State.TryGetValue("AvailableTroops", out var at))
             MapProperty(wrappedGameState, "AvailableTroops", Convert.ToInt32(at));
         
+        // Map GameType
+        if (engineGameState.State.TryGetValue("GameType", out var gt))
+        {
+            MapProperty(wrappedGameState, "GameType", gt);
+        }
+        
+        // Map the entire State dictionary to AdditionalData so bots can access
+        // game-specific data like Role, TargetValues, TotalDefenseUnits, etc.
+        if (_gameStateProperties.TryGetValue("AdditionalData", out var additionalDataProp) && additionalDataProp.CanWrite)
+        {
+            var additionalData = new Dictionary<string, object>(engineGameState.State);
+            additionalDataProp.SetValue(wrappedGameState, additionalData);
+        }
+        
         return wrappedGameState;
     }
     

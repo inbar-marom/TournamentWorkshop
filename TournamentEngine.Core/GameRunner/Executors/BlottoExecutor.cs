@@ -20,114 +20,114 @@ public class BlottoExecutor : IGameExecutor
         var startTime = DateTime.Now;
         var matchLog = new List<string>();
         var errors = new List<string>();
+        var maxRounds = config.MaxRoundsBlotto;
         
         matchLog.Add($"=== Colonel Blotto Match: {bot1.TeamName} vs {bot2.TeamName} ===");
         matchLog.Add($"Battlefields: {BattlefieldCount}, Total Troops: {TotalTroops}");
+        matchLog.Add($"Max Rounds: {maxRounds}");
         matchLog.Add("");
 
-        var gameState = CreateGameState();
-        
-        // Get troop allocations from both bots with timeout
-        var (allocation1, error1) = await GetBotAllocationWithTimeout(bot1, gameState, config.MoveTimeout, cancellationToken);
-        var (allocation2, error2) = await GetBotAllocationWithTimeout(bot2, gameState, config.MoveTimeout, cancellationToken);
-        
         int bot1Errors = 0;
         int bot2Errors = 0;
-        
-        // Track errors
-        if (error1 != null)
-        {
-            bot1Errors++;
-            errors.Add($"{bot1.TeamName} - {error1}");
-            matchLog.Add($"{bot1.TeamName} ERROR - {error1}");
-        }
-        
-        if (error2 != null)
-        {
-            bot2Errors++;
-            errors.Add($"{bot2.TeamName} - {error2}");
-            matchLog.Add($"{bot2.TeamName} ERROR - {error2}");
-        }
-        
-        // Validate allocations
-        bool valid1 = allocation1 != null && IsValidAllocation(allocation1);
-        bool valid2 = allocation2 != null && IsValidAllocation(allocation2);
-        
-        if (!valid1 && error1 == null)
-        {
-            var invalidError = allocation1 == null 
-                ? "Null allocation" 
-                : $"Invalid allocation: [{string.Join(", ", allocation1)}] (must be 5 ints, sum=100, all =0)";
-            bot1Errors++;
-            errors.Add($"{bot1.TeamName} - {invalidError}");
-            matchLog.Add($"{bot1.TeamName} - {invalidError}");
-        }
-        
-        if (!valid2 && error2 == null)
-        {
-            var invalidError = allocation2 == null 
-                ? "Null allocation" 
-                : $"Invalid allocation: [{string.Join(", ", allocation2)}] (must be 5 ints, sum=100, all =0)";
-            bot2Errors++;
-            errors.Add($"{bot2.TeamName} - {invalidError}");
-            matchLog.Add($"{bot2.TeamName} - {invalidError}");
-        }
-        
-        // Compute battlefield results
         int bot1BattlefieldsWon = 0;
         int bot2BattlefieldsWon = 0;
-        
-        if (valid1 && valid2)
+
+        for (int round = 1; round <= maxRounds; round++)
         {
-            matchLog.Add($"{bot1.TeamName} allocation: [{string.Join(", ", allocation1!)}]");
-            matchLog.Add($"{bot2.TeamName} allocation: [{string.Join(", ", allocation2!)}]");
-            matchLog.Add("");
-            
-            for (int i = 0; i < BattlefieldCount; i++)
+            var gameState = CreateGameState(round, maxRounds);
+
+            var (allocation1, error1) = await GetBotAllocationWithTimeout(bot1, gameState, config.MoveTimeout, cancellationToken);
+            var (allocation2, error2) = await GetBotAllocationWithTimeout(bot2, gameState, config.MoveTimeout, cancellationToken);
+
+            if (error1 != null)
             {
-                var troops1 = allocation1![i];
-                var troops2 = allocation2![i];
-                
-                if (troops1 > troops2)
-                {
-                    bot1BattlefieldsWon++;
-                    matchLog.Add($"Battlefield {i + 1}: {bot1.TeamName} wins ({troops1} vs {troops2})");
-                }
-                else if (troops2 > troops1)
-                {
-                    bot2BattlefieldsWon++;
-                    matchLog.Add($"Battlefield {i + 1}: {bot2.TeamName} wins ({troops2} vs {troops1})");
-                }
-                else
-                {
-                    matchLog.Add($"Battlefield {i + 1}: Draw ({troops1} vs {troops2})");
-                }
+                bot1Errors++;
+                errors.Add($"Round {round}: {bot1.TeamName} - {error1}");
+                matchLog.Add($"Round {round}: {bot1.TeamName} ERROR - {error1}");
             }
-        }
-        else if (valid1 && !valid2)
-        {
-            bot1BattlefieldsWon = BattlefieldCount;
-            matchLog.Add($"{bot1.TeamName} wins all battlefields by default (opponent error)");
-        }
-        else if (!valid1 && valid2)
-        {
-            bot2BattlefieldsWon = BattlefieldCount;
-            matchLog.Add($"{bot2.TeamName} wins all battlefields by default (opponent error)");
-        }
-        else
-        {
-            // Both invalid - deterministic random winner
-            var randomWinner = (bot1.TeamName.GetHashCode() % 2 == 0) ? 1 : 2;
-            if (randomWinner == 1)
+
+            if (error2 != null)
             {
-                bot1BattlefieldsWon = BattlefieldCount;
-                matchLog.Add($"Both errors - {bot1.TeamName} wins (deterministic random)");
+                bot2Errors++;
+                errors.Add($"Round {round}: {bot2.TeamName} - {error2}");
+                matchLog.Add($"Round {round}: {bot2.TeamName} ERROR - {error2}");
+            }
+
+            bool valid1 = allocation1 != null && IsValidAllocation(allocation1);
+            bool valid2 = allocation2 != null && IsValidAllocation(allocation2);
+
+            if (!valid1 && error1 == null)
+            {
+                var invalidError = allocation1 == null
+                    ? "Null allocation"
+                    : $"Invalid allocation: [{string.Join(", ", allocation1)}] (must be 5 ints, sum=100, all >=0)";
+                bot1Errors++;
+                errors.Add($"Round {round}: {bot1.TeamName} - {invalidError}");
+                matchLog.Add($"Round {round}: {bot1.TeamName} - {invalidError}");
+            }
+
+            if (!valid2 && error2 == null)
+            {
+                var invalidError = allocation2 == null
+                    ? "Null allocation"
+                    : $"Invalid allocation: [{string.Join(", ", allocation2)}] (must be 5 ints, sum=100, all >=0)";
+                bot2Errors++;
+                errors.Add($"Round {round}: {bot2.TeamName} - {invalidError}");
+                matchLog.Add($"Round {round}: {bot2.TeamName} - {invalidError}");
+            }
+
+            int roundBot1Wins = 0;
+            int roundBot2Wins = 0;
+
+            if (valid1 && valid2)
+            {
+                matchLog.Add($"Round {round}: {bot1.TeamName} allocation: [{string.Join(", ", allocation1!)}]");
+                matchLog.Add($"Round {round}: {bot2.TeamName} allocation: [{string.Join(", ", allocation2!)}]");
+
+                for (int i = 0; i < BattlefieldCount; i++)
+                {
+                    var troops1 = allocation1![i];
+                    var troops2 = allocation2![i];
+
+                    if (troops1 > troops2)
+                    {
+                        roundBot1Wins++;
+                    }
+                    else if (troops2 > troops1)
+                    {
+                        roundBot2Wins++;
+                    }
+                }
+
+                matchLog.Add($"Round {round}: Battlefields won {bot1.TeamName} {roundBot1Wins} - {roundBot2Wins} {bot2.TeamName}");
+            }
+            else if (valid1 && !valid2)
+            {
+                roundBot1Wins = BattlefieldCount;
+                matchLog.Add($"Round {round}: {bot1.TeamName} wins all battlefields by default (opponent error)");
+            }
+            else if (!valid1 && valid2)
+            {
+                roundBot2Wins = BattlefieldCount;
+                matchLog.Add($"Round {round}: {bot2.TeamName} wins all battlefields by default (opponent error)");
             }
             else
             {
-                bot2BattlefieldsWon = BattlefieldCount;
-                matchLog.Add($"Both errors - {bot2.TeamName} wins (deterministic random)");
+                var randomWinner = ((bot1.TeamName.GetHashCode() ^ round.GetHashCode()) % 2 == 0) ? 1 : 2;
+                if (randomWinner == 1)
+                {
+                    roundBot1Wins = BattlefieldCount;
+                    matchLog.Add($"Round {round}: Both errors - {bot1.TeamName} wins (deterministic random)");
+                }
+                else
+                {
+                    roundBot2Wins = BattlefieldCount;
+                    matchLog.Add($"Round {round}: Both errors - {bot2.TeamName} wins (deterministic random)");
+                }
             }
+
+            bot1BattlefieldsWon += roundBot1Wins;
+            bot2BattlefieldsWon += roundBot2Wins;
         }
         
         // Determine final outcome
@@ -159,7 +159,7 @@ public class BlottoExecutor : IGameExecutor
         };
     }
 
-    private static GameState CreateGameState()
+    private static GameState CreateGameState(int currentRound, int maxRounds)
     {
         return new GameState
         {
@@ -170,8 +170,8 @@ public class BlottoExecutor : IGameExecutor
                 ["TotalTroops"] = TotalTroops
             },
             MoveHistory = new List<string>(),
-            CurrentRound = 1,
-            MaxRounds = 1,
+            CurrentRound = currentRound,
+            MaxRounds = maxRounds,
             IsGameOver = false,
             Winner = null
         };

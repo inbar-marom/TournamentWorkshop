@@ -59,6 +59,21 @@ public class TournamentEngineSettings
     public int MaxRoundsRPSLS { get; set; }
 
     /// <summary>
+    /// Maximum number of rounds for Colonel Blotto game
+    /// </summary>
+    public int MaxRoundsBlotto { get; set; }
+
+    /// <summary>
+    /// Maximum number of rounds for Penalty Kicks game
+    /// </summary>
+    public int MaxRoundsPenaltyKicks { get; set; }
+
+    /// <summary>
+    /// Maximum number of rounds for Security Game
+    /// </summary>
+    public int MaxRoundsSecurityGame { get; set; }
+
+    /// <summary>
     /// Logging level (Debug, Information, Warning, Error)
     /// </summary>
     public string? LogLevel { get; set; }

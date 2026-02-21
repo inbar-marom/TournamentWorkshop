@@ -15,6 +15,7 @@ public class GroupStageTournamentEngine : ITournamentEngine
 {
     private readonly IGameRunner _gameRunner;
     private readonly IScoringSystem _scoringSystem;
+    private readonly IMatchResultsLogger? _matchResultsLogger;
     private readonly object _stateLock = new object();
     private TournamentInfo _tournamentInfo;
     private List<Group> _currentGroups;
@@ -28,10 +29,11 @@ public class GroupStageTournamentEngine : ITournamentEngine
     private int _currentPhaseRecordedResults;
     private readonly List<string> _eventLog;
 
-    public GroupStageTournamentEngine(IGameRunner gameRunner, IScoringSystem scoringSystem)
+    public GroupStageTournamentEngine(IGameRunner gameRunner, IScoringSystem scoringSystem, IMatchResultsLogger? matchResultsLogger = null)
     {
         _gameRunner = gameRunner ?? throw new ArgumentNullException(nameof(gameRunner));
         _scoringSystem = scoringSystem ?? throw new ArgumentNullException(nameof(scoringSystem));
+        _matchResultsLogger = matchResultsLogger;
         _currentGroups = new List<Group>();
         _initialGroups = new List<Group>();
         _pendingMatches = new Queue<(IBot bot1, IBot bot2)>();
@@ -115,6 +117,9 @@ public class GroupStageTournamentEngine : ITournamentEngine
             ValidateBotName(matchResult.Bot1Name, nameof(matchResult));
             ValidateBotName(matchResult.Bot2Name, nameof(matchResult));
 
+            var groupLabel = ResolveGroupLabel(matchResult.Bot1Name, matchResult.Bot2Name);
+            matchResult.GroupLabel = groupLabel;
+
             _tournamentInfo.MatchResults.Add(matchResult);
 
             var historyKey = $"{matchResult.Bot1Name}-vs-{matchResult.Bot2Name}-{_tournamentInfo.MatchResults.Count}";
@@ -125,6 +130,8 @@ public class GroupStageTournamentEngine : ITournamentEngine
 
             // Remove this match from pending queue
             DequeueMatch(matchResult.Bot1Name, matchResult.Bot2Name);
+
+            AppendMatchResultToCsv(matchResult, groupLabel);
 
             Log($"Recorded match: {matchResult.Bot1Name} vs {matchResult.Bot2Name} ({matchResult.Outcome})");
 
@@ -342,10 +349,14 @@ public class GroupStageTournamentEngine : ITournamentEngine
                 .GetAwaiter()
                 .GetResult();
 
+            var groupLabel = ResolveGroupLabel(result.Bot1Name, result.Bot2Name);
+            result.GroupLabel = groupLabel;
+
             // Record tiebreaker match result
             _tournamentInfo.MatchResults.Add(result);
             var historyKey = $"{result.Bot1Name}-vs-{result.Bot2Name}-{_tournamentInfo.MatchResults.Count}";
             _matchHistory[historyKey] = result;
+            AppendMatchResultToCsv(result, groupLabel);
             Log($"Recorded tiebreaker match: {result.Bot1Name} vs {result.Bot2Name} ({result.Outcome})");
 
             if (result.Outcome == MatchOutcome.Player1Wins || result.Outcome == MatchOutcome.Player2Error)
@@ -461,35 +472,66 @@ public class GroupStageTournamentEngine : ITournamentEngine
             {
                 if (_currentPhase == TournamentPhase.NotStarted)
                     return string.Empty;
-
-                if (_currentPhase == TournamentPhase.Tiebreaker)
-                    return "Tiebreaker";
-
-                if (_currentPhase == TournamentPhase.FinalGroup)
-                    return "Final Group";
-
-                // For initial groups phase or when looking up completed matches from initial groups,
-                // always check the preserved _initialGroups to find which specific group the bots were in
-                if (_initialGroups != null && _initialGroups.Count > 0)
-                {
-                    for (int i = 0; i < _initialGroups.Count; i++)
-                    {
-                        var group = _initialGroups[i];
-                        var botNames = new HashSet<string>(group.Bots.Select(b => b.TeamName), StringComparer.OrdinalIgnoreCase);
-                        if (botNames.Contains(bot1Name) && botNames.Contains(bot2Name))
-                        {
-                            return $"Group #{i + 1}";
-                        }
-                    }
-                }
-
-                // Fallback to phase name
-                return "Group Stage";
+                return ResolveGroupLabel(bot1Name, bot2Name);
             }
         }
         catch
         {
             return string.Empty;
+        }
+    }
+
+    private string ResolveGroupLabel(string bot1Name, string bot2Name)
+    {
+        if (_currentPhase == TournamentPhase.Tiebreaker)
+            return "Tiebreaker";
+
+        if (_currentPhase == TournamentPhase.FinalGroup)
+            return "Final Group-finalStandings";
+
+        if (_initialGroups != null && _initialGroups.Count > 0)
+        {
+            for (int i = 0; i < _initialGroups.Count; i++)
+            {
+                var group = _initialGroups[i];
+                var botNames = new HashSet<string>(group.Bots.Select(b => b.TeamName), StringComparer.OrdinalIgnoreCase);
+                if (botNames.Contains(bot1Name) && botNames.Contains(bot2Name))
+                {
+                    return $"Group {ConvertGroupNumberToLabel(i + 1)}";
+                }
+            }
+        }
+
+        return "Group Stage";
+    }
+
+    private static string ConvertGroupNumberToLabel(int groupNumber)
+    {
+        if (groupNumber <= 0)
+            return groupNumber.ToString();
+
+        var label = string.Empty;
+        var value = groupNumber;
+
+        while (value > 0)
+        {
+            value--;
+            label = (char)('A' + (value % 26)) + label;
+            value /= 26;
+        }
+
+        return label;
+    }
+
+    private void AppendMatchResultToCsv(MatchResult matchResult, string groupLabel)
+    {
+        try
+        {
+            _matchResultsLogger?.AppendMatchResult(matchResult, groupLabel);
+        }
+        catch (Exception ex)
+        {
+            Log($"CSV logging failed for {matchResult.Bot1Name} vs {matchResult.Bot2Name}: {ex.Message}");
         }
     }
 

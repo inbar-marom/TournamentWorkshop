@@ -34,17 +34,20 @@ public class TournamentSeriesManager
     private readonly IScoringSystem _scoringSystem;
     private readonly ITournamentEventPublisher? _eventPublisher;
     private readonly IBotLoader? _botLoader;
+    private readonly IMatchResultsLogger? _matchResultsLogger;
 
     public TournamentSeriesManager(
         ITournamentManager tournamentManager,
         IScoringSystem scoringSystem,
         ITournamentEventPublisher? eventPublisher = null,
-        IBotLoader? botLoader = null)
+        IBotLoader? botLoader = null,
+        IMatchResultsLogger? matchResultsLogger = null)
     {
         _tournamentManager = tournamentManager ?? throw new ArgumentNullException(nameof(tournamentManager));
         _scoringSystem = scoringSystem ?? throw new ArgumentNullException(nameof(scoringSystem));
         _eventPublisher = eventPublisher;
         _botLoader = botLoader;
+        _matchResultsLogger = matchResultsLogger;
     }
 
     public async Task<TournamentSeriesInfo> RunSeriesAsync(
@@ -66,6 +69,9 @@ public class TournamentSeriesManager
             StartTime = DateTime.UtcNow,
             Config = config
         };
+
+        var runGameType = config.GameTypes.FirstOrDefault();
+        _matchResultsLogger?.StartTournamentRun(seriesInfo.SeriesId, runGameType);
 
         var seriesName = config.SeriesName ?? "Tournament Series";
         var steps = config.GameTypes

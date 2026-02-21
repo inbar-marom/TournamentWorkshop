@@ -69,7 +69,10 @@ var tournamentConfig = new TournamentConfig
     ImportTimeout = TimeSpan.FromSeconds(10),
     MoveTimeout = TimeSpan.FromMilliseconds(500), //0.5 seconds for faster feedback in dashboard
     MemoryLimitMB = 512,
-    MaxRoundsRPSLS = 50,
+    MaxRoundsRPSLS = 10,
+    MaxRoundsBlotto = 5,
+    MaxRoundsPenaltyKicks = 10,
+    MaxRoundsSecurityGame = 5,
     LogLevel = "Information",
     BotsDirectory = resolvedBotsDir,
     ResultsFilePath = Path.Combine(builder.Environment.ContentRootPath, "results", "results.json")
@@ -97,7 +100,17 @@ builder.Services.AddSingleton<TournamentManagementService>();
 // Register tournament execution services for real management runs
 builder.Services.AddSingleton<IGameRunner, GameRunner>();
 builder.Services.AddSingleton<IScoringSystem, ScoringSystem>();
-builder.Services.AddSingleton<ITournamentEngine, GroupStageTournamentEngine>();
+builder.Services.AddSingleton<IMatchResultsLogger>(_ =>
+{
+    var resultsDir = Path.GetDirectoryName(tournamentConfig.ResultsFilePath);
+    var csvPath = Path.Combine(string.IsNullOrWhiteSpace(resultsDir) ? "." : resultsDir, "match-results.csv");
+    return new MatchResultsCsvLogger(csvPath);
+});
+builder.Services.AddSingleton<ITournamentEngine>(sp =>
+    new GroupStageTournamentEngine(
+        sp.GetRequiredService<IGameRunner>(),
+        sp.GetRequiredService<IScoringSystem>(),
+        sp.GetRequiredService<IMatchResultsLogger>()));
 builder.Services.AddSingleton<ITournamentManager>(sp =>
     new TournamentManager(
         sp.GetRequiredService<ITournamentEngine>(),
@@ -109,7 +122,8 @@ builder.Services.AddSingleton<TournamentSeriesManager>(sp =>
         sp.GetRequiredService<ITournamentManager>(),
         sp.GetRequiredService<IScoringSystem>(),
         sp.GetRequiredService<ITournamentEventPublisher>(),
-        sp.GetRequiredService<IBotLoader>()));
+        sp.GetRequiredService<IBotLoader>(),
+        sp.GetRequiredService<IMatchResultsLogger>()));
 
 // Register Phase 5 services
 builder.Services.AddSingleton<GroupStandingsGridService>();

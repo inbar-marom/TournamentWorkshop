@@ -430,6 +430,19 @@ public class TournamentManagementService
                 LastUpdated = DateTime.UtcNow
             });
 
+            // Create tournament config with up to 10 groups while avoiding groups with fewer than 2 bots.
+            // This means: group count <= 10 and group count <= bots.Count / 2.
+            var computedGroupCount = Math.Clamp(
+                Math.Min(10, bots.Count / 2),
+                1,
+                10);
+
+            _logger.LogInformation(
+                "Tournament grouping: {BotCount} bots -> {GroupCount} groups (min 2 bots/group), finalists/group={FinalistsPerGroup}",
+                bots.Count,
+                computedGroupCount,
+                1);
+
             // Create a minimal tournament series config with default settings
             var baseConfig = new TournamentConfig
             {
@@ -437,7 +450,12 @@ public class TournamentManagementService
                 MoveTimeout = TimeSpan.FromSeconds(2),
 
                 MemoryLimitMB = 512,
-                MaxRoundsRPSLS = 50
+                MaxRoundsRPSLS = 10,
+                MaxRoundsBlotto = 5,
+                MaxRoundsPenaltyKicks = 10,
+                MaxRoundsSecurityGame = 5,
+                GroupCount = computedGroupCount,
+                FinalistsPerGroup = 1
             };
 
             var seriesConfig = new TournamentSeriesConfig

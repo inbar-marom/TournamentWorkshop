@@ -46,7 +46,10 @@ public class ConfigurationManager
             ImportTimeout = TimeSpan.FromSeconds(config.TournamentEngine?.BotLoadingTimeout ?? 30),
             MoveTimeout = TimeSpan.FromSeconds(config.TournamentEngine?.MoveTimeout ?? 5),
             MemoryLimitMB = config.TournamentEngine?.MemoryLimitMB ?? 512,
-            MaxRoundsRPSLS = config.TournamentEngine?.MaxRoundsRPSLS ?? 50,
+            MaxRoundsRPSLS = config.TournamentEngine?.MaxRoundsRPSLS ?? 10,
+            MaxRoundsBlotto = config.TournamentEngine?.MaxRoundsBlotto ?? 5,
+            MaxRoundsPenaltyKicks = config.TournamentEngine?.MaxRoundsPenaltyKicks ?? 10,
+            MaxRoundsSecurityGame = config.TournamentEngine?.MaxRoundsSecurityGame ?? 5,
             LogLevel = config.TournamentEngine?.LogLevel ?? "Information",
             BotsDirectory = config.TournamentEngine?.BotsDirectory ?? "./bots",
             ResultsFilePath = Path.Combine(config.TournamentEngine?.ResultsDirectory ?? "./results", "results.json")

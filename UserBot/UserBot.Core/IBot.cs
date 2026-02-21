@@ -42,7 +42,7 @@ public interface IBot
     /// Total defense units (30) is in gameState.State["TotalDefenseUnits"]
     /// 
     /// As Attacker: Return target index to attack ("0", "1", or "2")
-    /// As Defender: Return defense allocation as comma-separated values ("d0,d1,d2" where sum = 30)
+    /// As Defender: Return defense allocation as comma-separated integers (e.g., "8,10,12" where sum = 30)
     /// 
     /// Scoring per round:
     /// - If defense = 0 on target: attacker gets full value, defender gets 0
@@ -51,6 +51,6 @@ public interface IBot
     /// </summary>
     /// <param name="gameState">Current game state with Role and target information</param>
     /// <param name="cancellationToken">Cancellation token for timeout handling</param>
-    /// <returns>Attacker: "0"-"2" (target index), Defender: "d0,d1,d2" (allocations summing to 30)</returns>
+    /// <returns>Attacker: "0"-"2" (target index), Defender: comma-separated integers (e.g., "8,10,12" summing to 30)</returns>
     Task<string> MakeSecurityMove(GameState gameState, CancellationToken cancellationToken);
 }

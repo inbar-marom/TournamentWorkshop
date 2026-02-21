@@ -14,6 +14,7 @@ public class MatchResult
     public int Bot2Score { get; init; }
     public List<string> MatchLog { get; init; } = new();
     public List<string> Errors { get; init; } = new();
+    public string? GroupLabel { get; set; }
     public DateTime StartTime { get; init; }
     public DateTime EndTime { get; init; }
     public TimeSpan Duration { get; init; }

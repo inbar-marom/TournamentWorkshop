@@ -405,4 +405,36 @@ public class TournamentSeriesManagerTests
         Assert.AreEqual(seriesInfo.TotalMatches, sumByGameType,
             "Sum of matches by game type should equal total matches");
     }
+
+    [TestMethod]
+    public async Task RunSeriesAsync_StartsMatchResultsRun_OncePerSeries()
+    {
+        // Arrange
+        var bots = TestHelpers.CreateDummyBotInfos(4);
+        var config = new TournamentSeriesConfig
+        {
+            GameTypes = new List<GameType> { GameType.RPSLS, GameType.ColonelBlotto, GameType.SecurityGame },
+            BaseConfig = TestHelpers.CreateDefaultConfig()
+        };
+
+        var gameRunner = new MockGameRunner();
+        var scoringSystem = new Core.Scoring.ScoringSystem();
+        var engine = new GroupStageTournamentEngine(gameRunner, scoringSystem);
+        var tournamentManager = new TournamentManager(engine, gameRunner, scoringSystem);
+        var matchResultsLogger = new Mock<IMatchResultsLogger>();
+        var seriesManager = new TournamentSeriesManager(
+            tournamentManager,
+            scoringSystem,
+            eventPublisher: null,
+            botLoader: null,
+            matchResultsLogger: matchResultsLogger.Object);
+
+        // Act
+        await seriesManager.RunSeriesAsync(bots, config);
+
+        // Assert
+        matchResultsLogger.Verify(
+            logger => logger.StartTournamentRun(It.IsAny<string>(), GameType.RPSLS),
+            Times.Once);
+    }
 }

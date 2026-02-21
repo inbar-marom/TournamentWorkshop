@@ -14,7 +14,6 @@ using System.Linq;
 public class PenaltyExecutor : IGameExecutor
 {
     private static readonly string[] ValidDecisions = { "Left", "Center", "Right" };
-    private const int MaxRounds = 9;
     private static readonly Random _random = new Random();
 
     public GameType GameType => GameType.PenaltyKicks;
@@ -29,6 +28,7 @@ public class PenaltyExecutor : IGameExecutor
         int bot2Score = 0;
         int bot1Errors = 0;
         int bot2Errors = 0;
+        var maxRounds = config.MaxRoundsPenaltyKicks;
         
         // Randomly assign roles
         bool bot1IsShooter = _random.Next(2) == 0;
@@ -37,7 +37,7 @@ public class PenaltyExecutor : IGameExecutor
         
         matchLog.Add($"=== Penalty Kicks Match: {bot1.TeamName} vs {bot2.TeamName} ===");
         matchLog.Add($"Shooter: {shooterBot.TeamName}, Goalkeeper: {goalkeeperBot.TeamName}");
-        matchLog.Add($"Max Rounds: {MaxRounds}");
+        matchLog.Add($"Max Rounds: {maxRounds}");
         matchLog.Add("");
 
         // Track round history for each bot separately (they have different roles)
@@ -45,10 +45,10 @@ public class PenaltyExecutor : IGameExecutor
         var goalkeeperHistory = new List<RoundHistory>();
 
         // Execute rounds with assigned roles
-        for (int round = 1; round <= MaxRounds; round++)
+        for (int round = 1; round <= maxRounds; round++)
         {
-            var shooterGameState = CreateGameState(round, MaxRounds, "Shooter", shooterHistory);
-            var goalkeeperGameState = CreateGameState(round, MaxRounds, "Goalkeeper", goalkeeperHistory);
+            var shooterGameState = CreateGameState(round, maxRounds, "Shooter", shooterHistory);
+            var goalkeeperGameState = CreateGameState(round, maxRounds, "Goalkeeper", goalkeeperHistory);
             
             var (shooterDecision, shooterError) = await GetBotDecisionWithTimeout(shooterBot, shooterGameState, config.MoveTimeout, cancellationToken);
             var (goalkeeperDecision, goalkeeperError) = await GetBotDecisionWithTimeout(goalkeeperBot, goalkeeperGameState, config.MoveTimeout, cancellationToken);
@@ -176,7 +176,7 @@ public class PenaltyExecutor : IGameExecutor
         };
     }
 
-    private static GameState CreateGameState(int currentRound = 1, int maxRounds = MaxRounds, string role = "Shooter", List<RoundHistory>? roundHistory = null)
+    private static GameState CreateGameState(int currentRound, int maxRounds, string role = "Shooter", List<RoundHistory>? roundHistory = null)
     {
         return new GameState
         {

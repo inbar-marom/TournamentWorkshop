@@ -374,7 +374,18 @@ class Program
         services.AddSingleton<IBotLoader, BotLoader>();
         services.AddSingleton<IGameRunner, GameRunner>();
         services.AddSingleton<IScoringSystem, ScoringSystem>();
-        services.AddSingleton<ITournamentEngine, GroupStageTournamentEngine>();
+        services.AddSingleton<IMatchResultsLogger>(sp =>
+        {
+            var cfg = sp.GetRequiredService<TournamentConfig>();
+            var resultsDir = Path.GetDirectoryName(cfg.ResultsFilePath);
+            var csvPath = Path.Combine(string.IsNullOrWhiteSpace(resultsDir) ? "." : resultsDir, "match-results.csv");
+            return new MatchResultsCsvLogger(csvPath);
+        });
+        services.AddSingleton<ITournamentEngine>(sp =>
+            new GroupStageTournamentEngine(
+                sp.GetRequiredService<IGameRunner>(),
+                sp.GetRequiredService<IScoringSystem>(),
+                sp.GetRequiredService<IMatchResultsLogger>()));
         
         // Add event publisher with dashboard URL from configuration
         services.AddSingleton<ITournamentEventPublisher>(sp =>
@@ -390,7 +401,8 @@ class Program
                 sp.GetRequiredService<ITournamentManager>(),
                 sp.GetRequiredService<IScoringSystem>(),
                 null, // No event publisher in console
-                sp.GetRequiredService<IBotLoader>()));
+                sp.GetRequiredService<IBotLoader>(),
+                sp.GetRequiredService<IMatchResultsLogger>()));
         
         // Add application services
         services.AddSingleton<ServiceManager>();
