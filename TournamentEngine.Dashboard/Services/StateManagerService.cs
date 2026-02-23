@@ -1,5 +1,4 @@
 using TournamentEngine.Core.Common.Dashboard;
-using System.Collections.Concurrent;
 
 namespace TournamentEngine.Dashboard.Services;
 
@@ -10,10 +9,16 @@ public class StateManagerService
 {
     private readonly ILogger<StateManagerService> _logger;
     private readonly SemaphoreSlim _stateLock = new(1, 1);
+    private readonly object _matchesLock = new();
     private DashboardStateDto? _currentState;
-    private readonly ConcurrentQueue<RecentMatchDto> _recentMatches = new();
+    /// <summary>
+    /// Single source of truth for all matches.
+    /// Structure: event -> group -> list of matches
+    /// Keys are normalized (lowercase, trimmed)
+    /// </summary>
+    private readonly Dictionary<string, Dictionary<string, List<RecentMatchDto>>> _matchesByEventAndGroup = 
+        new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<TeamStandingDto>> _standingsByEventId = new(StringComparer.OrdinalIgnoreCase);
-    private const int MaxRecentMatches = 50;
 
     public StateManagerService(ILogger<StateManagerService> logger)
     {
@@ -43,7 +48,7 @@ public class StateManagerService
                 LastUpdated = DateTime.UtcNow
             };
             
-            // Create a fresh copy with recent matches populated
+            // Create a fresh copy
             var stateCopy = new DashboardStateDto
             {
                 TournamentId = currentState.TournamentId,
@@ -56,13 +61,14 @@ public class StateManagerService
                 CurrentEvent = currentState.CurrentEvent,
                 OverallLeaderboard = currentState.OverallLeaderboard,
                 GroupStandings = currentState.GroupStandings,
-                RecentMatches = GetRecentMatches(20),
+                GroupStandingsByEvent = currentState.GroupStandingsByEvent,
+                RecentMatches = new List<RecentMatchDto>(),
                 NextMatch = currentState.NextMatch,
+                ScheduledStartTime = currentState.ScheduledStartTime,
                 LastUpdated = DateTime.UtcNow
             };
             
-            _logger.LogDebug("GetCurrentStateAsync: Status={Status}, RecentMatches={Count}", 
-                stateCopy.Status, stateCopy.RecentMatches?.Count ?? 0);
+            _logger.LogDebug("GetCurrentStateAsync: Status={Status}", stateCopy.Status);
             
             return stateCopy;
         }
@@ -80,17 +86,17 @@ public class StateManagerService
         await _stateLock.WaitAsync();
         try
         {
-            if (newState.RecentMatches != null)
+            if (newState.RecentMatches != null && newState.RecentMatches.Count > 0)
             {
-                _recentMatches.Clear();
-                foreach (var match in newState.RecentMatches)
+                lock (_matchesLock)
                 {
-                    _recentMatches.Enqueue(match);
-                }
-
-                while (_recentMatches.Count > MaxRecentMatches)
-                {
-                    _recentMatches.TryDequeue(out _);
+                    ResetMatchStorage();
+                    foreach (var match in newState.RecentMatches)
+                    {
+                        AddMatchToStorage(match);
+                    }
+                    // Clear the RecentMatches from external state since we manage it internally
+                    newState.RecentMatches = new List<RecentMatchDto>();
                 }
             }
 
@@ -107,6 +113,15 @@ public class StateManagerService
                 if (newState.OverallLeaderboard == null || newState.OverallLeaderboard.Count == 0)
                 {
                     newState.OverallLeaderboard = _currentState.OverallLeaderboard;
+                }
+            }
+
+            // Preserve GroupStandings if new state doesn't include them
+            if (_currentState?.GroupStandings?.Count > 0)
+            {
+                if (newState.GroupStandings == null || newState.GroupStandings.Count == 0)
+                {
+                    newState.GroupStandings = _currentState.GroupStandings;
                 }
             }
 
@@ -130,16 +145,18 @@ public class StateManagerService
     }
 
     /// <summary>
-    /// Adds a completed match to recent matches queue
+    /// Adds a completed match to the unified match storage
     /// </summary>
     public virtual void AddRecentMatch(MatchCompletedDto match)
     {
-        // Convert MatchCompletedDto to RecentMatchDto
+        // Convert MatchCompletedDto to RecentMatchDto for UI display
         var recentMatch = new RecentMatchDto
         {
             MatchId = match.MatchId,
             TournamentId = match.TournamentId,
             TournamentName = match.TournamentName,
+            EventId = match.EventId,
+            EventName = match.EventName,
             Bot1Name = match.Bot1Name,
             Bot2Name = match.Bot2Name,
             Outcome = match.Outcome,
@@ -148,24 +165,150 @@ public class StateManagerService
             Bot2Score = match.Bot2Score,
             CompletedAt = match.CompletedAt,
             GameType = match.GameType,
+            GroupId = match.GroupId,
             GroupLabel = match.GroupLabel
         };
-        
-        _recentMatches.Enqueue(recentMatch);
-        
-        // Keep only the most recent matches
-        while (_recentMatches.Count > MaxRecentMatches)
+
+        lock (_matchesLock)
         {
-            _recentMatches.TryDequeue(out _);
+            AddMatchToStorage(recentMatch);
         }
     }
 
     /// <summary>
-    /// Gets recent matches
+    /// Gets all tracked matches across all events and groups.
     /// </summary>
-    public virtual List<RecentMatchDto> GetRecentMatches(int count = 20)
+    public virtual List<RecentMatchDto> GetAllMatches()
     {
-        return _recentMatches.TakeLast(count).Reverse().ToList();
+        lock (_matchesLock)
+        {
+            var allMatches = new List<RecentMatchDto>();
+            foreach (var eventDict in _matchesByEventAndGroup.Values)
+            {
+                foreach (var matches in eventDict.Values)
+                {
+                    allMatches.AddRange(matches);
+                }
+            }
+            return allMatches
+                .OrderByDescending(m => m.CompletedAt)
+                .ToList();
+        }
+    }
+
+    /// <summary>
+    /// Gets matches filtered by event name (across all groups in that event).
+    /// </summary>
+    public virtual List<RecentMatchDto> GetMatchesByEvent(string eventName)
+    {
+        if (string.IsNullOrWhiteSpace(eventName))
+        {
+            return new List<RecentMatchDto>();
+        }
+
+        lock (_matchesLock)
+        {
+            var normalizedEvent = NormalizeEventKey(eventName);
+            if (!_matchesByEventAndGroup.TryGetValue(normalizedEvent, out var eventDict))
+            {
+                return new List<RecentMatchDto>();
+            }
+
+            var allEventMatches = new List<RecentMatchDto>();
+            foreach (var matches in eventDict.Values)
+            {
+                allEventMatches.AddRange(matches);
+            }
+
+            return allEventMatches
+                .OrderByDescending(m => m.CompletedAt)
+                .ToList();
+        }
+    }
+
+    /// <summary>
+    /// Gets matches filtered by event and group.
+    /// </summary>
+    public virtual List<RecentMatchDto> GetMatchesByEventAndGroup(string eventName, string groupLabel)
+    {
+        if (string.IsNullOrWhiteSpace(eventName) || string.IsNullOrWhiteSpace(groupLabel))
+        {
+            return new List<RecentMatchDto>();
+        }
+
+        lock (_matchesLock)
+        {
+            var normalizedEvent = NormalizeEventKey(eventName);
+            var normalizedGroup = NormalizeGroupKey(groupLabel);
+
+            if (!_matchesByEventAndGroup.TryGetValue(normalizedEvent, out var eventDict))
+            {
+                return new List<RecentMatchDto>();
+            }
+
+            if (!eventDict.TryGetValue(normalizedGroup, out var matches))
+            {
+                return new List<RecentMatchDto>();
+            }
+
+            return matches
+                .OrderByDescending(m => m.CompletedAt)
+                .ToList();
+        }
+    }
+
+    /// <summary>
+    /// Gets groups for a specific event, including standings when available.
+    /// </summary>
+    public virtual List<GroupDto> GetGroupsByEvent(string eventName)
+    {
+        if (string.IsNullOrWhiteSpace(eventName))
+        {
+            return new List<GroupDto>();
+        }
+
+        lock (_matchesLock)
+        {
+            var groupsFromState = _currentState?.GroupStandings?
+                .Where(g => (g.EventName ?? string.Empty).Equals(eventName, StringComparison.OrdinalIgnoreCase))
+                .ToList() ?? new List<GroupDto>();
+
+            if (groupsFromState.Count > 0)
+            {
+                return groupsFromState;
+            }
+
+            var eventMatches = GetMatchesByEvent(eventName);
+            return BuildGroupsFromMatches(eventName, eventMatches);
+        }
+    }
+
+    /// <summary>
+    /// Gets the latest known UTC activity time from state or match activity.
+    /// </summary>
+    public virtual DateTime GetLatestActivityUtc()
+    {
+        lock (_matchesLock)
+        {
+            var lastMatchTime = DateTime.MinValue;
+            foreach (var eventDict in _matchesByEventAndGroup.Values)
+            {
+                foreach (var matches in eventDict.Values)
+                {
+                    if (matches.Count > 0)
+                    {
+                        var maxTime = matches.Max(m => m.CompletedAt);
+                        if (maxTime > lastMatchTime)
+                        {
+                            lastMatchTime = maxTime;
+                        }
+                    }
+                }
+            }
+            
+            var stateTime = _currentState?.LastUpdated ?? DateTime.MinValue;
+            return lastMatchTime > stateTime ? lastMatchTime : stateTime;
+        }
     }
 
     /// <summary>
@@ -183,7 +326,10 @@ public class StateManagerService
                 LastUpdated = DateTime.UtcNow
             };
             _standingsByEventId.Clear();
-            _recentMatches.Clear();
+            lock (_matchesLock)
+            {
+                ResetMatchStorage();
+            }
             _logger.LogInformation("Dashboard state cleared");
         }
         finally
@@ -238,8 +384,9 @@ public class StateManagerService
     public virtual async Task AddMatchAsync(MatchCompletedDto match)
     {
         await Task.Run(() => AddRecentMatch(match));
+        var totalMatches = GetAllMatches().Count;
         _logger.LogInformation("Match added: {Bot1} vs {Bot2}, Winner: {Winner}, Total matches: {Count}", 
-            match.Bot1Name, match.Bot2Name, match.WinnerName ?? "Draw", _recentMatches.Count);
+            match.Bot1Name, match.Bot2Name, match.WinnerName ?? "Draw", totalMatches);
     }
 
     /// <summary>
@@ -274,6 +421,27 @@ public class StateManagerService
                         RankChange = standing.RankChange
                     })
                     .ToList();
+            }
+
+            // Store group standings by event index if we have groups and current event info
+            if (standingsEvent.GroupStandings != null && standingsEvent.GroupStandings.Count > 0 && _currentState.CurrentEvent != null)
+            {
+                // Use TournamentNumber as the event index (0-based or 1-based depending on the system)
+                int eventIndex = _currentState.CurrentEvent.TournamentNumber - 1; // Assuming 1-based, convert to 0-based
+                if (eventIndex < 0) eventIndex = 0; // Fallback
+                
+                if (!_currentState.GroupStandingsByEvent.ContainsKey(eventIndex))
+                {
+                    _currentState.GroupStandingsByEvent[eventIndex] = new List<GroupDto>();
+                }
+                
+                _currentState.GroupStandingsByEvent[eventIndex] = standingsEvent.GroupStandings;
+            }
+
+            // Also update current group standings for display
+            if (standingsEvent.GroupStandings != null && standingsEvent.GroupStandings.Count > 0)
+            {
+                _currentState.GroupStandings = standingsEvent.GroupStandings;
             }
 
             var cumulativeLeaderboard = BuildCumulativeLeaderboard();
@@ -345,6 +513,11 @@ public class StateManagerService
                 LastUpdated = DateTime.UtcNow
             };
 
+            // Also set the tournament info at the top level
+            _currentState.TournamentId = tournamentEvent.TournamentId;
+            _currentState.TournamentName = tournamentEvent.TournamentName;
+            _currentState.Status = TournamentStatus.InProgress;
+
             _standingsByEventId.Clear();
 
             _logger.LogInformation("Tournament started: {TournamentName} with {TotalSteps} steps", tournamentEvent.TournamentName, tournamentEvent.TotalSteps);
@@ -374,6 +547,14 @@ public class StateManagerService
             if (progressEvent?.TournamentState != null)
             {
                 progressEvent.TournamentState.LastUpdated = DateTime.UtcNow;
+                
+                // Preserve existing Steps if new state doesn't have them
+                if ((progressEvent.TournamentState.Steps == null || progressEvent.TournamentState.Steps.Count == 0)
+                    && _currentState.TournamentState?.Steps != null && _currentState.TournamentState.Steps.Count > 0)
+                {
+                    progressEvent.TournamentState.Steps = _currentState.TournamentState.Steps;
+                }
+                
                 _currentState.TournamentState = progressEvent.TournamentState;
                 _logger.LogInformation("Tournament state updated: {TournamentName} - Step {CurrentStep}/{TotalSteps}",
                     progressEvent.TournamentState.TournamentName,
@@ -524,5 +705,138 @@ public class StateManagerService
         }
 
         return leaderboard;
+    }
+
+    private static string NormalizeEventKey(string eventName) => eventName.Trim().ToLowerInvariant();
+
+    private static string NormalizeGroupKey(string groupLabel) => groupLabel.Trim().ToLowerInvariant();
+
+    /// <summary>
+    /// Adds a match to the unified match storage structure.
+    /// Structure: event -> group -> list of matches
+    /// </summary>
+    private void AddMatchToStorage(RecentMatchDto match)
+    {
+        var eventName = string.IsNullOrWhiteSpace(match.EventName)
+            ? match.GameType.ToString()
+            : match.EventName;
+        var groupLabel = match.GroupLabel ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(eventName) || string.IsNullOrWhiteSpace(groupLabel))
+        {
+            _logger.LogWarning("Cannot add match without event and group: Event={Event}, Group={Group}", 
+                eventName, groupLabel);
+            return;
+        }
+
+        var normalizedEvent = NormalizeEventKey(eventName);
+        var normalizedGroup = NormalizeGroupKey(groupLabel);
+
+        // Ensure event dictionary exists
+        if (!_matchesByEventAndGroup.TryGetValue(normalizedEvent, out var eventDict))
+        {
+            eventDict = new Dictionary<string, List<RecentMatchDto>>(StringComparer.OrdinalIgnoreCase);
+            _matchesByEventAndGroup[normalizedEvent] = eventDict;
+        }
+
+        // Ensure group list exists
+        if (!eventDict.TryGetValue(normalizedGroup, out var matches))
+        {
+            matches = new List<RecentMatchDto>();
+            eventDict[normalizedGroup] = matches;
+        }
+
+        // Add match to the list
+        matches.Add(match);
+        _logger.LogDebug("Match added to storage: Event={Event}, Group={Group}, MatchId={MatchId}", 
+            normalizedEvent, normalizedGroup, match.MatchId);
+    }
+
+    private void ResetMatchStorage()
+    {
+        _matchesByEventAndGroup.Clear();
+    }
+
+    private static List<GroupDto> BuildGroupsFromMatches(string eventName, List<RecentMatchDto> matches)
+    {
+        if (matches.Count == 0)
+        {
+            return new List<GroupDto>();
+        }
+
+        var groupedMatches = matches
+            .GroupBy(m => string.IsNullOrWhiteSpace(m.GroupLabel) ? "Ungrouped" : m.GroupLabel)
+            .ToList();
+
+        var groups = new List<GroupDto>();
+
+        foreach (var group in groupedMatches)
+        {
+            var teams = new Dictionary<string, (int wins, int losses, int draws, int points)>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var match in group)
+            {
+                if (!teams.ContainsKey(match.Bot1Name))
+                {
+                    teams[match.Bot1Name] = (0, 0, 0, 0);
+                }
+
+                if (!teams.ContainsKey(match.Bot2Name))
+                {
+                    teams[match.Bot2Name] = (0, 0, 0, 0);
+                }
+
+                var bot1 = teams[match.Bot1Name];
+                var bot2 = teams[match.Bot2Name];
+
+                if (match.Bot1Score > match.Bot2Score)
+                {
+                    teams[match.Bot1Name] = (bot1.wins + 1, bot1.losses, bot1.draws, bot1.points + 3);
+                    teams[match.Bot2Name] = (bot2.wins, bot2.losses + 1, bot2.draws, bot2.points);
+                }
+                else if (match.Bot2Score > match.Bot1Score)
+                {
+                    teams[match.Bot1Name] = (bot1.wins, bot1.losses + 1, bot1.draws, bot1.points);
+                    teams[match.Bot2Name] = (bot2.wins + 1, bot2.losses, bot2.draws, bot2.points + 3);
+                }
+                else
+                {
+                    teams[match.Bot1Name] = (bot1.wins, bot1.losses, bot1.draws + 1, bot1.points + 1);
+                    teams[match.Bot2Name] = (bot2.wins, bot2.losses, bot2.draws + 1, bot2.points + 1);
+                }
+            }
+
+            var rankings = teams
+                .Select(kvp => new BotRankingDto
+                {
+                    TeamName = kvp.Key,
+                    Wins = kvp.Value.wins,
+                    Losses = kvp.Value.losses,
+                    Draws = kvp.Value.draws,
+                    Points = kvp.Value.points
+                })
+                .OrderByDescending(item => item.Points)
+                .ThenByDescending(item => item.Wins)
+                .ThenBy(item => item.TeamName, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            for (var index = 0; index < rankings.Count; index++)
+            {
+                rankings[index].Rank = index + 1;
+            }
+
+            groups.Add(new GroupDto
+            {
+                GroupId = group.Key,
+                GroupName = group.Key,
+                EventId = eventName,
+                EventName = eventName,
+                Rankings = rankings
+            });
+        }
+
+        return groups
+            .OrderBy(g => g.GroupName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 }

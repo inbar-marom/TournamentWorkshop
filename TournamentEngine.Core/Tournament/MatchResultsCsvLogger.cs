@@ -3,10 +3,11 @@ namespace TournamentEngine.Core.Tournament;
 using System.Text;
 using System.Text.Json;
 using TournamentEngine.Core.Common;
+using TournamentEngine.Core.Utilities;
 
 public sealed class MatchResultsCsvLogger : IMatchResultsLogger
 {
-    private const string Header = "GameType,PlayerA,PlayerB,Group,StartTimeUtc,DurationMs,MatchOutcome,SubActsJson";
+    private const string Header = "GameType,PlayerA,PlayerB,Group,StartTimeIsrael,DurationMs,MatchOutcome,SubActsJson";
     private readonly object _fileLock = new();
     private readonly string _outputDirectory;
     private readonly string _filePrefix;
@@ -61,13 +62,14 @@ public sealed class MatchResultsCsvLogger : IMatchResultsLogger
             fileStream.Seek(0, SeekOrigin.End);
 
             var subActs = JsonSerializer.Serialize(matchResult.MatchLog ?? new List<string>());
+            var israelTime = TimezoneHelper.FormatIsraelTimeForCsv(matchResult.StartTime.ToUniversalTime());
             var row = string.Join(',', new[]
             {
                 EscapeCsv(matchResult.GameType.ToString()),
                 EscapeCsv(matchResult.Bot1Name),
                 EscapeCsv(matchResult.Bot2Name),
                 EscapeCsv(groupLabel),
-                EscapeCsv(matchResult.StartTime.ToUniversalTime().ToString("O")),
+                EscapeCsv(israelTime),
                 EscapeCsv(((long)matchResult.Duration.TotalMilliseconds).ToString()),
                 EscapeCsv(((int)matchResult.Outcome).ToString()),
                 EscapeCsv(subActs)

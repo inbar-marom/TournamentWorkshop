@@ -11,29 +11,35 @@ public class ShareService
 {
     private readonly StateManagerService _stateManager;
     private readonly ILogger<ShareService> _logger;
+    private readonly IConfiguration _configuration;
     private readonly Dictionary<string, TournamentSnapshotDto> _snapshots = new();
     private readonly Dictionary<string, ShareStatsDto> _shareStats = new();
 
     public ShareService(
         StateManagerService stateManager,
-        ILogger<ShareService> logger)
+        ILogger<ShareService> logger,
+        IConfiguration configuration)
     {
         _stateManager = stateManager;
         _logger = logger;
+        _configuration = configuration;
     }
 
     public async Task<string> GenerateShareLinkAsync(string? message = null)
     {
         var state = await _stateManager.GetCurrentStateAsync();
-        var baseUrl = "http://localhost:5000/share";
+        var shareSettings = _configuration.GetSection("ShareService");
+        var baseUrl = shareSettings["BaseUrl"] ?? "http://localhost:5000";
+        var shareEndpoint = shareSettings["ShareEndpoint"] ?? "/share";
+        var fullUrl = baseUrl + shareEndpoint;
         
         if (string.IsNullOrEmpty(message))
         {
-            return $"{baseUrl}?status={state.Status}";
+            return $"{fullUrl}?status={state.Status}";
         }
 
         var encodedMessage = Uri.EscapeDataString(message);
-        return $"{baseUrl}?message={encodedMessage}";
+        return $"{fullUrl}?message={encodedMessage}";
     }
 
     public async Task<TournamentSnapshotDto> CreateSnapshotAsync()
@@ -88,7 +94,10 @@ public class ShareService
 
     public Task<string> GenerateEmbedCodeAsync(string snapshotId, int width = 800, int height = 600)
     {
-        var embedCode = $@"<iframe src=""http://localhost:5000/embed/{snapshotId}"" width=""{width}"" height=""{height}"" frameborder=""0""></iframe>";
+        var shareSettings = _configuration.GetSection("ShareService");
+        var baseUrl = shareSettings["BaseUrl"] ?? "http://localhost:5000";
+        var embedEndpoint = shareSettings["EmbedEndpoint"] ?? "/embed";
+        var embedCode = $@"<iframe src=""{baseUrl}{embedEndpoint}/{snapshotId}"" width=""{width}"" height=""{height}"" frameborder=""0""></iframe>";
         return Task.FromResult(embedCode);
     }
 

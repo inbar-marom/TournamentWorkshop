@@ -333,6 +333,80 @@
         </div>
     </div>
 
+    <!-- Tournament Configuration -->
+    <div class="card">
+        <div class="card-header">⏱️ Tournament Configuration</div>
+        <div class="card-body">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+                <!-- Fast Match Threshold Setting -->
+                <div class="form-group">
+                    <label for="fastMatchThreshold">Fast Match Reporting Delay (seconds)</label>
+                    <div style="margin-top: 8px; display: flex; gap: 10px; align-items: center;">
+                        <input type="number" id="fastMatchThreshold" min="1" max="120" value="10" 
+                               style="width: 80px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 1em;">
+                        <span style="font-size: 0.85em; color: var(--muted);">Default: 10 seconds</span>
+                    </div>
+                    <p style="margin-top: 6px; font-size: 0.85em; color: var(--muted);">
+                        Time to delay reporting fast matches (finishing in less than this threshold)
+                    </p>
+                </div>
+
+                <!-- Tournament Start Time Setting -->
+                <div class="form-group">
+                    <label>Tournament Start Time</label>
+                    <div style="margin-top: 8px; display: flex; flex-direction: column; gap: 10px;">
+                        <label style="display: flex; align-items: center; gap: 8px; font-weight: 400; cursor: pointer;">
+                            <input type="radio" name="startTimeOption" value="immediate" checked id="startImmediate">
+                            <span>Start Immediately</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; font-weight: 400; cursor: pointer;">
+                            <input type="radio" name="startTimeOption" value="scheduled" id="startScheduled">
+                            <span>Schedule For Specific Time</span>
+                        </label>
+                        <input type="datetime-local" id="scheduledStartTime" 
+                               style="padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95em; display: none;">
+                        <div id="scheduledTimeDisplay" style="font-size: 0.85em; color: var(--muted); margin-top: 4px;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Apply Configuration Button -->
+            <div class="buttons-grid">
+                <button id="btnApplyConfig" class="btn btn-success" onclick="applyConfiguration()">
+                    💾 Apply Configuration
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bot Submission Control -->
+    <div class="card">
+        <div class="card-header">🤖 Bot Submissions</div>
+        <div class="card-body">
+            <div style="display: grid; gap: 16px;">
+                <div class="info-item">
+                    <label>Acceptance Status</label>
+                    <div style="margin-top: 8px; display: flex; align-items: center; gap: 12px;">
+                        <span id="botSubmissionBadge" class="badge" style="display: inline-flex; align-items: center; gap: 6px;">
+                            <span id="botSubmissionStatus">● Checking...</span>
+                        </span>
+                    </div>
+                    <p style="margin-top: 6px; font-size: 0.85em; color: var(--muted);">
+                        <span id="botSubmissionDescription">Checking submission status...</span>
+                    </p>
+                </div>
+                <div class="buttons-grid">
+                    <button id="btnEnableSubmissions" class="btn btn-success" title="Allow new bot submissions">
+                        ✅ Enable Submissions
+                    </button>
+                    <button id="btnDisableSubmissions" class="btn btn-danger" title="Reject new bot submissions">
+                        🚫 Disable Submissions
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Control Buttons -->
     <div class="card">
         <div class="card-header">⚙️ Tournament Controls</div>
@@ -396,61 +470,23 @@
     <div id="alertContainer"></div>
 </div>
 
-@Html.Raw("<script src='https://unpkg.com/%40microsoft/signalr@7.0.5/dist/browser/signalr.min.js?v=20260215'></script>")
+@Html.Raw("<script></script>")
 <script>
-let hubConnection;
 let currentState = null;
 let botsReady = false;
 
-// Initialize SignalR connection
-async function initializeSignalR() {
-    if (!window.signalR) {
-        console.error('SignalR script not loaded!');
-    } else {
-        console.log('SignalR script loaded:', window.signalR);
-    }
-    hubConnection = new signalR.HubConnectionBuilder()
-        .withUrl("/tournamentHub")
-        .withAutomaticReconnect()
-        .build();
-
-    hubConnection.on("ManagementStateChanged", (state) => {
-        console.log('SignalR: ManagementStateChanged', state);
-        currentState = state;
-        updateUI();
-    });
-
-    hubConnection.onreconnected((connId) => {
-        console.log('SignalR: reconnected', connId);
-        updateConnectionStatus(true);
-        fetchInitialState();
-    });
-    hubConnection.onreconnecting((err) => {
-        console.warn('SignalR: reconnecting', err);
-        updateConnectionStatus(false);
-    });
-    hubConnection.onclose((err) => {
-        console.warn('SignalR: closed', err);
-        updateConnectionStatus(false);
-    });
-
-    try {
-        await hubConnection.start();
-        updateConnectionStatus(true);
-        console.log('SignalR: connection started');
-        fetchInitialState();
-        startBotReadinessPolling();
-    } catch (err) {
-        console.error("SignalR error:", err);
-        updateConnectionStatus(false);
-        setTimeout(initializeSignalR, 5000);
-    }
+// Initialize polling (no SignalR connection)
+async function initializePolling() {
+    updateConnectionStatus(true);
+    console.log('HTTP polling initialized');
+    fetchInitialState();
+    startManagementStatePolling();
 }
 
-let pollingReadiness = false;
-function startBotReadinessPolling() {
-    if (pollingReadiness) return;
-    pollingReadiness = true;
+let pollingState = false;
+function startManagementStatePolling() {
+    if (pollingState) return;
+    pollingState = true;
     setInterval(async () => {
         try {
             // Fetch both status and readiness to update UI completely
@@ -473,7 +509,7 @@ function startBotReadinessPolling() {
             // Update all UI elements based on fresh state
             updateUI();
         } catch (err) {
-            console.error("Error polling bot readiness:", err);
+            console.error("Error polling management state:", err);
         }
     }, 1000);
 }
@@ -506,6 +542,31 @@ async function fetchInitialState() {
         if (response.ok) {
             currentState = await response.json();
             await fetchBotReadiness();
+            
+            // Load configuration values into form
+            if (currentState.fastMatchThresholdSeconds !== undefined) {
+                const thresholdInput = document.getElementById('fastMatchThreshold');
+                if (thresholdInput) {
+                    thresholdInput.value = currentState.fastMatchThresholdSeconds;
+                }
+            }
+            
+            // Load scheduled start time if present
+            if (currentState.scheduledStartTime) {
+                const timeInput = document.getElementById('scheduledStartTime');
+                const scheduledRadio = document.getElementById('startTimeScheduled');
+                
+                if (timeInput && scheduledRadio) {
+                    // Convert UTC to local time for display
+                    const utcDate = new Date(currentState.scheduledStartTime);
+                    // Format for datetime-local input (YYYY-MM-DDTHH:mm)
+                    const localISO = new Date(utcDate.getTime() - utcDate.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+                    timeInput.value = localISO;
+                    scheduledRadio.checked = true;
+                }
+            }
+            
+            updateScheduledTimeDisplay();
             updateUI();
         }
     } catch (err) {
@@ -640,6 +701,64 @@ document.getElementById("btnStop").addEventListener("click", () => makeRequest("
 document.getElementById("btnClear").addEventListener("click", () => makeRequest("clear"));
 document.getElementById("btnRerun").addEventListener("click", () => makeRequest("clear")); // Only clear, not start
 
+// Bot Submission Control Handlers
+document.getElementById("btnEnableSubmissions").addEventListener("click", () => toggleBotSubmissions(true));
+document.getElementById("btnDisableSubmissions").addEventListener("click", () => toggleBotSubmissions(false));
+
+async function toggleBotSubmissions(acceptBots) {
+    try {
+        const response = await fetch("/api/management/toggle-bot-submissions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ acceptBots })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            showAlert("success", `✅ ${data.message}`);
+            updateBotSubmissionStatus();
+        } else {
+            showAlert("danger", `❌ Failed to toggle submissions: ${data.message || response.statusText}`);
+        }
+    } catch (error) {
+        showAlert("danger", `Error: ${error.message}`);
+    }
+}
+
+async function updateBotSubmissionStatus() {
+    try {
+        const response = await fetch("/api/management/bot-submission-status");
+        const data = await response.json();
+        
+        const badge = document.getElementById("botSubmissionBadge");
+        const status = document.getElementById("botSubmissionStatus");
+        const description = document.getElementById("botSubmissionDescription");
+        
+        if (data.success) {
+            if (data.acceptingBots) {
+                badge.style.background = "rgba(15, 118, 110, 0.2)";
+                badge.style.color = "var(--accent)";
+                status.textContent = "● Accepting Submissions";
+                description.textContent = "✅ New bot submissions are currently accepted";
+                document.getElementById("btnEnableSubmissions").disabled = true;
+                document.getElementById("btnDisableSubmissions").disabled = false;
+            } else {
+                badge.style.background = "rgba(220, 53, 69, 0.2)";
+                badge.style.color = "#dc3545";
+                status.textContent = "● Submissions Disabled";
+                description.textContent = "🚫 New bot submissions are currently rejected";
+                document.getElementById("btnEnableSubmissions").disabled = false;
+                document.getElementById("btnDisableSubmissions").disabled = true;
+            }
+        }
+    } catch (error) {
+        console.error("Error updating bot submission status:", error);
+        const status = document.getElementById("botSubmissionStatus");
+        status.textContent = "● Error loading status";
+    }
+}
+
 // Development Settings Functions
 function toggleDevSettings() {
     const body = document.getElementById("devSettingsBody");
@@ -708,8 +827,101 @@ async function updateBypassStatus() {
     }
 }
 
+// Configuration Handlers
+function updateScheduledTimeDisplay() {
+    const radio = document.querySelector('input[name="startTimeOption"]:checked');
+    const timeInput = document.getElementById('scheduledStartTime');
+    const displayDiv = document.getElementById('scheduledTimeDisplay');
+    
+    if (radio && radio.value === 'scheduled') {
+        timeInput.style.display = 'block';
+        displayDiv.style.display = 'block';
+        if (timeInput.value) {
+            const localDate = new Date(timeInput.value);
+            displayDiv.textContent = `Local time: ${localDate.toString()}`;
+        }
+    } else {
+        timeInput.style.display = 'none';
+        displayDiv.style.display = 'none';
+    }
+}
+
+function handleStartTimeOptionChange(e) {
+    updateScheduledTimeDisplay();
+}
+
+function handleScheduledTimeChange() {
+    updateScheduledTimeDisplay();
+}
+
+async function applyConfiguration() {
+    const thresholdInput = document.getElementById('fastMatchThreshold');
+    const thresholdValue = parseInt(thresholdInput.value) || 10;
+    
+    if (thresholdValue < 1 || thresholdValue > 120) {
+        showAlert("danger", "Fast Match Threshold must be between 1 and 120 seconds");
+        return;
+    }
+    
+    const startTimeOption = document.querySelector('input[name="startTimeOption"]:checked').value;
+    let scheduledStartTime = null;
+    
+    if (startTimeOption === 'scheduled') {
+        const timeInput = document.getElementById('scheduledStartTime');
+        if (!timeInput.value) {
+            showAlert("danger", "Please select a scheduled start time");
+            return;
+        }
+        
+        const localDate = new Date(timeInput.value);
+        // Convert local time to UTC for server
+        scheduledStartTime = localDate.toISOString();
+    }
+    
+    try {
+        const response = await fetch('/api/management/configure', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                fastMatchThresholdSeconds: thresholdValue,
+                scheduledStartTime: scheduledStartTime
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            showAlert("success", "✅ Configuration applied successfully");
+            if (currentState) {
+                currentState.fastMatchThresholdSeconds = thresholdValue;
+                updateUI();
+            }
+        } else {
+            showAlert("danger", `Failed to apply configuration: ${data.message || 'Unknown error'}`);
+        }
+    } catch (error) {
+        showAlert("danger", `Error: ${error.message}`);
+    }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
-    initializeSignalR();
+    initializePolling();
     updateBypassStatus(); // Check bypass status on page load
+    updateBotSubmissionStatus(); // Check bot submission status on page load
+    fetchInitialState(); // Load configuration from server
+    
+    // Setup configuration event listeners
+    const radioButtons = document.querySelectorAll('input[name="startTimeOption"]');
+    radioButtons.forEach(radio => {
+        radio.addEventListener('change', handleStartTimeOptionChange);
+    });
+    
+    const timeInput = document.getElementById('scheduledStartTime');
+    if (timeInput) {
+        timeInput.addEventListener('change', handleScheduledTimeChange);
+    }
+    
+    // Initialize display
+    updateScheduledTimeDisplay();
 });
 </script>

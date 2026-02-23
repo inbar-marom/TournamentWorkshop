@@ -103,7 +103,7 @@ public class ChartsService
 
         foreach (var typeGroup in groupedByType)
         {
-            data.GameTypeLabels.Add(typeGroup.Key.ToString());
+            data.GameTypeLabels.Add(GameTypeHelper.GetDisplayName(typeGroup.Key));
             data.MatchCounts.Add(typeGroup.Count());
         }
 

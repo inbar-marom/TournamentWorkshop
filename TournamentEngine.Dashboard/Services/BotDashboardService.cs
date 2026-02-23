@@ -26,7 +26,7 @@ public class BotDashboardService : IDisposable
     // Cache for bot list with TTL
     private List<BotDashboardDto>? _botsCache;
     private DateTime _cacheExpirationTime = DateTime.MinValue;
-    private readonly TimeSpan _cacheDuration = TimeSpan.FromMinutes(5); // Increased from 1 second to 5 minutes
+    private readonly TimeSpan _cacheDuration = TimeSpan.FromSeconds(20); // Refresh bots every 20 seconds
     private string _cacheFingerprint = string.Empty;
     private readonly object _cacheLock = new();
 

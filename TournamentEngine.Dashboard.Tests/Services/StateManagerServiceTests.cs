@@ -66,6 +66,8 @@ public class StateManagerServiceTests
         var match = new MatchCompletedDto
         {
             MatchId = "match-1",
+            EventName = "TestEvent",
+            GroupLabel = "GroupA",
             Bot1Name = "Bot1",
             Bot2Name = "Bot2",
             Outcome = MatchOutcome.Player1Wins,
@@ -78,7 +80,7 @@ public class StateManagerServiceTests
 
         // Act
         _service.AddRecentMatch(match);
-        var matches = _service.GetRecentMatches(10);
+        var matches = _service.GetAllMatches();
 
         // Assert
         matches.Should().ContainSingle();
@@ -86,14 +88,16 @@ public class StateManagerServiceTests
     }
 
     [Fact]
-    public async Task AddRecentMatch_KeepsOnlyLast50Matches()
+    public async Task AddRecentMatch_KeepsOnlyLast150Matches()
     {
-        // Arrange - Add 60 matches
-        for (int i = 0; i < 60; i++)
+        // Arrange - Add 200 matches
+        for (int i = 0; i < 200; i++)
         {
             _service.AddRecentMatch(new MatchCompletedDto
             {
                 MatchId = $"match-{i}",
+                EventName = "TestEvent",
+                GroupLabel = "GroupA",
                 Bot1Name = "Bot1",
                 Bot2Name = "Bot2",
                 Outcome = MatchOutcome.Player1Wins,
@@ -101,14 +105,117 @@ public class StateManagerServiceTests
             });
         }
 
-        // Act
-        var matches = _service.GetRecentMatches(100);
+        // Act - Now with unified storage, all matches are kept (no 150 limit)
+        var matches = _service.GetAllMatches();
 
-        // Assert
-        matches.Should().HaveCount(50);
-        // Should have the most recent 50 (match-10 through match-59)
-        matches.First().MatchId.Should().Be("match-59");
-        matches.Last().MatchId.Should().Be("match-10");
+        // Assert - All 200 matches should be returned (no longer limited to 150)
+        matches.Should().HaveCount(200);
+        // Should return all matches, sorted by CompletedAt descending
+        matches.First().MatchId.Should().Be("match-199");
+        matches.Last().MatchId.Should().Be("match-0");
+    }
+
+    [Fact]
+    public async Task GetAllMatches_ReturnsAllTrackedMatchesDescending()
+    {
+        _service.AddRecentMatch(new MatchCompletedDto
+        {
+            MatchId = "m-1",
+            EventName = "RPSLS",
+            GroupLabel = "A",
+            Bot1Name = "Bot1",
+            Bot2Name = "Bot2",
+            CompletedAt = DateTime.UtcNow.AddMinutes(-2)
+        });
+
+        _service.AddRecentMatch(new MatchCompletedDto
+        {
+            MatchId = "m-2",
+            EventName = "RPSLS",
+            GroupLabel = "B",
+            Bot1Name = "Bot3",
+            Bot2Name = "Bot4",
+            CompletedAt = DateTime.UtcNow.AddMinutes(-1)
+        });
+
+        var all = _service.GetAllMatches();
+
+        all.Should().HaveCount(2);
+        all[0].MatchId.Should().Be("m-2");
+        all[1].MatchId.Should().Be("m-1");
+    }
+
+    [Fact]
+    public async Task GetMatchesByEventAndGroup_FiltersUsingIndexedData()
+    {
+        _service.AddRecentMatch(new MatchCompletedDto
+        {
+            MatchId = "g-1",
+            EventName = "RPSLS",
+            GroupLabel = "A",
+            Bot1Name = "Bot1",
+            Bot2Name = "Bot2",
+            CompletedAt = DateTime.UtcNow.AddMinutes(-3)
+        });
+        _service.AddRecentMatch(new MatchCompletedDto
+        {
+            MatchId = "g-2",
+            EventName = "RPSLS",
+            GroupLabel = "B",
+            Bot1Name = "Bot3",
+            Bot2Name = "Bot4",
+            CompletedAt = DateTime.UtcNow.AddMinutes(-2)
+        });
+        _service.AddRecentMatch(new MatchCompletedDto
+        {
+            MatchId = "g-3",
+            EventName = "ColonelBlotto",
+            GroupLabel = "A",
+            Bot1Name = "Bot5",
+            Bot2Name = "Bot6",
+            CompletedAt = DateTime.UtcNow.AddMinutes(-1)
+        });
+
+        var eventMatches = _service.GetMatchesByEvent("RPSLS");
+        var groupMatches = _service.GetMatchesByEventAndGroup("RPSLS", "A");
+
+        eventMatches.Should().HaveCount(2);
+        groupMatches.Should().HaveCount(1);
+        groupMatches[0].MatchId.Should().Be("g-1");
+    }
+
+    [Fact]
+    public async Task GetGroupsByEvent_WhenNoStateGroups_BuildsFromMatches()
+    {
+        _service.AddRecentMatch(new MatchCompletedDto
+        {
+            MatchId = "a1",
+            EventName = "RPSLS",
+            GroupLabel = "A",
+            Bot1Name = "TeamA",
+            Bot2Name = "TeamB",
+            Bot1Score = 2,
+            Bot2Score = 1,
+            CompletedAt = DateTime.UtcNow.AddMinutes(-2)
+        });
+
+        _service.AddRecentMatch(new MatchCompletedDto
+        {
+            MatchId = "a2",
+            EventName = "RPSLS",
+            GroupLabel = "A",
+            Bot1Name = "TeamA",
+            Bot2Name = "TeamC",
+            Bot1Score = 1,
+            Bot2Score = 1,
+            CompletedAt = DateTime.UtcNow.AddMinutes(-1)
+        });
+
+        var groups = _service.GetGroupsByEvent("RPSLS");
+
+        groups.Should().HaveCount(1);
+        groups[0].GroupName.Should().Be("A");
+        groups[0].Rankings.Should().NotBeEmpty();
     }
 
     [Fact]
@@ -120,14 +227,18 @@ public class StateManagerServiceTests
             _service.AddRecentMatch(new MatchCompletedDto
             {
                 MatchId = $"match-{i}",
+                EventName = "TestEvent",
+                GroupLabel = "GroupA",
                 Bot1Name = "Bot1",
                 Bot2Name = "Bot2",
-                Outcome = MatchOutcome.Player1Wins
+                Outcome = MatchOutcome.Player1Wins,
+                CompletedAt = DateTime.UtcNow.AddMinutes(i)
             });
         }
 
-        // Act
-        var matches = _service.GetRecentMatches(5);
+        // Act - GetAllMatches returns all matches sorted by CompletedAt descending
+        var allMatches = _service.GetAllMatches();
+        var matches = allMatches.Take(5).ToList();
 
         // Assert
         matches.Should().HaveCount(5);
@@ -152,6 +263,8 @@ public class StateManagerServiceTests
         _service.AddRecentMatch(new MatchCompletedDto
         {
             MatchId = "match-1",
+            EventName = "TestEvent",
+            GroupLabel = "GroupA",
             Bot1Name = "Bot1",
             Bot2Name = "Bot2"
         });
@@ -164,7 +277,7 @@ public class StateManagerServiceTests
         state.Status.Should().Be(TournamentStatus.NotStarted);
         state.Message.Should().Be("State cleared");
         
-        var matches = _service.GetRecentMatches(10);
+        var matches = _service.GetAllMatches();
         matches.Should().BeEmpty();
     }
 
@@ -195,6 +308,8 @@ public class StateManagerServiceTests
                 _service.AddRecentMatch(new MatchCompletedDto
                 {
                     MatchId = $"match-{index}",
+                    EventName = "TestEvent",
+                    GroupLabel = "GroupA",
                     Bot1Name = "Bot1",
                     Bot2Name = "Bot2"
                 });
@@ -207,7 +322,7 @@ public class StateManagerServiceTests
 
             tasks.Add(Task.Run(() =>
             {
-                _service.GetRecentMatches(10);
+                _service.GetAllMatches();
             }));
         }
 

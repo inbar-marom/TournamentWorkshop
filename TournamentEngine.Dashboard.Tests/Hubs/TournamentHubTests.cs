@@ -136,11 +136,11 @@ public class TournamentHubTests
         // Arrange
         var matches = new List<RecentMatchDto>
         {
-            new() { MatchId = "match-1", Bot1Name = "Bot1", Bot2Name = "Bot2" },
-            new() { MatchId = "match-2", Bot1Name = "Bot3", Bot2Name = "Bot4" }
+            new() { MatchId = "match-1", Bot1Name = "Bot1", Bot2Name = "Bot2", EventName = "E1", GroupLabel = "G1" },
+            new() { MatchId = "match-2", Bot1Name = "Bot3", Bot2Name = "Bot4", EventName = "E2", GroupLabel = "G2" }
         };
         _mockStateManager
-            .Setup(x => x.GetRecentMatches(5))
+            .Setup(x => x.GetAllMatches())
             .Returns(matches);
 
         // Act

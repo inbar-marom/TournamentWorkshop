@@ -2,6 +2,7 @@ using Xunit;
 using Moq;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Configuration;
 using TournamentEngine.Dashboard.Services;
 using TournamentEngine.Core.Common.Dashboard;
 
@@ -12,11 +13,13 @@ public class ShareServiceTests
     private Mock<StateManagerService> _mockStateManager;
     private Mock<ILogger<StateManagerService>> _mockStateLogger;
     private Mock<ILogger<ShareService>> _mockLogger;
+    private Mock<IConfiguration> _mockConfiguration;
 
     public ShareServiceTests()
     {
         _mockStateLogger = new Mock<ILogger<StateManagerService>>();
         _mockLogger = new Mock<ILogger<ShareService>>();
+        _mockConfiguration = new Mock<IConfiguration>();
         _mockStateManager = new Mock<StateManagerService>(_mockStateLogger.Object);
     }
 
@@ -34,7 +37,7 @@ public class ShareServiceTests
 
         _mockStateManager.Setup(s => s.GetCurrentStateAsync()).ReturnsAsync(state);
 
-        var service = new ShareService(_mockStateManager.Object, _mockLogger.Object);
+        var service = new ShareService(_mockStateManager.Object, _mockLogger.Object, _mockConfiguration.Object);
 
         // Act
         var result = await service.GenerateShareLinkAsync();
@@ -55,7 +58,7 @@ public class ShareServiceTests
         };
         _mockStateManager.Setup(s => s.GetCurrentStateAsync()).ReturnsAsync(state);
 
-        var service = new ShareService(_mockStateManager.Object, _mockLogger.Object);
+        var service = new ShareService(_mockStateManager.Object, _mockLogger.Object, _mockConfiguration.Object);
 
         // Act
         var result = await service.GenerateShareLinkAsync("Check out this tournament!");
@@ -79,7 +82,7 @@ public class ShareServiceTests
 
         _mockStateManager.Setup(s => s.GetCurrentStateAsync()).ReturnsAsync(state);
 
-        var service = new ShareService(_mockStateManager.Object, _mockLogger.Object);
+        var service = new ShareService(_mockStateManager.Object, _mockLogger.Object, _mockConfiguration.Object);
 
         // Act
         var snapshot1 = await service.CreateSnapshotAsync();
@@ -109,7 +112,7 @@ public class ShareServiceTests
 
         _mockStateManager.Setup(s => s.GetCurrentStateAsync()).ReturnsAsync(state);
 
-        var service = new ShareService(_mockStateManager.Object, _mockLogger.Object);
+        var service = new ShareService(_mockStateManager.Object, _mockLogger.Object, _mockConfiguration.Object);
 
         // Act
         var snapshot = await service.CreateSnapshotAsync();
@@ -135,7 +138,7 @@ public class ShareServiceTests
 
         _mockStateManager.Setup(s => s.GetCurrentStateAsync()).ReturnsAsync(state);
 
-        var service = new ShareService(_mockStateManager.Object, _mockLogger.Object);
+        var service = new ShareService(_mockStateManager.Object, _mockLogger.Object, _mockConfiguration.Object);
         var snapshot = await service.CreateSnapshotAsync();
 
         // Act
@@ -151,7 +154,7 @@ public class ShareServiceTests
     public async Task GetSnapshot_WithInvalidId_ReturnsNull()
     {
         // Arrange
-        var service = new ShareService(_mockStateManager.Object, _mockLogger.Object);
+        var service = new ShareService(_mockStateManager.Object, _mockLogger.Object, _mockConfiguration.Object);
 
         // Act
         var result = await service.GetSnapshotAsync("nonexistent");
@@ -170,7 +173,7 @@ public class ShareServiceTests
         };
         _mockStateManager.Setup(s => s.GetCurrentStateAsync()).ReturnsAsync(state);
 
-        var service = new ShareService(_mockStateManager.Object, _mockLogger.Object);
+        var service = new ShareService(_mockStateManager.Object, _mockLogger.Object, _mockConfiguration.Object);
         await service.CreateSnapshotAsync();
         await service.CreateSnapshotAsync();
         await service.CreateSnapshotAsync();
@@ -193,7 +196,7 @@ public class ShareServiceTests
         };
         _mockStateManager.Setup(s => s.GetCurrentStateAsync()).ReturnsAsync(state);
 
-        var service = new ShareService(_mockStateManager.Object, _mockLogger.Object);
+        var service = new ShareService(_mockStateManager.Object, _mockLogger.Object, _mockConfiguration.Object);
         var snapshot = await service.CreateSnapshotAsync();
 
         // Act
@@ -216,7 +219,7 @@ public class ShareServiceTests
         };
         _mockStateManager.Setup(s => s.GetCurrentStateAsync()).ReturnsAsync(state);
 
-        var service = new ShareService(_mockStateManager.Object, _mockLogger.Object);
+        var service = new ShareService(_mockStateManager.Object, _mockLogger.Object, _mockConfiguration.Object);
         var snapshot = await service.CreateSnapshotAsync();
 
         // Act
@@ -239,7 +242,7 @@ public class ShareServiceTests
         };
         _mockStateManager.Setup(s => s.GetCurrentStateAsync()).ReturnsAsync(state);
 
-        var service = new ShareService(_mockStateManager.Object, _mockLogger.Object);
+        var service = new ShareService(_mockStateManager.Object, _mockLogger.Object, _mockConfiguration.Object);
         var snapshot = await service.CreateSnapshotAsync();
 
         // Act
@@ -260,7 +263,7 @@ public class ShareServiceTests
         };
         _mockStateManager.Setup(s => s.GetCurrentStateAsync()).ReturnsAsync(state);
 
-        var service = new ShareService(_mockStateManager.Object, _mockLogger.Object);
+        var service = new ShareService(_mockStateManager.Object, _mockLogger.Object, _mockConfiguration.Object);
         var snapshot = await service.CreateSnapshotAsync();
 
         // Track some views

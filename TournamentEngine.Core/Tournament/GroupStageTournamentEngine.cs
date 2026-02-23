@@ -462,6 +462,8 @@ public class GroupStageTournamentEngine : ITournamentEngine
     /// <summary>
     /// Gets the group label for a match based on the participating bots.
     /// Returns labels like "Group #1", "Group #2", or "Final Group".
+    /// Falls back to "Group Stage" if unable to determine a specific group.
+    /// NEVER returns empty string - always returns a valid group label.
     /// </summary>
     public string GetMatchGroupLabel(string bot1Name, string bot2Name)
     {
@@ -471,13 +473,16 @@ public class GroupStageTournamentEngine : ITournamentEngine
             lock (_stateLock)
             {
                 if (_currentPhase == TournamentPhase.NotStarted)
-                    return string.Empty;
-                return ResolveGroupLabel(bot1Name, bot2Name);
+                    return "Group Stage"; // Never return empty - use fallback
+                var label = ResolveGroupLabel(bot1Name, bot2Name);
+                // Ensure we never return empty string
+                return string.IsNullOrWhiteSpace(label) ? "Group Stage" : label;
             }
         }
-        catch
+        catch (Exception ex)
         {
-            return string.Empty;
+            Console.WriteLine($"[GroupStageTournamentEngine] Error resolving group label: {ex.Message}");
+            return "Group Stage"; // Fallback on any error
         }
     }
 
@@ -500,6 +505,10 @@ public class GroupStageTournamentEngine : ITournamentEngine
                     return $"Group {ConvertGroupNumberToLabel(i + 1)}";
                 }
             }
+        }
+        else
+        {
+            Console.WriteLine($"[GroupStageTournamentEngine.ResolveGroupLabel] Warning: _initialGroups is null or empty. Phase={_currentPhase}, Bot1={bot1Name}, Bot2={bot2Name}");
         }
 
         return "Group Stage";
@@ -743,7 +752,20 @@ public class GroupStageTournamentEngine : ITournamentEngine
             matches.AddRange(GenerateGroupMatches(group));
         }
 
+        // Shuffle matches to interleave groups for better parallel execution distribution
+        // This ensures matches from different groups run concurrently instead of group-by-group
+        ShuffleMatchList(matches);
+
         return matches;
+    }
+
+    private void ShuffleMatchList(List<(IBot bot1, IBot bot2)> matches)
+    {
+        for (int i = matches.Count - 1; i > 0; i--)
+        {
+            int j = Random.Shared.Next(i + 1);
+            (matches[i], matches[j]) = (matches[j], matches[i]);
+        }
     }
 
     private Dictionary<string, GroupStanding> BuildStandingsIndex(List<Group> groups)

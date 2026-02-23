@@ -454,7 +454,7 @@
     </div>
 </div>
 
-@Html.Raw("<script src='https://unpkg.com/%40microsoft/signalr@7.0.5/dist/browser/signalr.min.js?v=20260215'></script>")
+@Html.Raw("<script></script>")
 <script>
 let detailModal;
 let currentBotTeamName;
@@ -463,13 +463,8 @@ let knownBotKeys = new Set();
 let currentPage = 0;
 const botsPerPage = 20;
 
-let connection;
-let connectionReady = false;
-if (!window.signalR) {
-    console.error('SignalR script not loaded!');
-} else {
-    console.log('SignalR script loaded:', window.signalR);
-}
+let pollingInterval = null;
+let botPollingActive = false;
 
 // Initialize after DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
@@ -506,72 +501,33 @@ document.addEventListener('DOMContentLoaded', function() {
             .catch(err => console.error('Error updating pause state:', err));
     });
     document.getElementById('btnValidate').addEventListener('click', validateBot);
-    document.getElementById('btnDelete').addEventListener('click', deleteBot);
+    const deleteButton = document.getElementById('btnDelete');
+    if (deleteButton) {
+        deleteButton.addEventListener('click', deleteBot);
+    }
 
     // Load initial data
     loadBots();
 
-    // Setup SignalR Connection
-    setupSignalRConnection();
-    // Initialize connection status as disconnected
-    updateConnectionStatus(false);
-    // Start the connection
-    startConnection();
+    // Setup polling for bot list updates
+    setupBotPolling();
+    // Initialize connection status as connected
+    updateConnectionStatus(true);
 });
 
-function setupSignalRConnection() {
-    // SignalR Connection
-    connection = new signalR.HubConnectionBuilder()
-        .withUrl('/tournamentHub')
-        .withAutomaticReconnect([0, 0, 1000, 3000, 5000, 10000])
-        .build();
-
-    connection.on('BotSubmitted', () => { console.log('SignalR: BotSubmitted'); if (connectionReady) loadBots(); });
-    connection.on('BotValidated', () => { console.log('SignalR: BotValidated'); if (connectionReady) loadBots(); });
-    connection.on('BotDeleted', () => { console.log('SignalR: BotDeleted'); if (connectionReady) loadBots(); });
-    connection.on('BotListUpdated', () => { console.log('SignalR: BotListUpdated'); if (connectionReady) loadBots(); });
-
-    connection.onreconnecting((err) => {
-        console.warn('SignalR: reconnecting', err);
-        connectionReady = false;
-        updateConnectionStatus(false);
-    });
-    connection.onreconnected((connId) => {
-        console.log('SignalR: reconnected', connId);
-        connectionReady = true;
-        updateConnectionStatus(true);
-        loadBots();
-    });
-    connection.onclose((err) => {
-        console.warn('SignalR: closed', err);
-        connectionReady = false;
-        updateConnectionStatus(false);
-        // Retry connection after delay
-        setTimeout(() => {
-            if (!connectionReady) {
-                startConnection();
-            }
-        }, 5000);
-    });
-}
-
-async function startConnection() {
-    try {
-        await connection.start();
-        connectionReady = true;
-        updateConnectionStatus(true);
-        console.log('SignalR: connection started');
-    } catch (err) {
-        console.error('SignalR connection error:', err);
-        updateConnectionStatus(false);
-        // Retry after delay with exponential backoff
-        const retryDelay = Math.min(5000, 1000);
-        setTimeout(() => {
-            if (!connectionReady) {
-                startConnection();
-            }
-        }, retryDelay);
-    }
+function setupBotPolling() {
+    if (botPollingActive) return;
+    botPollingActive = true;
+    console.log('Bot polling initialized');
+    
+    // Poll for bot list updates every 2 seconds
+    pollingInterval = setInterval(async () => {
+        try {
+            await loadBots();
+        } catch (err) {
+            console.error('Error polling bot list:', err);
+        }
+    }, 2000);
 }
 
 function updateConnectionStatus(connected) {
@@ -599,21 +555,36 @@ async function loadBots() {
         const result = await response.json();
         
         if (result && result.success) {
+            updateConnectionStatus(true);
+
+            const latestBots = result.data || [];
             const newBots = (result.data || []).filter(bot => {
                 const key = bot.teamName + '_v' + bot.version;
                 return !knownBotKeys.has(key);
             });
-            if (newBots.length > 0) {
+            
+            // If this is the first load, initialize with all bots
+            if (allBots.length === 0) {
+                allBots = latestBots;
+                knownBotKeys = new Set(allBots.map(bot => bot.teamName + '_v' + bot.version));
+                updateStats(allBots);
+                applyFilters();
+            } else if (newBots.length > 0) {
                 // Add new bots to the top
                 allBots = [...newBots, ...allBots];
                 // Update known keys
                 newBots.forEach(bot => knownBotKeys.add(bot.teamName + '_v' + bot.version));
                 updateStats(allBots);
                 applyFilters();
+            } else {
+                // Keep existing order, but refresh stats/filters to avoid stale disconnected/empty UI state
+                updateStats(allBots);
+                applyFilters();
             }
         }
     } catch (error) {
         console.error('Error loading bots:', error);
+        updateConnectionStatus(false);
         showError(`Failed to load bots`);
     }
 }

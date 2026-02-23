@@ -1,6 +1,12 @@
 using TournamentEngine.Api.Services;
 using TournamentEngine.Api.Endpoints;
 using TournamentEngine.Core.BotLoader;
+using TournamentEngine.Core.Tournament;
+using TournamentEngine.Core.Scoring;
+using TournamentEngine.Core.GameRunner;
+using TournamentEngine.Core.Events;
+using TournamentEngine.Core.Common;
+using TournamentEngine.Core.Common.Dashboard;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -18,6 +24,27 @@ builder.Services.AddSingleton<DevelopmentSettingsService>();
 
 // Add bot loader
 builder.Services.AddSingleton<BotLoader>(sp => new BotLoader());
+
+// Add tournament engine services
+builder.Services.AddSingleton<IGameRunner, GameRunner>();
+builder.Services.AddSingleton<IScoringSystem, ScoringSystem>();
+builder.Services.AddSingleton<ITournamentEventPublisher, NoOpEventPublisher>();
+builder.Services.AddSingleton<ITournamentEngine>(sp =>
+    new GroupStageTournamentEngine(
+        sp.GetRequiredService<IGameRunner>(),
+        sp.GetRequiredService<IScoringSystem>()));
+builder.Services.AddSingleton<ITournamentManager>(sp =>
+    new TournamentManager(
+        sp.GetRequiredService<ITournamentEngine>(),
+        sp.GetRequiredService<IGameRunner>(),
+        sp.GetRequiredService<IScoringSystem>(),
+        sp.GetRequiredService<ITournamentEventPublisher>()));
+builder.Services.AddSingleton<TournamentSeriesManager>(sp =>
+    new TournamentSeriesManager(
+        sp.GetRequiredService<ITournamentManager>(),
+        sp.GetRequiredService<IScoringSystem>(),
+        sp.GetRequiredService<ITournamentEventPublisher>(),
+        sp.GetRequiredService<BotLoader>()));
 
 var app = builder.Build();
 
@@ -76,6 +103,20 @@ static string? FindSolutionRoot(string startPath)
     }
 
     return null;
+}
+
+public class NoOpEventPublisher : ITournamentEventPublisher
+{
+    public Task PublishMatchCompletedAsync(MatchCompletedDto matchEvent) => Task.CompletedTask;
+    public Task PublishStandingsUpdatedAsync(StandingsUpdatedDto standingsEvent) => Task.CompletedTask;
+    public Task PublishEventStartedAsync(EventStartedEventDto startEvent) => Task.CompletedTask;
+    public Task PublishEventCompletedAsync(EventCompletedEventDto completedEvent) => Task.CompletedTask;
+    public Task PublishRoundStartedAsync(RoundStartedDto roundEvent) => Task.CompletedTask;
+    public Task UpdateCurrentStateAsync(DashboardStateDto state) => Task.CompletedTask;
+    public Task PublishTournamentStartedAsync(TournamentStartedEventDto tournamentEvent) => Task.CompletedTask;
+    public Task PublishTournamentProgressUpdatedAsync(TournamentProgressUpdatedEventDto progressEvent) => Task.CompletedTask;
+    public Task PublishEventStepCompletedAsync(EventStepCompletedDto completedEvent) => Task.CompletedTask;
+    public Task PublishTournamentCompletedAsync(TournamentCompletedEventDto completedEvent) => Task.CompletedTask;
 }
 
 public partial class Program { }

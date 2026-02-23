@@ -15,7 +15,7 @@ public class BotStorageService
     private readonly SemaphoreSlim _semaphore;
     private readonly object _lock = new();
     private readonly Dictionary<string, BotSubmissionMetadata> _submissions = new(StringComparer.OrdinalIgnoreCase);
-    private bool _isPaused = false;
+    private bool _isPaused = true; // Default: do NOT accept new bot submissions
     private const long MaxFileSizeBytes = 50_000; // 50KB per file
     private const long MaxTotalSizeBytes = 500_000; // 500KB total (aligned with API endpoint)
 

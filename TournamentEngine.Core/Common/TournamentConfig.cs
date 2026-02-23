@@ -30,4 +30,9 @@ public class TournamentConfig
     public int FinalistsPerGroup { get; init; } = 1; // Top N from each group advance
     public bool UseTiebreakers { get; init; } = true; //
     public GameType TiebreakerGameType { get; init; } = GameType.ColonelBlotto; //
+    
+    /// <summary>
+    /// Maximum number of matches to execute in parallel. Default is 15.
+    /// </summary>
+    public int MaxParallelMatches { get; init; } = 15;
 }

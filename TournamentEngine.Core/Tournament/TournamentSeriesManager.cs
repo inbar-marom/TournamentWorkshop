@@ -35,6 +35,10 @@ public class TournamentSeriesManager
     private readonly ITournamentEventPublisher? _eventPublisher;
     private readonly IBotLoader? _botLoader;
     private readonly IMatchResultsLogger? _matchResultsLogger;
+    
+    // Hold the current running series for dashboard queries
+    private TournamentSeriesInfo? _currentSeries;
+    private readonly object _seriesLock = new();
 
     public TournamentSeriesManager(
         ITournamentManager tournamentManager,
@@ -69,6 +73,9 @@ public class TournamentSeriesManager
             StartTime = DateTime.UtcNow,
             Config = config
         };
+
+        // Make series available to dashboard immediately
+        SetCurrentSeries(seriesInfo);
 
         var runGameType = config.GameTypes.FirstOrDefault();
         _matchResultsLogger?.StartTournamentRun(seriesInfo.SeriesId, runGameType);
@@ -118,6 +125,9 @@ public class TournamentSeriesManager
                 bots, gameType, config.BaseConfig, cancellationToken);
 
             seriesInfo.Tournaments.Add(tournamentInfo);
+
+            // Update current series for dashboard queries
+            SetCurrentSeries(seriesInfo);
 
             // Reload bots between events to reset memory tracking
             // Skip reload after the last event
@@ -301,6 +311,108 @@ public class TournamentSeriesManager
                 seriesInfo.MatchesByGameType[tournament.GameType] = 0;
 
             seriesInfo.MatchesByGameType[tournament.GameType] += tournament.MatchResults.Count;
+        }
+    }
+
+    /// <summary>
+    /// Get all matches from the current or completed tournament series.
+    /// </summary>
+    public async Task<List<RecentMatchDto>> GetAllMatchesAsync()
+    {
+        lock (_seriesLock)
+        {
+            if (_currentSeries == null)
+                return new List<RecentMatchDto>();
+
+            var matches = new List<RecentMatchDto>();
+            
+            foreach (var tournament in _currentSeries.Tournaments)
+            {
+                foreach (var result in tournament.MatchResults)
+                {
+                    matches.Add(new RecentMatchDto
+                    {
+                        MatchId = Guid.NewGuid().ToString(),
+                        Bot1Name = result.Bot1Name,
+                        Bot2Name = result.Bot2Name,
+                        Bot1Score = result.Bot1Score,
+                        Bot2Score = result.Bot2Score,
+                        Outcome = result.Outcome,
+                        WinnerName = result.WinnerName,
+                        GameType = tournament.GameType,
+                        TournamentName = tournament.GameType.ToString(),
+                        EventName = tournament.GameType.ToString(),
+                        EventId = tournament.TournamentId,
+                        GroupLabel = result.GroupLabel ?? "",
+                        CompletedAt = result.EndTime
+                    });
+                }
+            }
+
+            return matches.OrderByDescending(m => m.CompletedAt).ToList();
+        }
+    }
+
+    /// <summary>
+    /// Get group standings for a specific event (tournament/game type).
+    /// </summary>
+    public async Task<List<GroupDto>> GetGroupStandingsByEventAsync(string eventName)
+    {
+        lock (_seriesLock)
+        {
+            if (_currentSeries == null)
+                return new List<GroupDto>();
+
+            // For now, return an empty list as TournamentInfo doesn't expose Group structure
+            // The group data is available within the tournament engine internals
+            // but not exposed via the public TournamentInfo API
+            return new List<GroupDto>();
+        }
+    }
+
+    /// <summary>
+    /// Get the current tournament state.
+    /// </summary>
+    public async Task<DashboardStateDto> GetDashboardStateAsync()
+    {
+        lock (_seriesLock)
+        {
+            if (_currentSeries == null)
+            {
+                return new DashboardStateDto
+                {
+                    Status = TournamentStatus.NotStarted,
+                    Message = "No tournament running"
+                };
+            }
+
+            var state = new DashboardStateDto
+            {
+                TournamentId = _currentSeries.SeriesId,
+                TournamentName = _currentSeries.Config.SeriesName ?? "Tournament Series",
+                Champion = _currentSeries.SeriesChampion,
+                Status = _currentSeries.EndTime == null ? TournamentStatus.InProgress : TournamentStatus.Completed,
+                Message = $"Series in progress - {_currentSeries.TotalMatches} matches completed",
+                OverallLeaderboard = _currentSeries.SeriesStandings
+                    .OrderByDescending(s => s.TotalSeriesScore)
+                    .Select((s, index) => new TeamStandingDto
+                    {
+                        TeamName = s.BotName,
+                        Rank = index + 1
+                    })
+                    .ToList(),
+                LastUpdated = DateTime.UtcNow
+            };
+
+            return state;
+        }
+    }
+
+    internal void SetCurrentSeries(TournamentSeriesInfo series)
+    {
+        lock (_seriesLock)
+        {
+            _currentSeries = series;
         }
     }
 }

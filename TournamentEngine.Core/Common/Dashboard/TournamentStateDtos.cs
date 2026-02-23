@@ -21,6 +21,17 @@ public class DashboardStateDto
     public List<RecentMatchDto> RecentMatches { get; set; } = new();
     public NextMatchDto? NextMatch { get; set; }
     public DateTime LastUpdated { get; set; }
+    
+    /// <summary>
+    /// Scheduled tournament start time (UTC). If null, tournament starts immediately.
+    /// </summary>
+    public DateTime? ScheduledStartTime { get; set; }
+    
+    /// <summary>
+    /// Group standings organized by event index for historical tracking.
+    /// Key: event index, Value: list of groups for that event
+    /// </summary>
+    public Dictionary<int, List<GroupDto>> GroupStandingsByEvent { get; set; } = new();
 }
 
 /// <summary>
@@ -150,8 +161,23 @@ public class TeamStandingDto
 /// </summary>
 public class GroupDto
 {
+    public string GroupId { get; set; } = string.Empty;
     public string GroupName { get; set; } = string.Empty;
+    public string EventName { get; set; } = string.Empty;
+    public string EventId { get; set; } = string.Empty;
     public List<BotRankingDto> Rankings { get; set; } = new();
+}
+
+/// <summary>
+/// Group information with metadata (returned from /api/tournament/groups/{eventName}).
+/// </summary>
+public class GroupInfoDto
+{
+    public string GroupId { get; set; } = string.Empty;
+    public string GroupLabel { get; set; } = string.Empty;
+    public string EventId { get; set; } = string.Empty;
+    public string EventName { get; set; } = string.Empty;
+    public int MatchCount { get; set; }
 }
 
 /// <summary>
@@ -175,6 +201,8 @@ public class RecentMatchDto
     public string MatchId { get; set; } = string.Empty;
     public string TournamentId { get; set; } = string.Empty;
     public string TournamentName { get; set; } = string.Empty;
+    public string EventId { get; set; } = string.Empty;
+    public string EventName { get; set; } = string.Empty;
     public string Bot1Name { get; set; } = string.Empty;
     public string Bot2Name { get; set; } = string.Empty;
     public MatchOutcome Outcome { get; set; }
@@ -183,6 +211,7 @@ public class RecentMatchDto
     public int Bot2Score { get; set; }
     public DateTime CompletedAt { get; set; }
     public GameType GameType { get; set; }
+    public string GroupId { get; set; } = string.Empty;
     public string GroupLabel { get; set; } = string.Empty;
 }
 
@@ -194,6 +223,8 @@ public class MatchCompletedDto
     public string MatchId { get; set; } = string.Empty;
     public string TournamentId { get; set; } = string.Empty;
     public string TournamentName { get; set; } = string.Empty;
+    public string EventId { get; set; } = string.Empty;
+    public string EventName { get; set; } = string.Empty;
     public string Bot1Name { get; set; } = string.Empty;
     public string Bot2Name { get; set; } = string.Empty;
     public MatchOutcome Outcome { get; set; }
@@ -202,6 +233,7 @@ public class MatchCompletedDto
     public int Bot2Score { get; set; }
     public DateTime CompletedAt { get; set; }
     public GameType GameType { get; set; }
+    public string GroupId { get; set; } = string.Empty;
     public string GroupLabel { get; set; } = string.Empty;
 }
 

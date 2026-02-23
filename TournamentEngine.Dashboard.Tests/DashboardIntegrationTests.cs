@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Configuration;
 using Moq;
 using TournamentEngine.Dashboard.Services;
 using TournamentEngine.Core.Common;
@@ -29,7 +30,7 @@ public class DashboardIntegrationTests
         _stateManager = new StateManagerService(Mock.Of<ILogger<StateManagerService>>());
         _matchFeed = new MatchFeedService(_stateManager);
         _exportService = new ExportService(_stateManager, _matchFeed, Mock.Of<ILogger<ExportService>>());
-        _shareService = new ShareService(_stateManager, Mock.Of<ILogger<ShareService>>());
+        _shareService = new ShareService(_stateManager, Mock.Of<ILogger<ShareService>>(), Mock.Of<IConfiguration>());
         _themeService = new ThemeService(Mock.Of<ILogger<ThemeService>>());
         _notificationPrefs = new NotificationPreferencesService(Mock.Of<ILogger<NotificationPreferencesService>>());
         _layoutService = new ResponsiveLayoutService(Mock.Of<ILogger<ResponsiveLayoutService>>());

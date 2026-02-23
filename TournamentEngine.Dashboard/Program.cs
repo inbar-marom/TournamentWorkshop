@@ -5,6 +5,7 @@ using TournamentEngine.Dashboard.Services;
 using TournamentEngine.Dashboard.Endpoints;
 using TournamentEngine.Api.Services;
 using TournamentEngine.Core.Common;
+using TournamentEngine.Core.Common.Dashboard;
 using TournamentEngine.Core.BotLoader;
 using TournamentEngine.Core.Events;
 using TournamentEngine.Core.GameRunner;
@@ -18,35 +19,32 @@ var builder = WebApplication.CreateBuilder(args);
 // Reduce log noise: keep warnings/errors globally, allow selected app summaries
 builder.Logging.AddFilter("Microsoft", LogLevel.Warning);
 builder.Logging.AddFilter("System", LogLevel.Warning);
-builder.Logging.AddFilter("TournamentEngine.Dashboard.Hubs.TournamentHub", LogLevel.Warning);
-builder.Logging.AddFilter("TournamentEngine.Dashboard.Services.BotDashboardService", LogLevel.Warning);
 builder.Logging.AddFilter("TournamentEngine.Dashboard.Services.StateManagerService", LogLevel.Information);
-builder.Logging.AddFilter("TournamentEngine.Dashboard.Services.SignalRTournamentEventPublisher", LogLevel.Information);
 
 // Add services to the container
-builder.Services.AddSignalR()
-    .AddJsonProtocol(options =>
-    {
-        options.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter());
-    });
-
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
     });
 
+// Configure JSON for minimal API endpoints (Results.Ok, Results.Json, etc.)
+builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(options =>
+{
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    options.SerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+});
+
 builder.Services.AddRazorPages();
 
-// Add CORS for remote browser access and SignalR
+// Add CORS for remote browser access
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
         policy.SetIsOriginAllowed(_ => true)  // Allow any origin
               .AllowAnyHeader()
-              .AllowAnyMethod()
-              .AllowCredentials();  // Required for SignalR
+              .AllowAnyMethod();
     });
 });
 
@@ -88,23 +86,20 @@ builder.Services.AddSingleton(sp =>
 
 // Register dashboard services  
 builder.Services.AddSingleton<StateManagerService>();
-builder.Services.AddSingleton<SignalRTournamentEventPublisher>();
-builder.Services.AddSingleton<ITournamentEventPublisher>(sp => sp.GetRequiredService<SignalRTournamentEventPublisher>());
+builder.Services.AddSingleton<ITournamentEventPublisher, StateTrackingTournamentEventPublisher>();
 builder.Services.AddSingleton<LeaderboardService>();
 builder.Services.AddSingleton<MatchFeedService>();
 builder.Services.AddSingleton<TournamentStatusService>();
-builder.Services.AddSingleton<RealtimeUIUpdateService>();
-builder.Services.AddSingleton<SignalREventPublisher>();
 builder.Services.AddSingleton<TournamentManagementService>();
+builder.Services.AddSingleton<TournamentEngineQueryService>();
 
 // Register tournament execution services for real management runs
 builder.Services.AddSingleton<IGameRunner, GameRunner>();
 builder.Services.AddSingleton<IScoringSystem, ScoringSystem>();
 builder.Services.AddSingleton<IMatchResultsLogger>(_ =>
 {
-    var resultsDir = Path.GetDirectoryName(tournamentConfig.ResultsFilePath);
-    var csvPath = Path.Combine(string.IsNullOrWhiteSpace(resultsDir) ? "." : resultsDir, "match-results.csv");
-    return new MatchResultsCsvLogger(csvPath);
+    // Use HTTP logger to POST results to this dashboard's API
+    return new HttpMatchResultsLogger("http://localhost:8080");
 });
 builder.Services.AddSingleton<ITournamentEngine>(sp =>
     new GroupStageTournamentEngine(
@@ -143,7 +138,9 @@ builder.Services.AddSingleton<SeriesDashboardViewService>();
 // Default to HTTP only (no HTTPS certificate required)
 if (string.IsNullOrWhiteSpace(builder.Configuration["ASPNETCORE_URLS"]))
 {
-    builder.WebHost.UseUrls("http://0.0.0.0:8080");
+    var host = builder.Configuration.GetValue<string>("DashboardSettings:Host") ?? "0.0.0.0";
+    var port = builder.Configuration.GetValue<string>("DashboardSettings:Port") ?? "8080";
+    builder.WebHost.UseUrls($"http://{host}:{port}");
 }
 
 var app = builder.Build();
@@ -158,15 +155,18 @@ app.UseRouting();
 
 app.MapControllers();
 app.MapRazorPages();
-app.MapHub<TournamentHub>("/tournamentHub");
 app.MapBotDashboardEndpoints();
 app.MapManagementEndpoints();
+app.MapTournamentEndpoints();  // Tournament data query endpoints
+app.MapTournamentConfigEndpoints();  // Tournament configuration endpoints
+app.MapTournamentQueryEndpoints();  // Tournament engine query endpoints (live tournament data)
 app.MapBotEndpoints();  // Import API endpoints for bot submission
 app.MapResourceEndpoints();  // Import resource download endpoints
+var dashHost = app.Configuration.GetValue<string>("DashboardSettings:Host") ?? "0.0.0.0";
+var dashPort = app.Configuration.GetValue<string>("DashboardSettings:Port") ?? "8080";
 Console.WriteLine("🎮 Tournament Dashboard Service started");
-Console.WriteLine("📡 SignalR Hub: http://localhost:8080/tournamentHub");
-Console.WriteLine("🌐 API: http://localhost:8080/api");
-Console.WriteLine("💻 Access from remote: http://<your-ip>:8080");
+Console.WriteLine($"🌐 API: http://localhost:{dashPort}/api");
+Console.WriteLine($"💻 Access from remote: http://<your-ip>:{dashPort}");
 
 app.Run();
 
@@ -181,15 +181,11 @@ static string ResolveBotStorageDirectory(string contentRootPath, string configur
     var solutionRoot = FindSolutionRoot(contentRootPath);
     var sharedPath = Path.GetFullPath(Path.Combine(solutionRoot ?? contentRootPath, configuredPath));
 
-    if (Directory.Exists(legacyPath) && Directory.Exists(sharedPath))
+    // Prefer legacyPath (Dashboard project's own bots folder) over sharedPath (solution root)
+    // This ensures we use valid bots with .cs source files when both directories exist
+    if (Directory.Exists(legacyPath))
     {
-        var legacyHasSubmissions = Directory.GetDirectories(legacyPath).Any();
-        var sharedHasSubmissions = Directory.GetDirectories(sharedPath).Any();
-
-        if (legacyHasSubmissions && !sharedHasSubmissions)
-        {
-            return legacyPath;
-        }
+        return legacyPath;
     }
 
     return sharedPath;
@@ -212,4 +208,5 @@ static string? FindSolutionRoot(string startPath)
 
     return null;
 }
+
 

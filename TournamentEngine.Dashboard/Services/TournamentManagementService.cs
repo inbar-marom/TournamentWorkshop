@@ -2,8 +2,7 @@ using TournamentEngine.Core.Common.Dashboard;
 using TournamentEngine.Core.Common;
 using TournamentEngine.Core.Tournament;
 using TournamentEngine.Api.Models;
-using Microsoft.AspNetCore.SignalR;
-using TournamentEngine.Dashboard.Hubs;
+using TournamentEngine.Core.Utilities;
 
 namespace TournamentEngine.Dashboard.Services;
 
@@ -16,8 +15,8 @@ public class TournamentManagementService
 {
     private readonly StateManagerService _stateManager;
     private readonly BotDashboardService _botDashboard;
-    private readonly IHubContext<TournamentHub> _hubContext;
     private readonly TournamentSeriesManager _seriesManager;
+    private readonly ITournamentManager _tournamentManager;
     private readonly ILogger<TournamentManagementService> _logger;
     private ManagementStateDto _managementState;
     private readonly SemaphoreSlim _stateLock = new(1, 1);
@@ -26,18 +25,22 @@ public class TournamentManagementService
     private CancellationTokenSource? _executionCancellation;
     private Task? _executionTask;
     private bool _isPaused;
+    
+    // Scheduled start tracking
+    private System.Threading.Timer? _scheduledStartTimer;
+    private int _scheduledStartBotCount;
 
     public TournamentManagementService(
         StateManagerService stateManager,
         BotDashboardService botDashboard,
-        IHubContext<TournamentHub> hubContext,
         TournamentSeriesManager seriesManager,
+        ITournamentManager tournamentManager,
         ILogger<TournamentManagementService> logger)
     {
         _stateManager = stateManager ?? throw new ArgumentNullException(nameof(stateManager));
         _botDashboard = botDashboard ?? throw new ArgumentNullException(nameof(botDashboard));
-        _hubContext = hubContext ?? throw new ArgumentNullException(nameof(hubContext));
         _seriesManager = seriesManager ?? throw new ArgumentNullException(nameof(seriesManager));
+        _tournamentManager = tournamentManager ?? throw new ArgumentNullException(nameof(tournamentManager));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
         _managementState = new ManagementStateDto
@@ -46,7 +49,10 @@ public class TournamentManagementService
             Message = "Waiting for tournament start",
             BotsReady = false,
             BotCount = 0,
-            LastUpdated = DateTime.UtcNow
+            LastUpdated = DateTime.UtcNow,
+            FastMatchThresholdSeconds = 10,
+            ScheduledStartTime = null,
+            CurrentIsraelTime = DateTime.UtcNow
         };
     }
 
@@ -66,7 +72,10 @@ public class TournamentManagementService
                 BotCount = _managementState.BotCount,
                 LastAction = _managementState.LastAction,
                 LastActionAt = _managementState.LastActionAt,
-                LastUpdated = _managementState.LastUpdated
+                LastUpdated = _managementState.LastUpdated,
+                FastMatchThresholdSeconds = _managementState.FastMatchThresholdSeconds,
+                ScheduledStartTime = _managementState.ScheduledStartTime,
+                CurrentIsraelTime = _managementState.CurrentIsraelTime
             };
         }
         finally
@@ -105,61 +114,235 @@ public class TournamentManagementService
     }
 
     /// <summary>
-    /// Starts a new tournament (must be in NotStarted or Stopped state).
+    /// Sets the fast match reporting delay threshold in seconds.
     /// </summary>
-    public async Task<Result> StartAsync()
+    public async Task<Result> SetFastMatchThresholdAsync(int thresholdSeconds)
     {
+        if (thresholdSeconds < 1 || thresholdSeconds > 120)
+            return Result.Failure("Threshold must be between 1 and 120 seconds");
+
         await _stateLock.WaitAsync();
         try
         {
-            // Validate state transition
-            if (_managementState.Status != ManagementRunState.NotStarted 
-                && _managementState.Status != ManagementRunState.Stopped)
-            {
-                return Result.Failure($"Cannot start from {_managementState.Status} state");
-            }
-
-            // Check bots ready
-            var (ready, msg, botCount) = await CheckBotsReadyAsync();
-            if (!ready)
-            {
-                return Result.Failure($"Bots not ready: {msg}");
-            }
-
-            // Update management state
-            _managementState.Status = ManagementRunState.Running;
-            _managementState.Message = "Tournament running";
-            _managementState.BotsReady = true;
-            _managementState.BotCount = botCount;
-            _managementState.LastAction = "Start";
+            _managementState.FastMatchThresholdSeconds = thresholdSeconds;
+            _managementState.LastAction = "Set Fast Match Threshold";
             _managementState.LastActionAt = DateTime.UtcNow;
             _managementState.LastUpdated = DateTime.UtcNow;
-            _isPaused = false;
-
-            _logger.LogInformation("Tournament started with {BotCount} bots", botCount);
-
-            // Broadcast state to UI
-            await BroadcastStateAsync();
-
-            // Update the main dashboard state manager to show tournament is running
-            var dashboardState = new DashboardStateDto
+            
+            // Update the TournamentManager instance directly
+            if (_tournamentManager is TournamentManager manager)
             {
-                Status = TournamentStatus.InProgress,
-                Message = $"Tournament running with {botCount} bots",
-                LastUpdated = DateTime.UtcNow
-            };
-            await _stateManager.UpdateStateAsync(dashboardState);
-
-            // Start tournament execution in background
-            _executionCancellation = new CancellationTokenSource();
-            _executionTask = ExecuteTournamentSeriesAsync(botCount, _executionCancellation.Token);
-
+                manager.FastMatchThresholdSeconds = thresholdSeconds;
+            }
+            
+            _logger.LogInformation("Fast match threshold set to {Threshold} seconds", thresholdSeconds);
+            await BroadcastStateAsync();
+            
             return Result.Success();
         }
         finally
         {
             _stateLock.Release();
         }
+    }
+
+    /// <summary>
+    /// Sets the scheduled start time for the tournament (UTC).
+    /// If scheduledTime is null or in the past, tournament starts immediately.
+    /// </summary>
+    public async Task<Result> SetScheduledStartTimeAsync(DateTime? scheduledTime)
+    {
+        _logger.LogWarning("🔧 SetScheduledStartTimeAsync called with: {Time}", scheduledTime);
+        await _stateLock.WaitAsync();
+        try
+        {
+            if (scheduledTime.HasValue && scheduledTime < DateTime.UtcNow)
+            {
+                _logger.LogError("❌ Scheduled time {Time} is in the past (now: {Now})", scheduledTime, DateTime.UtcNow);
+                return Result.Failure("Scheduled start time cannot be in the past");
+            }
+
+            _managementState.ScheduledStartTime = scheduledTime;
+            _managementState.LastAction = scheduledTime.HasValue ? "Set Scheduled Start Time" : "Clear Scheduled Start Time";
+            _managementState.LastActionAt = DateTime.UtcNow;
+            _managementState.LastUpdated = DateTime.UtcNow;
+            
+            if (scheduledTime.HasValue)
+            {
+                _logger.LogWarning("✅ Tournament scheduled to start at {StartTime} UTC", scheduledTime);
+                
+                // Automatically initiate the scheduled start timer
+                var delayMs = (int)(scheduledTime.Value - DateTime.UtcNow).TotalMilliseconds;
+                _logger.LogWarning("🕐 AUTO-SCHEDULING: Tournament will start in {DelayMs}ms ({Seconds}s)", 
+                    delayMs, delayMs / 1000);
+                
+                // Check bots ready for the scheduled start
+                var (ready, msg, botCount) = await CheckBotsReadyAsync();
+                if (!ready)
+                {
+                    _logger.LogError("❌ Cannot schedule tournament: {Msg}", msg);
+                    _managementState.ScheduledStartTime = null; // Clear the scheduled time
+                    await BroadcastStateAsync();
+                    return Result.Failure($"Bots not ready: {msg}");
+                }
+                
+                // Dispose any existing timer
+                _scheduledStartTimer?.Dispose();
+                
+                // Store bot count for scheduled callback
+                _scheduledStartBotCount = botCount;
+                
+                // Create a timer that fires once at the scheduled time
+                _scheduledStartTimer = new System.Threading.Timer(
+                    async _ => await OnScheduledStartTimeReached(),
+                    null,
+                    TimeSpan.FromMilliseconds(Math.Max(1, delayMs)),
+                    Timeout.InfiniteTimeSpan);
+                
+                // Update state to show it's scheduled
+                _managementState.Status = ManagementRunState.NotStarted; // Keep as NotStarted but scheduled
+                _managementState.Message = $"Tournament scheduled to start at {scheduledTime.Value:HH:mm:ss} UTC";
+                _managementState.BotsReady = true;
+                _managementState.BotCount = botCount;
+                
+                _logger.LogWarning("⏱️ Auto-start timer created and activated!");
+            }
+            else
+            {
+                _logger.LogWarning("🚫 Tournament scheduled start time cleared");
+                // Cancel the timer if clearing scheduled time
+                _scheduledStartTimer?.Dispose();
+                _scheduledStartTimer = null;
+            }
+            
+            await BroadcastStateAsync();
+            
+            // Update dashboard state with new scheduled time
+            var currentDashboardState = await _stateManager.GetCurrentStateAsync();
+            currentDashboardState.ScheduledStartTime = scheduledTime;
+            await _stateManager.UpdateStateAsync(currentDashboardState);
+            
+            return Result.Success();
+        }
+        finally
+        {
+            _stateLock.Release();
+        }
+    }
+
+    /// <summary>
+    /// Starts a new tournament (must be in NotStarted or Stopped state).
+    /// </summary>
+    public async Task<Result> StartAsync()
+    {
+        _logger.LogWarning("🏁 StartAsync() called");
+        await _stateLock.WaitAsync();
+        try
+        {
+            _logger.LogWarning("📊 Current state: {Status}", _managementState.Status);
+            _logger.LogWarning("⏰ Scheduled start time: {Time}", _managementState.ScheduledStartTime);
+            _logger.LogWarning("🕐 Current UTC time: {Time}", DateTime.UtcNow);
+            
+            // Validate state transition
+            if (_managementState.Status != ManagementRunState.NotStarted 
+                && _managementState.Status != ManagementRunState.Stopped)
+            {
+                _logger.LogError("❌ Cannot start from {Status} state", _managementState.Status);
+                return Result.Failure($"Cannot start from {_managementState.Status} state");
+            }
+
+            // Check bots ready
+            var (ready, msg, botCount) = await CheckBotsReadyAsync();
+            _logger.LogWarning("🤖 Bots ready: {Ready}, Count: {Count}, Message: {Msg}", ready, botCount, msg);
+            if (!ready)
+            {
+                return Result.Failure($"Bots not ready: {msg}");
+            }
+
+            // Check if tournament is scheduled for future time
+            bool hasScheduledTime = _managementState.ScheduledStartTime.HasValue;
+            bool isFutureTime = hasScheduledTime && _managementState.ScheduledStartTime > DateTime.UtcNow;
+            _logger.LogWarning("🔍 Has scheduled time: {Has}, Is future: {IsFuture}", hasScheduledTime, isFutureTime);
+            
+            if (_managementState.ScheduledStartTime.HasValue && _managementState.ScheduledStartTime > DateTime.UtcNow)
+            {
+                // Wait until scheduled time (using Timer for reliability)
+                var delayMs = (int)(_managementState.ScheduledStartTime.Value - DateTime.UtcNow).TotalMilliseconds;
+                _logger.LogWarning("🕐 SCHEDULED START: Tournament will start in {DelayMs}ms ({Seconds}s) at {ScheduledTime} UTC", 
+                    delayMs, delayMs / 1000, _managementState.ScheduledStartTime);
+                
+                // Dispose any existing timer
+                _scheduledStartTimer?.Dispose();
+                
+                // Store bot count for scheduled callback
+                _scheduledStartBotCount = botCount;
+                
+                // Create a timer that fires once at the scheduled time
+                _scheduledStartTimer = new System.Threading.Timer(
+                    async _ => await OnScheduledStartTimeReached(),
+                    null,
+                    TimeSpan.FromMilliseconds(Math.Max(1, delayMs)),
+                    Timeout.InfiniteTimeSpan);
+                
+                _logger.LogWarning("⏱️ Timer created and started for scheduled tournament start");
+                
+                // Send signal that tournament is waiting
+                _managementState.Status = ManagementRunState.Running;
+                _managementState.Message = "Tournament scheduled, waiting to start...";
+                _managementState.BotsReady = true;
+                _managementState.BotCount = botCount;
+                _managementState.LastAction = "Start Scheduled";
+                _managementState.LastActionAt = DateTime.UtcNow;
+                _managementState.LastUpdated = DateTime.UtcNow;
+                _isPaused = false;
+                
+                await BroadcastStateAsync();
+                return Result.Success();
+            }
+
+            // Start immediately
+            return await ExecuteStartAsync(botCount);
+        }
+        finally
+        {
+            _stateLock.Release();
+        }
+    }
+
+    /// <summary>
+    /// Internal helper to execute tournament start (no lock needed, called from StartAsync or scheduled callback).
+    /// </summary>
+    private async Task<Result> ExecuteStartAsync(int botCount)
+    {
+        _managementState.Status = ManagementRunState.Running;
+        _managementState.Message = "Tournament running";
+        _managementState.BotsReady = true;
+        _managementState.BotCount = botCount;
+        _managementState.LastAction = "Start";
+        _managementState.LastActionAt = DateTime.UtcNow;
+        _managementState.LastUpdated = DateTime.UtcNow;
+        _isPaused = false;
+
+        _logger.LogInformation("Tournament started with {BotCount} bots", botCount);
+
+        // Broadcast state to UI
+        await BroadcastStateAsync();
+
+        // Update the main dashboard state manager to show tournament is running
+        var dashboardState = new DashboardStateDto
+        {
+            Status = TournamentStatus.InProgress,
+            Message = $"Tournament running with {botCount} bots",
+            LastUpdated = DateTime.UtcNow,
+            ScheduledStartTime = _managementState.ScheduledStartTime
+        };
+        await _stateManager.UpdateStateAsync(dashboardState);
+
+        // Start tournament execution in background
+        _executionCancellation = new CancellationTokenSource();
+        _executionTask = ExecuteTournamentSeriesAsync(botCount, _executionCancellation.Token);
+
+        return Result.Success();
     }
 
     /// <summary>
@@ -390,12 +573,12 @@ public class TournamentManagementService
 
             if (bots.Count < 2)
             {
-                _logger.LogError("No valid bots available for tournament execution");
+                _logger.LogError("No valid bots available for tournament execution (found {Count})", bots.Count);
                 await _stateLock.WaitAsync();
                 try
                 {
                     _managementState.Status = ManagementRunState.Error;
-                    _managementState.Message = "No valid bots available";
+                    _managementState.Message = $"No valid bots available (found {bots.Count}, need at least 2)";
                     _managementState.LastUpdated = DateTime.UtcNow;
                     await BroadcastStateAsync();
                 }
@@ -403,6 +586,16 @@ public class TournamentManagementService
                 {
                     _stateLock.Release();
                 }
+                
+                // CRITICAL: Also update the dashboard state so the UI shows the error
+                // Without this, the dashboard stays at "RUNNING" forever with no data
+                await _stateManager.UpdateStateAsync(new DashboardStateDto
+                {
+                    Status = TournamentStatus.Completed,
+                    Message = $"Tournament failed: No valid bots available (found {bots.Count}, need at least 2)",
+                    LastUpdated = DateTime.UtcNow
+                });
+                
                 return;
             }
 
@@ -564,7 +757,7 @@ public class TournamentManagementService
                             Message = $"Tournament series completed! Champion: {result.SeriesChampion}",
                             Champion = result.SeriesChampion,
                             TournamentProgress = tournamentProgress,
-                            OverallLeaderboard = standingsList.Count > 0 ? standingsList : null,
+                            OverallLeaderboard = standingsList,
                             RecentMatches = allMatches.Count > 0 ? allMatches.TakeLast(20).ToList() : new List<RecentMatchDto>(),
                             LastUpdated = DateTime.UtcNow
                         };
@@ -636,6 +829,42 @@ public class TournamentManagementService
     }
 
     /// <summary>
+    /// Called by timer when scheduled start time is reached.
+    /// </summary>
+    private async Task OnScheduledStartTimeReached()
+    {
+        try
+        {
+            _logger.LogWarning("🚀 SCHEDULED START TIME REACHED! Starting tournament now...");
+            
+            // Acquire lock
+            await _stateLock.WaitAsync();
+            try
+            {
+                _logger.LogWarning("🔒 Lock acquired, calling ExecuteStartAsync with {BotCount} bots", _scheduledStartBotCount);
+                var result = await ExecuteStartAsync(_scheduledStartBotCount);
+                if (!result.IsSuccess)
+                {
+                    _logger.LogError("❌ Scheduled tournament start FAILED: {Message}", result.Message);
+                }
+                else
+                {
+                    _logger.LogWarning("✅ Scheduled tournament start SUCCEEDED!");
+                }
+            }
+            finally
+            {
+                _stateLock.Release();
+                _logger.LogWarning("🔓 Lock released after scheduled start");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "💥 CRITICAL ERROR in scheduled tournament start callback");
+        }
+    }
+    
+    /// <summary>
     /// Broadcasts current management state to all connected clients via SignalR.
     /// </summary>
     private async Task BroadcastStateAsync()
@@ -650,11 +879,13 @@ public class TournamentManagementService
                 BotCount = _managementState.BotCount,
                 LastAction = _managementState.LastAction,
                 LastActionAt = _managementState.LastActionAt,
-                LastUpdated = _managementState.LastUpdated
+                LastUpdated = _managementState.LastUpdated,
+                FastMatchThresholdSeconds = _managementState.FastMatchThresholdSeconds,
+                ScheduledStartTime = _managementState.ScheduledStartTime,
+                CurrentIsraelTime = TimezoneHelper.GetNowIsrael()
             };
 
-            await _hubContext.Clients.Group("TournamentViewers")
-                .SendAsync("ManagementStateChanged", stateSnapshot);
+            // SignalR removed - management state updated via polling only
         }
         catch (Exception ex)
         {

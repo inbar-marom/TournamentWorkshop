@@ -33,12 +33,12 @@ public class TournamentApiController : ControllerBase
     }
 
     /// <summary>
-    /// Get recent completed matches
+    /// Get all completed matches
     /// </summary>
-    [HttpGet("matches/recent")]
-    public ActionResult<List<MatchCompletedDto>> GetRecentMatches([FromQuery] int count = 20)
+    [HttpGet("matches")]
+    public ActionResult<List<RecentMatchDto>> GetAllMatches()
     {
-        var matches = _stateManager.GetRecentMatches(count);
+        var matches = _stateManager.GetAllMatches();
         return Ok(matches);
     }
 

@@ -64,6 +64,7 @@ public class SignalRTournamentEventPublisher : ITournamentEventPublisher
             .SendAsync("StandingsUpdated", new
             {
                 OverallStandings = standingsEvent.OverallStandings,
+                GroupStandings = standingsEvent.GroupStandings,
                 Timestamp = standingsEvent.UpdatedAt
             });
     }

@@ -12,6 +12,22 @@ public class ManagementStateDto
     public string? LastAction { get; set; }
     public DateTime? LastActionAt { get; set; }
     public DateTime LastUpdated { get; set; } = DateTime.UtcNow;
+    
+    /// <summary>
+    /// Scheduled start time for the tournament (UTC). If null, tournament can start immediately.
+    /// </summary>
+    public DateTime? ScheduledStartTime { get; set; }
+    
+    /// <summary>
+    /// Fast match reporting delay threshold in seconds (configurable).
+    /// Default: 10 seconds. Can be set via management page.
+    /// </summary>
+    public int FastMatchThresholdSeconds { get; set; } = 10;
+    
+    /// <summary>
+    /// Current time in Israel timezone (for display on dashboard).
+    /// </summary>
+    public DateTime CurrentIsraelTime { get; set; } = DateTime.UtcNow;
 }
 
 /// <summary>

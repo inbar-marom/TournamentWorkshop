@@ -56,18 +56,19 @@ public class TournamentApiControllerTests
         // Arrange
         var matches = new List<RecentMatchDto>
         {
-            new() { MatchId = "match-1", Bot1Name = "Bot1", Bot2Name = "Bot2" },
-            new() { MatchId = "match-2", Bot1Name = "Bot3", Bot2Name = "Bot4" }
+            new() { MatchId = "match-1", Bot1Name = "Bot1", Bot2Name = "Bot2", EventName = "E1", GroupLabel = "G1" },
+            new() { MatchId = "match-2", Bot1Name = "Bot3", Bot2Name = "Bot4", EventName = "E2", GroupLabel = "G2" }
         };
         _mockStateManager
-            .Setup(x => x.GetRecentMatches(2))
+            .Setup(x => x.GetAllMatches())
             .Returns(matches);
 
         // Act
-        var result = _controller.GetRecentMatches(2);
+        var result = _controller.GetAllMatches();
 
         // Assert
-        var okResult = result.Result as OkObjectResult; okResult.Should().NotBeNull();
+        var okResult = result.Result as OkObjectResult;
+        okResult.Should().NotBeNull();
         
         var returnedMatches = okResult.Value as List<RecentMatchDto>;
         returnedMatches.Should().HaveCount(2);
@@ -79,17 +80,17 @@ public class TournamentApiControllerTests
     {
         // Arrange
         var matches = Enumerable.Range(0, 10)
-            .Select(i => new RecentMatchDto { MatchId = $"match-{i}" })
+            .Select(i => new RecentMatchDto { MatchId = $"match-{i}", EventName = "E1", GroupLabel = "G1" })
             .ToList();
         _mockStateManager
-            .Setup(x => x.GetRecentMatches(20))
+            .Setup(x => x.GetAllMatches())
             .Returns(matches);
 
         // Act
-        var result = _controller.GetRecentMatches();
+        var result = _controller.GetAllMatches();
 
         // Assert
-        _mockStateManager.Verify(x => x.GetRecentMatches(20), Times.Once);
+        _mockStateManager.Verify(x => x.GetAllMatches(), Times.Once);
         var okResult = result.Result as OkObjectResult;
         var returnedMatches = okResult?.Value as List<RecentMatchDto>;
         returnedMatches.Should().HaveCount(10);

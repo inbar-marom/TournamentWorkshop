@@ -108,7 +108,7 @@ public class TournamentHub : Hub
     }
 
     /// <summary>
-    /// Client requests recent matches.
+    /// Client requests recent matches (last N matches from all matches).
     /// </summary>
     public async Task GetRecentMatches(int count = 20)
     {
@@ -116,8 +116,14 @@ public class TournamentHub : Hub
         
         if (_stateManager != null)
         {
-            var matches = _stateManager.GetRecentMatches(count);
-            await Clients.Caller.SendAsync("RecentMatches", matches);
+            // Get all matches and return the most recent N
+            var allMatches = _stateManager.GetAllMatches();
+            var recentMatches = allMatches
+                .OrderByDescending(m => m.CompletedAt)
+                .Take(count)
+                .ToList();
+            
+            await Clients.Caller.SendAsync("RecentMatches", recentMatches);
         }
     }
 

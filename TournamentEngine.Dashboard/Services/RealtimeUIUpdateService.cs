@@ -86,6 +86,10 @@ public class RealtimeUIUpdateService
         var matchDto = new RecentMatchDto
         {
             MatchId = evt.MatchId,
+            TournamentId = evt.TournamentId,
+            TournamentName = evt.TournamentName,
+            EventId = evt.EventId,
+            EventName = evt.EventName,
             Bot1Name = evt.Bot1Name,
             Bot2Name = evt.Bot2Name,
             Outcome = evt.Outcome,
@@ -94,6 +98,7 @@ public class RealtimeUIUpdateService
             Bot2Score = evt.Bot2Score,
             CompletedAt = evt.CompletedAt,
             GameType = evt.GameType,
+            GroupId = evt.GroupId,
             GroupLabel = evt.GroupLabel
         };
 

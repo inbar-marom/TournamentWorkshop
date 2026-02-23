@@ -1,3 +1,4 @@
+using TournamentEngine.Core.Common;
 using TournamentEngine.Core.Common.Dashboard;
 
 namespace TournamentEngine.Dashboard.Services;
@@ -186,7 +187,7 @@ public class TournamentStatusService
         var total = await GetTotalTournamentsCountAsync();
         var tournament = await GetCurrentTournamentAsync();
 
-        var gameType = tournament?.GameType.ToString() ?? "Unknown";
+        var gameType = tournament != null ? GameTypeHelper.GetDisplayName(tournament.GameType) : "Unknown";
         return $"Tournament {tournamentNumber} of {total} ({gameType})";
     }
 }

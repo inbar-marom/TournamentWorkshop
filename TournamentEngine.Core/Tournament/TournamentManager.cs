@@ -14,11 +14,20 @@ using TournamentEngine.Core.Events;
 /// </summary>
 public class TournamentManager : ITournamentManager
 {
+    // Default values (can be overridden via configuration)
+    private static readonly TimeSpan FastMatchDurationThreshold = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan FastMatchReportLeadTime = TimeSpan.FromSeconds(5);
+
     private readonly ITournamentEngine _engine;
     private readonly IGameRunner _gameRunner;
     private readonly IScoringSystem _scoringSystem;
     private readonly ITournamentEventPublisher? _eventPublisher;
     private static int _tournamentCounter = 0;
+    
+    /// <summary>
+    /// Current fast match threshold in seconds. Can be updated before starting tournament.
+    /// </summary>
+    public int FastMatchThresholdSeconds { get; set; } = 10;
 
     public TournamentManager(ITournamentEngine engine, IGameRunner gameRunner, IScoringSystem scoringSystem, ITournamentEventPublisher? eventPublisher = null)
     {
@@ -94,14 +103,13 @@ public class TournamentManager : ITournamentManager
                 continue;
             }
 
-            Console.WriteLine($"[TournamentManager] Starting execution of {matches.Count} matches with max concurrency {Environment.ProcessorCount * 2}");
-            
             // Execute all matches in the current stage concurrently
             // THREAD SAFETY: All matches within a stage run in parallel via Task.WhenAll
             // The engine's RecordMatchResult() is thread-safe (uses lock)
             // We wait for ALL matches to complete before advancing to next stage
-            // Throttle to prevent overwhelming the system (2x processor count is reasonable)
-            var maxConcurrency = Environment.ProcessorCount * 2;
+            // Use MaxParallelMatches from config, or default to 15
+            var maxConcurrency = config?.MaxParallelMatches ?? 15;
+            Console.WriteLine($"[TournamentManager] Starting execution of {matches.Count} matches with max concurrency {maxConcurrency}");
             using var semaphore = new SemaphoreSlim(maxConcurrency);
             
             Console.WriteLine($"[TournamentManager] Creating {matches.Count} tasks...");
@@ -138,96 +146,87 @@ public class TournamentManager : ITournamentManager
             }
             var tasks = taskList;
 
-            Console.WriteLine($"[TournamentManager] Created {tasks.Count} tasks, waiting for completion...");
-            
-            // Monitor task completion with timeout
-            var completedCount = 0;
-            var monitorTask = Task.Run(async () =>
-            {
-                while (completedCount < tasks.Count)
-                {
-                    await Task.Delay(5000); // Check every 5 seconds
-                    var completed = tasks.Count(t => t.IsCompleted);
-                    var faulted = tasks.Count(t => t.IsFaulted);
-                    var canceled = tasks.Count(t => t.IsCanceled);
-                    var running = tasks.Count - completed;
-                    
-                    if (completed != completedCount)
-                    {
-                        completedCount = completed;
-                        Console.WriteLine($"[TournamentManager] Progress: {completed}/{tasks.Count} completed, {faulted} faulted, {canceled} canceled, {running} still running");
-                        
-                        if (faulted > 0)
-                        {
-                            var firstFaulted = tasks.FirstOrDefault(t => t.IsFaulted);
-                            if (firstFaulted?.Exception != null)
-                            {
-                                Console.WriteLine($"[TournamentManager] First faulted task exception: {firstFaulted.Exception.InnerException?.Message ?? firstFaulted.Exception.Message}");
-                            }
-                        }
-                    }
-                }
-            });
-            
-            // STAGE SYNCHRONIZATION: Wait for ALL matches in this stage to complete
-            var results = await Task.WhenAll(tasks);
-            Console.WriteLine($"[TournamentManager] All {results.Length} matches completed, recording results...");
+            Console.WriteLine($"[TournamentManager] Created {tasks.Count} tasks, streaming completion updates...");
 
-            // Record all results and publish events concurrently
-            // Recording is thread-safe (engine uses locks), and we publish all events in parallel
-            var publishTasks = new List<Task>();
-            
-            foreach (var result in results)
+            var taskIndexByTask = tasks
+                .Select((task, index) => new { task, index })
+                .ToDictionary(item => item.task, item => item.index);
+            var pendingTasks = new List<Task<MatchResult>>(tasks);
+            var processedCount = 0;
+            var completedResults = new SortedDictionary<int, MatchResult>();
+            var nextResultIndexToRecord = 0;
+
+            // STAGE SYNCHRONIZATION: still wait until all tasks complete before advancing rounds,
+            // but stream each completed match immediately as it finishes.
+            while (pendingTasks.Count > 0)
             {
-                _engine.RecordMatchResult(result);
-                
-                // Publish match completed event (fire in parallel, don't block)
+                var completedTask = await Task.WhenAny(pendingTasks);
+                pendingTasks.Remove(completedTask);
+
+                var result = await completedTask;
+                var resultIndex = taskIndexByTask[completedTask];
+                processedCount++;
+
                 if (_eventPublisher != null)
                 {
+                    await ApplyFastMatchReportingDelayAsync(result, FastMatchThresholdSeconds, cancellationToken);
+
                     var groupLabel = _engine.GetMatchGroupLabel(result.Bot1Name, result.Bot2Name);
-                    Console.WriteLine($"[TournamentManager] Match {result.Bot1Name} vs {result.Bot2Name} - GroupLabel: '{groupLabel}'");
-                    
+                    Console.WriteLine($"[TournamentManager] Match {processedCount}/{tasks.Count}: {result.Bot1Name} vs {result.Bot2Name} - GroupLabel: '{groupLabel}'");
+
+                    var completedAt = result.EndTime.Kind == DateTimeKind.Utc
+                        ? result.EndTime
+                        : result.EndTime.ToUniversalTime();
+
                     var matchEvent = new MatchCompletedDto
                     {
                         TournamentId = tournamentId,
                         TournamentName = tournamentName,
+                        EventId = gameType.ToString(),
+                        EventName = gameType.ToString(),
                         Bot1Name = result.Bot1Name,
                         Bot2Name = result.Bot2Name,
                         Outcome = result.Outcome,
                         GameType = gameType,
-                        CompletedAt = DateTime.UtcNow,
+                        CompletedAt = completedAt,
                         Bot1Score = result.Bot1Score,
                         Bot2Score = result.Bot2Score,
                         MatchId = Guid.NewGuid().ToString(),
                         WinnerName = result.WinnerName,
                         GroupLabel = groupLabel
                     };
-                    publishTasks.Add(_eventPublisher.PublishMatchCompletedAsync(matchEvent));
+                    await _eventPublisher.PublishMatchCompletedAsync(matchEvent);
+                }
+
+                completedResults[resultIndex] = result;
+
+                while (completedResults.TryGetValue(nextResultIndexToRecord, out var inOrderResult))
+                {
+                    completedResults.Remove(nextResultIndexToRecord);
+                    nextResultIndexToRecord++;
+
+                    _engine.RecordMatchResult(inOrderResult);
+
+                    if (_eventPublisher != null)
+                    {
+                        var currentTournamentInfo = _engine.GetTournamentInfo();
+                        var standings = CalculateStandingsFromMatches(currentTournamentInfo);
+                        var groupStandings = BuildCurrentGroupStandings(gameType);
+
+                        var standingsEvent = new StandingsUpdatedDto
+                        {
+                            TournamentId = tournamentId,
+                            TournamentName = tournamentName,
+                            OverallStandings = standings,
+                            GroupStandings = groupStandings,
+                            UpdatedAt = DateTime.UtcNow
+                        };
+                        await _eventPublisher.PublishStandingsUpdatedAsync(standingsEvent);
+                    }
                 }
             }
-            
-            // Wait for all event publishes to complete in parallel
-            if (publishTasks.Count > 0)
-            {
-                await Task.WhenAll(publishTasks);
-            }
 
-            // Publish standings updated event after each round of matches
-            if (_eventPublisher != null)
-            {
-                // Get current tournament info
-                var currentTournamentInfo = _engine.GetTournamentInfo();
-                var standings = CalculateStandingsFromMatches(currentTournamentInfo);
-                
-                var standingsEvent = new StandingsUpdatedDto
-                {
-                    TournamentId = tournamentId,
-                    TournamentName = tournamentName,
-                    OverallStandings = standings,
-                    UpdatedAt = DateTime.UtcNow
-                };
-                await _eventPublisher.PublishStandingsUpdatedAsync(standingsEvent);
-            }
+            Console.WriteLine($"[TournamentManager] All {tasks.Count} matches completed and streamed");
         }
 
         var finalTournamentInfo = _engine.GetTournamentInfo();
@@ -254,6 +253,103 @@ public class TournamentManager : ITournamentManager
         }
 
         return finalTournamentInfo;
+    }
+
+    private static async Task ApplyFastMatchReportingDelayAsync(MatchResult result, int thresholdSeconds, CancellationToken cancellationToken)
+    {
+        var threshold = TimeSpan.FromSeconds(thresholdSeconds);
+        if (result.Duration >= threshold)
+            return;
+
+        // Add randomization: ±1 second around the delay
+        // So if threshold is 10s and delay would be 5s, we get 9-11s with randomness
+        var randomVariance = Random.Shared.Next(-1000, 1001); // -1000 to +1000 ms
+        var delayWithVariance = threshold - result.Duration - FastMatchReportLeadTime;
+        delayWithVariance = delayWithVariance.Add(TimeSpan.FromMilliseconds(randomVariance));
+        
+        if (delayWithVariance <= TimeSpan.Zero)
+            return;
+
+        await Task.Delay(delayWithVariance, cancellationToken);
+    }
+
+    private List<GroupDto> BuildCurrentGroupStandings(GameType gameType)
+    {
+        if (_engine is not GroupStageTournamentEngine groupEngine)
+            return new List<GroupDto>();
+
+        try
+        {
+            var eventName = gameType.ToString();
+            var summary = groupEngine.GetCurrentPhaseSummary();
+            return summary.Groups
+                .Select(group =>
+                {
+                    var ordered = group.Standings
+                        .OrderByDescending(s => s.Points)
+                        .ThenByDescending(s => s.Wins)
+                        .ThenBy(s => s.BotName, StringComparer.OrdinalIgnoreCase)
+                        .ToList();
+
+                    var rankings = ordered
+                        .Select((standing, index) => new BotRankingDto
+                        {
+                            Rank = index + 1,
+                            TeamName = standing.BotName,
+                            Wins = standing.Wins,
+                            Losses = standing.Losses,
+                            Draws = standing.Draws,
+                            Points = standing.Points
+                        })
+                        .ToList();
+
+                    return new GroupDto
+                    {
+                        GroupName = NormalizeGroupName(group.GroupId),
+                        EventName = eventName,
+                        Rankings = rankings
+                    };
+                })
+                .ToList();
+        }
+        catch
+        {
+            return new List<GroupDto>();
+        }
+    }
+
+    private static string NormalizeGroupName(string groupId)
+    {
+        if (string.Equals(groupId, "Final-Group", StringComparison.OrdinalIgnoreCase))
+            return "Final Group-finalStandings";
+
+        if (string.Equals(groupId, "Tiebreaker", StringComparison.OrdinalIgnoreCase))
+            return "Tiebreaker";
+
+        if (groupId.StartsWith("Group-", StringComparison.OrdinalIgnoreCase)
+            && int.TryParse(groupId.Substring("Group-".Length), out var groupNumber))
+        {
+            return $"Group {ConvertGroupNumberToLabel(groupNumber)}";
+        }
+
+        return groupId;
+    }
+
+    private static string ConvertGroupNumberToLabel(int groupNumber)
+    {
+        if (groupNumber <= 0)
+            return groupNumber.ToString();
+
+        var label = string.Empty;
+        var value = groupNumber;
+        while (value > 0)
+        {
+            value--;
+            label = (char)('A' + (value % 26)) + label;
+            value /= 26;
+        }
+
+        return label;
     }
 
     /// <summary>

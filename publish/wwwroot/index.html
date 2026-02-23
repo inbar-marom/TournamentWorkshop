@@ -84,8 +84,13 @@
         }
 
         .status-pill.completed {
-            background: #fee2e2;
-            color: #991b1b;
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .status-pill.in-progress {
+            background: rgba(244, 178, 102, 0.28);
+            color: #9a5a1a;
         }
 
         .status-pill.not-started {
@@ -278,32 +283,136 @@
             gap: 8px;
         }
 
+        .event-tab.status-current {
+            background: rgba(22, 163, 74, 0.16);
+            color: #166534;
+            border-color: rgba(22, 163, 74, 0.45);
+        }
+
+        .event-tab.status-past {
+            background: rgba(187, 247, 208, 0.45);
+            color: #166534;
+            border-color: rgba(22, 163, 74, 0.25);
+        }
+
+        .event-tab.status-upcoming {
+            background: #f1f5f9;
+            color: #64748b;
+            border-color: #cbd5e1;
+        }
+
         .event-tab:hover {
             background: var(--accent-soft);
             border-color: var(--accent);
             color: var(--accent-strong);
         }
 
-        .event-tab.active {
-            background: var(--accent);
-            color: white;
+        .event-tab.selected {
+            border-width: 3px;
             border-color: var(--accent-strong);
-            font-weight: 600;
-        }
-
-        .event-tab.running {
-            border: 2px solid var(--accent);
-            border-style: dashed;
-        }
-
-        .event-tab.active.running {
-            background: linear-gradient(135deg, var(--accent), var(--accent-strong));
-            border-style: solid;
-            box-shadow: 0 0 12px rgba(15, 118, 110, 0.3);
+            font-weight: 700;
+            padding: 8px 16px;
         }
 
         .event-tab-indicator {
-            font-size: 1.1em;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .beeping-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #16a34a;
+            box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.45);
+            animation: beepPulse 1.2s infinite;
+        }
+
+        @keyframes beepPulse {
+            0% {
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.45);
+            }
+            70% {
+                transform: scale(1.08);
+                box-shadow: 0 0 0 8px rgba(22, 163, 74, 0);
+            }
+            100% {
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(22, 163, 74, 0);
+            }
+        }
+
+        .rotation-controls {
+            display: flex;
+            justify-content: flex-end;
+            margin: -8px 0 12px;
+        }
+
+        .rotation-controls button {
+            padding: 8px 14px;
+            font-size: 0.82em;
+            border-radius: 10px;
+        }
+
+        .group-tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .group-tab {
+            padding: 8px 12px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            background: #f7f7f4;
+            color: var(--muted);
+            cursor: pointer;
+            font-size: 0.85em;
+        }
+
+        .group-tab.selected {
+            border-width: 3px;
+            border-color: var(--accent-strong);
+            padding: 6px 10px;
+            font-weight: 700;
+        }
+
+        .group-tab.final {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .standings-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #f7f7f4;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .standings-table th,
+        .standings-table td {
+            padding: 8px 10px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.88em;
+        }
+
+        .winner-badge {
+            display: inline-block;
+            margin-left: 8px;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: 0.72em;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            background: #dcfce7;
+            color: #166534;
         }
 
         .details-grid {
@@ -358,6 +467,33 @@
 
         .match-item:hover {
             background: #efefeb;
+        }
+
+        .matches-scroll-container {
+            max-height: 600px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding-right: 4px;
+        }
+
+        .matches-scroll-container::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .matches-scroll-container::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+
+        .matches-scroll-container::-webkit-scrollbar-thumb {
+            background: var(--accent);
+            border-radius: 4px;
+        }
+
+        .matches-scroll-container::-webkit-scrollbar-thumb:hover {
+            background: var(--accent-strong);
         }
 
         .match-header {
@@ -551,7 +687,15 @@
         <header class="topbar">
             <h1>Productivity with AI Tournament Dashboard</h1>
             <div class="topbar-meta">
-                <span class="status-pill not-started" id="tournamentStatus">Not Started</span>
+                <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
+                    <span class="status-pill not-started" id="tournamentStatus">Not Started</span>
+                    <div id="countdownContainer" style="display: none; font-size: 0.9em; color: var(--warm); font-weight: 600;">
+                        <div id="countdownDisplay" style="text-align: right;">🕐 Starting in...</div>
+                    </div>
+                    <div id="israelTimeDisplay" style="font-size: 0.85em; color: var(--muted);">
+                        Israel Time: <span id="israelTimeText">--:--:--</span>
+                    </div>
+                </div>
                 <span class="connection"><span class="connection-dot" id="statusIndicator"></span><span id="statusText">Connecting...</span></span>
             </div>
         </header>
@@ -592,17 +736,25 @@
             <div class="event-tabs" id="eventTabs">
                 <div class="status-message">No events configured</div>
             </div>
-            <div class="details-grid">
-                <div>
-                    <div class="panel-title">Recent Matches</div>
-                    <div id="recentMatches">
-                        <div class="status-message">No matches yet</div>
-                    </div>
+            <div style="margin-top: 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                <div style="font-weight: 600; color: var(--muted); font-size: 0.9em;">Group:</div>
+                <div class="event-tabs" id="groupSelectorTabs" style="margin: 0;">
+                    <div class="status-message">No groups yet</div>
                 </div>
+                <button id="resumeGroupAutoBtn2" onclick="resumeGroupAutoRotation()" style="display: none; padding: 6px 12px; background: var(--accent); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 0.85em;">Return to Auto Rotation</button>
+            </div>
+            <div class="details-grid">
                 <div>
                     <div class="panel-title">Group Standings</div>
                     <div id="groupStandings">
                         <div class="status-message">No group data yet</div>
+                    </div>
+                </div>
+                <div>
+                    <div class="panel-title">Recent Matches (Current Group)</div>
+                    <div id="recentMatchesScope" class="status-message">Showing matches for the current selected group</div>
+                    <div id="recentMatches">
+                        <div class="status-message">No matches yet</div>
                     </div>
                 </div>
             </div>
@@ -618,7 +770,6 @@
                 <div>
                     <button onclick="requestCurrentState()">Get Current State</button>
                     <button onclick="clearLog()">Clear Log</button>
-                    <button class="danger" onclick="clearAllData()">Clear All Data</button>
                 </div>
             </div>
         </details>
@@ -637,16 +788,15 @@
         let lastState = null;
         let groupCycleIndex = 0;
         let groupCycleTimer = null;
+        let groupRefreshTimer = null;
         let recentMatches = []; // Separate array for live match streaming
         
-        // Pagination state for Recent Matches
-        let currentMatchPage = 0;
-        let matchesPerPage = 5;
-        let matchCarouselTimer = null;
-        let lastMatchCarouselTime = 0;
-        
         // Event tabs state
-        let selectedEventIndex = 0;
+        let selectedEventIndex = -1;
+        let eventAutoRotationEnabled = true;
+        let selectedGroupName = null;
+        let groupAutoRotationEnabled = true;
+        let availableGroups = [];
         let tournamentSteps = [];
 
         connection.on("reconnected", (connectionId) => {
@@ -677,7 +827,7 @@
             if (standings.GroupStandings || standings.groupStandings) {
                 updateGroupStandings(standings.GroupStandings || standings.groupStandings);
             }
-            requestCurrentState();
+            // Don't request current state immediately - let the 5s refresh handle it
         });
 
         connection.on("EventStarted", () => requestCurrentState());
@@ -773,43 +923,173 @@
 
             // Find currently running event
             const runningIndex = steps.findIndex(step => formatStepStatus(step.Status || step.status) === 'InProgress');
-            
-            // Set default selected event to running event or first event
-            if (selectedEventIndex === 0 && runningIndex >= 0) {
-                selectedEventIndex = runningIndex;
+
+            if (eventAutoRotationEnabled) {
+                selectedEventIndex = runningIndex >= 0 ? runningIndex : 0;
             }
-            
-            // Ensure selectedEventIndex is within bounds
+
             selectedEventIndex = Math.min(selectedEventIndex, steps.length - 1);
+            selectedEventIndex = Math.max(selectedEventIndex, 0);
 
             container.innerHTML = steps.map((step, index) => {
                 const status = formatStepStatus(step.Status || step.status);
                 const isRunning = status === 'InProgress';
-                const isActive = index === selectedEventIndex;
+                const isSelected = index === selectedEventIndex;
                 const gameType = step.GameType || step.gameType;
                 const label = formatGameType(gameType) || `Event ${step.StepIndex || step.stepIndex || (index + 1)}`;
-                
-                const classes = ['event-tab'];
-                if (isActive) classes.push('active');
-                if (isRunning) classes.push('running');
-                
-                const indicator = isRunning ? '<span class="event-tab-indicator">⧖</span>' : '';
-                
+
+                const statusClass = isRunning
+                    ? 'status-current'
+                    : status === 'Completed'
+                        ? 'status-past'
+                        : 'status-upcoming';
+
+                const classes = ['event-tab', statusClass];
+                if (isSelected) classes.push('selected');
+
+                const indicator = isRunning
+                    ? '<span class="beeping-dot" title="Current Event"></span>'
+                    : '<span class="event-tab-indicator"></span>';
+
                 return `<button class="${classes.join(' ')}" onclick="selectEventTab(${index})">${indicator}${label}</button>`;
             }).join('');
+
+            updateEventRotationButton();
         }
 
         function selectEventTab(index) {
-            if (index === selectedEventIndex) return; // Already selected
-            
+            eventAutoRotationEnabled = false;
             selectedEventIndex = index;
             updateEventTabs(tournamentSteps);
-            
+
             // Refresh data displays with filtered data
             if (lastState) {
                 updateGroupStandings(lastState.GroupStandings || lastState.groupStandings || []);
                 updateRecentMatches(recentMatches);
             }
+        }
+
+        function resumeEventAutoRotation() {
+            eventAutoRotationEnabled = true;
+            updateEventTabs(tournamentSteps);
+            if (lastState) {
+                updateGroupStandings(lastState.GroupStandings || lastState.groupStandings || []);
+                updateRecentMatches(recentMatches);
+            }
+        }
+
+        function updateEventRotationButton() {
+            let controls = document.getElementById('eventRotationControls');
+            if (!controls) {
+                const eventTabs = document.getElementById('eventTabs');
+                if (eventTabs) {
+                    controls = document.createElement('div');
+                    controls.id = 'eventRotationControls';
+                    controls.className = 'rotation-controls';
+                    controls.innerHTML = '<button id="resumeEventAutoBtn" onclick="resumeEventAutoRotation()" style="display:none;">Return to Auto Event</button>';
+                    eventTabs.insertAdjacentElement('afterend', controls);
+                }
+            }
+
+            const button = document.getElementById('resumeEventAutoBtn');
+            if (button) {
+                button.style.display = eventAutoRotationEnabled ? 'none' : 'inline-block';
+            }
+        }
+
+        // Countdown and Israel time display
+        let countdownTimer = null;
+        let israelTimeTimer = null;
+
+        function formatIsraelTime(utcDateString) {
+            // Parse UTC date and convert to Israel timezone (UTC+2 or UTC+3 with DST)
+            const date = new Date(utcDateString);
+            const israelFormatter = new Intl.DateTimeFormat('en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false,
+                timeZone: 'Asia/Jerusalem'
+            });
+            return israelFormatter.format(date);
+        }
+
+        function updateIsraelTime() {
+            const now = new Date();
+            const israelFormatter = new Intl.DateTimeFormat('en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false,
+                timeZone: 'Asia/Jerusalem'
+            });
+            document.getElementById('israelTimeText').textContent = israelFormatter.format(now);
+        }
+
+        function updateCountdown(scheduledStartUtc) {
+            if (!scheduledStartUtc) {
+                const container = document.getElementById('countdownContainer');
+                if (container) container.style.display = 'none';
+                if (countdownTimer) {
+                    clearInterval(countdownTimer);
+                    countdownTimer = null;
+                }
+                return;
+            }
+
+            const container = document.getElementById('countdownContainer');
+            const display = document.getElementById('countdownDisplay');
+            if (!container || !display) return;
+
+            const startDate = new Date(scheduledStartUtc);
+            if (isNaN(startDate.getTime())) return;
+
+            const now = new Date();
+            if (now >= startDate) {
+                // Tournament has started
+                container.style.display = 'none';
+                if (countdownTimer) {
+                    clearInterval(countdownTimer);
+                    countdownTimer = null;
+                }
+                return;
+            }
+
+            // Show countdown
+            container.style.display = 'block';
+
+            const updateCountdownDisplay = () => {
+                const now = new Date();
+                const diff = startDate - now;
+
+                if (diff <= 0) {
+                    display.textContent = '🚀 Tournament starting now!';
+                    if (countdownTimer) {
+                        clearInterval(countdownTimer);
+                        countdownTimer = null;
+                    }
+                    return;
+                }
+
+                const hours = Math.floor(diff / (1000 * 60 * 60));
+                const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+                let timeStr = '';
+                if (hours > 0) {
+                    timeStr = `${hours}h ${minutes}m ${seconds}s`;
+                } else if (minutes > 0) {
+                    timeStr = `${minutes}m ${seconds}s`;
+                } else {
+                    timeStr = `${seconds}s`;
+                }
+
+                display.textContent = `🕐 Starting in: ${timeStr}`;
+            };
+
+            updateCountdownDisplay();
+            if (countdownTimer) clearInterval(countdownTimer);
+            countdownTimer = setInterval(updateCountdownDisplay, 1000);
         }
 
         function updateFromState(state) {
@@ -838,14 +1118,24 @@
             updateOverallLeaders(state.OverallLeaderboard || state.overallLeaderboard || [], isTournamentComplete);
             updateGroupStandings(state.GroupStandings || state.groupStandings || []);
             updateRecentMatches(recentMatches);
+
+            // Update countdown if scheduled start time is present
+            const scheduledStart = state.ScheduledStartTime || state.scheduledStartTime;
+            if (scheduledStart) {
+                updateCountdown(scheduledStart);
+            } else {
+                updateCountdown(null);
+            }
         }
 
         function updateStatusPill(status) {
             const pill = document.getElementById('tournamentStatus');
             pill.textContent = status.replace(/([a-z])([A-Z])/g, '$1 $2');
-            pill.classList.remove('completed', 'not-started');
+            pill.classList.remove('completed', 'not-started', 'in-progress');
             if (status === 'Completed') {
                 pill.classList.add('completed');
+            } else if (status === 'InProgress') {
+                pill.classList.add('in-progress');
             } else if (status === 'NotStarted') {
                 pill.classList.add('not-started');
             }
@@ -942,107 +1232,229 @@
         function updateGroupStandings(groups) {
             const container = document.getElementById('groupStandings');
             
+            // Don't clear existing data if new data is empty but we already have groups
             if (!groups || groups.length === 0) {
+                if (availableGroups && availableGroups.length > 0) {
+                    // Keep showing existing groups
+                    return;
+                }
                 container.innerHTML = '<div class="status-message">No group data yet</div>';
+                const selectorContainer = document.getElementById('groupSelectorTabs');
+                if (selectorContainer) {
+                    selectorContainer.innerHTML = '<div class="status-message">No groups yet</div>';
+                }
                 return;
             }
 
-            // Filter groups by selected event if we have event context
-            let filteredGroups = groups;
-            if (tournamentSteps.length > 0 && selectedEventIndex >= 0 && selectedEventIndex < tournamentSteps.length) {
-                const selectedStep = tournamentSteps[selectedEventIndex];
-                const selectedGameType = selectedStep?.GameType || selectedStep?.gameType;
-                const selectedEventId = selectedStep?.EventId || selectedStep?.eventId;
+            // Show all groups that have rankings, or match our recent matches
+            const matchGroupNames = new Set(recentMatches.map(m => m.GroupLabel || m.groupLabel).filter(Boolean));
+            
+            const filteredGroups = groups.filter(group => {
+                const rankings = group.Rankings || group.rankings || [];
+                const name = group.GroupName || group.groupName || '';
+                const isFinal = isFinalGroupName(name);
                 
-                // Filter groups that belong to this event
-                // Groups might have EventId or we can infer from group naming
-                filteredGroups = groups.filter(group => {
-                    // If group has explicit EventId, use that
-                    if (group.EventId || group.eventId) {
-                        return (group.EventId || group.eventId) === selectedEventId;
-                    }
-                    // Otherwise, this is a multi-event tournament, show all for now
-                    // In a real implementation, we'd need better event-to-group mapping
-                    return true;
-                });
-            }
+                // Show if: final group, has teams, or has matches
+                return isFinal || rankings.length > 0 || matchGroupNames.has(name);
+            });
 
             if (filteredGroups.length === 0) {
-                container.innerHTML = '<div class="status-message">No group data yet for this event</div>';
+                container.innerHTML = '<div class="status-message">No groups with completed matches yet</div>';
+                const selectorContainer = document.getElementById('groupSelectorTabs');
+                if (selectorContainer) {
+                    selectorContainer.innerHTML = '<div class="status-message">No groups yet</div>';
+                }
                 return;
             }
 
-            if (groupCycleTimer) {
-                clearInterval(groupCycleTimer);
+            // Store previous selected group
+            const previousSelectedGroup = selectedGroupName;
+            availableGroups = filteredGroups;
+
+            const finalGroup = filteredGroups.find(group => isFinalGroupName(group.GroupName || group.groupName || ''));
+            if (finalGroup && groupAutoRotationEnabled) {
+                groupAutoRotationEnabled = false;
+                selectedGroupName = finalGroup.GroupName || finalGroup.groupName || selectedGroupName;
             }
 
-            groupCycleIndex = Math.min(groupCycleIndex, filteredGroups.length - 1);
-            renderGroup(filteredGroups[groupCycleIndex]);
+            // Only reset timer if rotation mode changes
+            const shouldRotate = groupAutoRotationEnabled && !finalGroup && filteredGroups.length > 1;
+            if (groupCycleTimer && !shouldRotate) {
+                clearInterval(groupCycleTimer);
+                groupCycleTimer = null;
+            }
 
-            if (filteredGroups.length > 1) {
+            // Preserve selected group if it still exists, otherwise select first
+            if (!selectedGroupName || !filteredGroups.some(g => (g.GroupName || g.groupName) === selectedGroupName)) {
+                selectedGroupName = filteredGroups[0].GroupName || filteredGroups[0].groupName;
+            }
+
+            // Only create new timer if we don't have one and should be rotating
+            if (shouldRotate && !groupCycleTimer) {
+                groupCycleIndex = Math.max(0, filteredGroups.findIndex(g => (g.GroupName || g.groupName) === selectedGroupName));
                 groupCycleTimer = setInterval(() => {
                     groupCycleIndex = (groupCycleIndex + 1) % filteredGroups.length;
-                    renderGroup(filteredGroups[groupCycleIndex]);
+                    selectedGroupName = filteredGroups[groupCycleIndex].GroupName || filteredGroups[groupCycleIndex].groupName;
+                    renderGroupSelector(filteredGroups, selectedGroupName);
+                    renderGroupView(filteredGroups, selectedGroupName);
+                    updateRecentMatches(recentMatches);
+                }, 10000);
+            }
+
+            renderGroupSelector(filteredGroups, selectedGroupName);
+            renderGroupView(filteredGroups, selectedGroupName);
+            updateGroupRotationButton(finalGroup !== undefined);
+
+            if (!groupRefreshTimer) {
+                groupRefreshTimer = setInterval(() => {
+                    if (lastState) {
+                        const latestGroups = lastState.GroupStandings || lastState.groupStandings || [];
+                        updateGroupStandings(latestGroups);
+                    }
                 }, 5000);
             }
         }
 
-        function renderGroup(group) {
+        function renderGroupView(groups, activeGroupName) {
             const container = document.getElementById('groupStandings');
+            
+            const group = groups.find(g => (g.GroupName || g.groupName) === activeGroupName) || groups[0];
+            const groupName = group.GroupName || group.groupName;
             const rankings = group.Rankings || group.rankings || [];
-            const rows = rankings.slice(0, 5).map(team => `
-                <div class="list-item">
-                    <span>${team.Rank || team.rank}. ${team.TeamName || team.teamName}</span>
-                    <span>${team.Points || team.points} pts</span>
-                </div>
-            `).join('');
+            const completed = isGroupComplete(rankings);
+            const finalGroup = isFinalGroupName(groupName);
+
+            const rows = rankings.map(team => {
+                const isLeader = (team.Rank || team.rank) === 1;
+                const winnerBadge = completed && isLeader
+                    ? `<span class="winner-badge">${finalGroup ? 'Event Champion' : 'Group Winner'}</span>`
+                    : '';
+
+                return `
+                <tr>
+                    <td>${team.Rank || team.rank}</td>
+                    <td>${team.TeamName || team.teamName}${winnerBadge}</td>
+                    <td>${team.Points || team.points}</td>
+                    <td>${team.Wins || team.wins || 0}-${team.Draws || team.draws || 0}-${team.Losses || team.losses || 0}</td>
+                </tr>
+            `;
+            }).join('');
 
             container.innerHTML = `
                 <div class="group-header">
-                    <span>${group.GroupName || group.groupName}</span>
-                    <span class="timestamp">Auto-cycles</span>
+                    <span>${groupName}</span>
+                    <span class="timestamp">${groupAutoRotationEnabled && !finalGroup ? 'Auto-rotates every 10s' : 'Manual / Final focus'}</span>
                 </div>
-                ${rows || '<div class="status-message">No standings yet</div>'}
+                <table class="standings-table">
+                    <thead>
+                        <tr><th>Rank</th><th>Team</th><th>Score</th><th>W-D-L</th></tr>
+                    </thead>
+                    <tbody>
+                        ${rows || '<tr><td colspan="4" class="status-message">No standings yet</td></tr>'}
+                    </tbody>
+                </table>
             `;
+
+            selectedGroupName = groupName;
+        }
+
+        function renderGroupSelector(groups, activeGroupName) {
+            const container = document.getElementById('groupSelectorTabs');
+            if (!container) return;
+
+            if (!groups || groups.length === 0) {
+                container.innerHTML = '<div class="status-message">No groups yet</div>';
+                return;
+            }
+
+            const tabs = groups.map(group => {
+                const name = group.GroupName || group.groupName;
+                const selectedClass = name === activeGroupName ? ' selected' : '';
+                const finalClass = isFinalGroupName(name) ? ' final' : '';
+                return `<button class="event-tab${selectedClass}${finalClass}" onclick="selectGroupTab('${name.replace(/'/g, "\\'")}')">${name}</button>`;
+            }).join('');
+
+            container.innerHTML = tabs;
+        }
+
+        function selectGroupTab(groupName) {
+            groupAutoRotationEnabled = false;
+            selectedGroupName = groupName;
+            renderGroupSelector(availableGroups, selectedGroupName);
+            renderGroupView(availableGroups, selectedGroupName);
+            updateRecentMatches(recentMatches);
+            updateGroupRotationButton(false);
+        }
+
+        function resumeGroupAutoRotation() {
+            groupAutoRotationEnabled = true;
+            updateGroupStandings(lastState?.GroupStandings || lastState?.groupStandings || []);
+            updateRecentMatches(recentMatches);
+        }
+
+        function updateGroupRotationButton(isFinalFocused) {
+            const button = document.getElementById('resumeGroupAutoBtn');
+            const button2 = document.getElementById('resumeGroupAutoBtn2');
+
+            if (isFinalFocused) {
+                if (button) button.style.display = 'none';
+                if (button2) button2.style.display = 'none';
+                return;
+            }
+
+            const displayValue = groupAutoRotationEnabled ? 'none' : 'inline-block';
+            if (button) button.style.display = displayValue;
+            if (button2) button2.style.display = displayValue;
+        }
+
+        function isFinalGroupName(name) {
+            return (name || '').toLowerCase().includes('final group-finalstandings');
+        }
+
+        function isGroupComplete(rankings) {
+            const count = rankings.length;
+            if (count < 2) {
+                return false;
+            }
+
+            return rankings.every(team => {
+                const wins = team.Wins || team.wins || 0;
+                const losses = team.Losses || team.losses || 0;
+                const draws = team.Draws || team.draws || 0;
+                return wins + losses + draws >= (count - 1);
+            });
         }
 
         function updateRecentMatches(matches) {
             const container = document.getElementById('recentMatches');
+            const scope = document.getElementById('recentMatchesScope');
             if (!matches || matches.length === 0) {
                 container.innerHTML = '<div class="status-message">No matches yet</div>';
+                if (scope) {
+                    scope.textContent = 'Showing matches for current selected group';
+                }
                 return;
             }
 
-            // Filter matches by selected event's GameType
+            const activeGroup = selectedGroupName;
             let filteredMatches = matches;
-            if (tournamentSteps.length > 0 && selectedEventIndex >= 0 && selectedEventIndex < tournamentSteps.length) {
-                const selectedStep = tournamentSteps[selectedEventIndex];
-                const selectedGameType = (selectedStep?.GameType || selectedStep?.gameType || '').toString();
-                
-                filteredMatches = matches.filter(match => {
-                    const matchGameType = (match.GameType || match.gameType || '').toString();
-                    return matchGameType === selectedGameType;
-                });
+            if (activeGroup) {
+                filteredMatches = matches.filter(match => (match.GroupLabel || match.groupLabel || '') === activeGroup);
+            }
+
+            if (scope) {
+                scope.textContent = activeGroup
+                    ? `Showing matches for: ${activeGroup} (${filteredMatches.length} matches)`
+                    : 'Showing matches for current selected group';
             }
 
             if (filteredMatches.length === 0) {
-                container.innerHTML = '<div class="status-message">No matches yet for this event</div>';
+                container.innerHTML = '<div class="status-message">No matches yet for this selected group</div>';
                 return;
             }
 
-            const totalPages = Math.ceil(filteredMatches.length / matchesPerPage);
-            const maxPage = Math.max(0, totalPages - 1);
-            
-            // Reset page if out of bounds
-            if (currentMatchPage > maxPage) {
-                currentMatchPage = maxPage;
-            }
-
-            const startIdx = currentMatchPage * matchesPerPage;
-            const endIdx = startIdx + matchesPerPage;
-            const pageMatches = filteredMatches.slice(startIdx, endIdx).reverse();
-
-            const pageHTML = pageMatches.map(match => {
+            // Show newest first (matches already added with unshift, so no need to reverse)
+            const matchesHTML = filteredMatches.map(match => {
                 const bot1 = match.Bot1Name || match.bot1Name;
                 const bot2 = match.Bot2Name || match.bot2Name;
                 const winner = match.WinnerName || match.winnerName || 'Draw';
@@ -1073,33 +1485,11 @@
                 `;
             }).join('');
 
-            const timerDisplay = matchCarouselTimer ? ` <span class="carousel-timer">(Auto-advance in ${Math.ceil((lastMatchCarouselTime + 10000 - Date.now()) / 1000)}s)</span>` : '';
-
             container.innerHTML = `
-                <div class="matches-carousel">
-                    <div class="matches-page">
-                        ${pageHTML || '<div class="status-message">No matches on this page</div>'}
-                    </div>
-                    <div class="matches-pagination">
-                        <button class="pagination-btn" onclick="previousMatchesPage()" ${currentMatchPage === 0 ? 'disabled' : ''}>← Previous</button>
-                        <span class="pagination-info">
-                            Page ${currentMatchPage + 1} of ${totalPages}${timerDisplay}
-                        </span>
-                        <button class="pagination-btn" onclick="nextMatchesPage()" ${currentMatchPage >= maxPage ? 'disabled' : ''}>Next →</button>
-                    </div>
+                <div class="matches-scroll-container" style="max-height: 600px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;">
+                    ${matchesHTML}
                 </div>
             `;
-
-            // Reset or continue carousel timer
-            clearTimeout(matchCarouselTimer);
-            lastMatchCarouselTime = Date.now();
-            
-            if (currentMatchPage < maxPage) {
-                matchCarouselTimer = setTimeout(() => {
-                    currentMatchPage++;
-                    updateRecentMatches(matches);
-                }, 10000); // Auto-advance every 10 seconds
-            }
         }
 
         function addMatchToFeed(match) {
@@ -1124,21 +1514,6 @@
             }
         }
 
-        function nextMatchesPage() {
-            const maxPage = Math.max(0, Math.ceil(recentMatches.length / matchesPerPage) - 1);
-            if (currentMatchPage < maxPage) {
-                currentMatchPage++;
-                updateRecentMatches(recentMatches);
-            }
-        }
-
-        function previousMatchesPage() {
-            if (currentMatchPage > 0) {
-                currentMatchPage--;
-                updateRecentMatches(recentMatches);
-            }
-        }
-
         function logMessage(message, type = 'info') {
             const messagesDiv = document.getElementById('messages');
             const timestamp = new Date().toLocaleTimeString();
@@ -1159,29 +1534,6 @@
             document.getElementById('messages').innerHTML = '';
         }
 
-        async function clearAllData() {
-            if (!confirm('Are you sure you want to clear all tournament data from both Frontend and Backend? This action cannot be undone.')) {
-                return;
-            }
-
-            try {
-                logMessage('Clearing all data...', 'info');
-                const response = await fetch('/api/tournament/clear', { method: 'POST' });
-                if (!response.ok) {
-                    throw new Error(`Clear failed: ${response.status}`);
-                }
-                logMessage('All data cleared successfully', 'success');
-                lastState = null;
-                recentMatches = [];
-                currentMatchPage = 0;
-                clearTimeout(matchCarouselTimer);
-                matchCarouselTimer = null;
-                updateFromState({ OverallLeaderboard: [], GroupStandings: [], RecentMatches: [] });
-            } catch (err) {
-                logMessage(`Error clearing data: ${err}`, 'error');
-            }
-        }
-
         function setupLogPanel() {
             const panel = document.getElementById('logPanel');
             const toggle = document.getElementById('logToggle');
@@ -1193,8 +1545,12 @@
         }
 
         setupLogPanel();
-        // Initialize connection status as disconnected
-        updateConnectionStatus(false);
+        
+        // Start Israel time clock update
+        updateIsraelTime();
+        if (israelTimeTimer) clearInterval(israelTimeTimer);
+        israelTimeTimer = setInterval(updateIsraelTime, 1000);
+        
         start();
     </script>
 </body>
