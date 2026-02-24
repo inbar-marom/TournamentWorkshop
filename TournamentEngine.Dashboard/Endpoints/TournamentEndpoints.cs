@@ -99,6 +99,7 @@ public static class TournamentEndpoints
             if (state?.GroupStandings != null && state.GroupStandings.Count > 0)
             {
                 var groupsFromState = state.GroupStandings
+                    .Where(g => (g.EventName ?? string.Empty).Equals(eventName, StringComparison.OrdinalIgnoreCase))
                     .Select(g => new GroupInfoDto
                     {
                         GroupId = g.GroupId,

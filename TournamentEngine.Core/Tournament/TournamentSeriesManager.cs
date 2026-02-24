@@ -86,7 +86,8 @@ public class TournamentSeriesManager
             {
                 StepIndex = index + 1,
                 GameType = gameType,
-                Status = index == 0 ? EventStepStatus.InProgress : EventStepStatus.NotStarted
+                Status = index == 0 ? EventStepStatus.InProgress : EventStepStatus.NotStarted,
+                EventName = $"{gameType} Tournament #{index + 1}"
             })
             .ToList();
 
@@ -120,9 +121,14 @@ public class TournamentSeriesManager
             cancellationToken.ThrowIfCancellationRequested();
 
             var gameType = config.GameTypes[i];
-            var tournamentName = $"{gameType} Tournament #{i + 1}";
+            var tournamentName = steps[i].EventName ?? $"{gameType} Tournament #{i + 1}";
             var tournamentInfo = await _tournamentManager.RunTournamentAsync(
-                bots, gameType, config.BaseConfig, cancellationToken);
+                bots,
+                gameType,
+                config.BaseConfig,
+                cancellationToken,
+                i + 1,
+                tournamentName);
 
             seriesInfo.Tournaments.Add(tournamentInfo);
 

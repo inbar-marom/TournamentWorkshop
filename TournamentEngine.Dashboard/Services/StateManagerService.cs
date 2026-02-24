@@ -1,3 +1,4 @@
+﻿using TournamentEngine.Core.Common;
 using TournamentEngine.Core.Common.Dashboard;
 
 namespace TournamentEngine.Dashboard.Services;
@@ -18,7 +19,13 @@ public class StateManagerService
     /// </summary>
     private readonly Dictionary<string, Dictionary<string, List<RecentMatchDto>>> _matchesByEventAndGroup = 
         new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, HashSet<string>> _eventKeysByAlias = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<TeamStandingDto>> _standingsByEventId = new(StringComparer.OrdinalIgnoreCase);
+
+    // Read-through cache: avoids lock contention from many concurrent dashboard viewers
+    private volatile DashboardStateDto? _readCache;
+    private long _readCacheTimeTicks = DateTime.MinValue.Ticks;
+    private static readonly long ReadCacheTtlTicks = TimeSpan.FromSeconds(2).Ticks;
 
     public StateManagerService(ILogger<StateManagerService> logger)
     {
@@ -32,15 +39,29 @@ public class StateManagerService
     }
 
     /// <summary>
-    /// Gets the current tournament state snapshot
+    /// Gets the current tournament state snapshot.
+    /// Uses a 2-second read-through cache to avoid lock contention with writers
+    /// during heavy tournament activity (many concurrent dashboard viewers).
     /// </summary>
     public virtual async Task<DashboardStateDto> GetCurrentStateAsync()
     {
+        // Fast path: return cached deep copy if fresh enough
+        var cached = _readCache;
+        if (cached != null && (DateTime.UtcNow.Ticks - Interlocked.Read(ref _readCacheTimeTicks)) < ReadCacheTtlTicks)
+        {
+            return cached;
+        }
+
         await _stateLock.WaitAsync();
         try
         {
-            // CRITICAL: Return a COPY of the state, not the shared instance
-            // Otherwise concurrent requests modify the same object causing stale data
+            // Double-check after acquiring lock
+            cached = _readCache;
+            if (cached != null && (DateTime.UtcNow.Ticks - Interlocked.Read(ref _readCacheTimeTicks)) < ReadCacheTtlTicks)
+            {
+                return cached;
+            }
+
             var currentState = _currentState ?? new DashboardStateDto
             {
                 Status = TournamentStatus.NotStarted,
@@ -48,27 +69,13 @@ public class StateManagerService
                 LastUpdated = DateTime.UtcNow
             };
             
-            // Create a fresh copy
-            var stateCopy = new DashboardStateDto
-            {
-                TournamentId = currentState.TournamentId,
-                TournamentName = currentState.TournamentName,
-                Champion = currentState.Champion,
-                Status = currentState.Status,
-                Message = currentState.Message,
-                TournamentProgress = currentState.TournamentProgress,
-                TournamentState = currentState.TournamentState,
-                CurrentEvent = currentState.CurrentEvent,
-                OverallLeaderboard = currentState.OverallLeaderboard,
-                GroupStandings = currentState.GroupStandings,
-                GroupStandingsByEvent = currentState.GroupStandingsByEvent,
-                RecentMatches = new List<RecentMatchDto>(),
-                NextMatch = currentState.NextMatch,
-                ScheduledStartTime = currentState.ScheduledStartTime,
-                LastUpdated = DateTime.UtcNow
-            };
+            // Deep copy all mutable state to prevent concurrent modification exceptions
+            var stateCopy = DeepCopyState(currentState);
             
-            _logger.LogDebug("GetCurrentStateAsync: Status={Status}", stateCopy.Status);
+            _readCache = stateCopy;
+            Interlocked.Exchange(ref _readCacheTimeTicks, DateTime.UtcNow.Ticks);
+            
+            _logger.LogDebug("GetCurrentStateAsync: rebuilt cache, Status={Status}", stateCopy.Status);
             
             return stateCopy;
         }
@@ -76,6 +83,116 @@ public class StateManagerService
         {
             _stateLock.Release();
         }
+    }
+
+    /// <summary>
+    /// Creates a deep copy of DashboardStateDto so readers don't share mutable references with writers
+    /// </summary>
+    private static DashboardStateDto DeepCopyState(DashboardStateDto source)
+    {
+        return new DashboardStateDto
+        {
+            TournamentId = source.TournamentId,
+            TournamentName = source.TournamentName,
+            Champion = source.Champion,
+            Status = source.Status,
+            Message = source.Message,
+            TournamentProgress = source.TournamentProgress == null ? null : new TournamentProgressDto
+            {
+                TournamentId = source.TournamentProgress.TournamentId,
+                Events = source.TournamentProgress.Events?.Select(e => new EventInTournamentDto
+                {
+                    EventNumber = e.EventNumber,
+                    GameType = e.GameType,
+                    Status = e.Status,
+                    Champion = e.Champion,
+                    StartTime = e.StartTime,
+                    EndTime = e.EndTime
+                }).ToList() ?? new List<EventInTournamentDto>(),
+                CompletedCount = source.TournamentProgress.CompletedCount,
+                TotalCount = source.TournamentProgress.TotalCount,
+                CurrentEventIndex = source.TournamentProgress.CurrentEventIndex
+            },
+            TournamentState = source.TournamentState == null ? null : new TournamentStateDto
+            {
+                TournamentId = source.TournamentState.TournamentId,
+                TournamentName = source.TournamentState.TournamentName,
+                TotalSteps = source.TournamentState.TotalSteps,
+                CurrentStepIndex = source.TournamentState.CurrentStepIndex,
+                Status = source.TournamentState.Status,
+                Steps = source.TournamentState.Steps?.Select(s => new EventStepDto
+                {
+                    StepIndex = s.StepIndex,
+                    GameType = s.GameType,
+                    Status = s.Status,
+                    WinnerName = s.WinnerName,
+                    EventId = s.EventId,
+                    EventName = s.EventName,
+                    TournamentId = s.TournamentId
+                }).ToList() ?? new List<EventStepDto>(),
+                LastUpdated = source.TournamentState.LastUpdated
+            },
+            CurrentEvent = source.CurrentEvent == null ? null : new CurrentEventDto
+            {
+                TournamentNumber = source.CurrentEvent.TournamentNumber,
+                GameType = source.CurrentEvent.GameType,
+                Stage = source.CurrentEvent.Stage,
+                CurrentRound = source.CurrentEvent.CurrentRound,
+                TotalRounds = source.CurrentEvent.TotalRounds,
+                MatchesCompleted = source.CurrentEvent.MatchesCompleted,
+                TotalMatches = source.CurrentEvent.TotalMatches,
+                ProgressPercentage = source.CurrentEvent.ProgressPercentage
+            },
+            OverallLeaderboard = source.OverallLeaderboard?.Select(l => new TeamStandingDto
+            {
+                Rank = l.Rank,
+                TeamName = l.TeamName,
+                TotalPoints = l.TotalPoints,
+                TournamentWins = l.TournamentWins,
+                TotalWins = l.TotalWins,
+                TotalLosses = l.TotalLosses,
+                RankChange = l.RankChange
+            }).ToList() ?? new List<TeamStandingDto>(),
+            GroupStandings = source.GroupStandings?.Select(g => new GroupDto
+            {
+                GroupId = g.GroupId,
+                GroupName = g.GroupName,
+                EventName = g.EventName,
+                EventId = g.EventId,
+                Rankings = g.Rankings?.Select(r => new BotRankingDto
+                {
+                    Rank = r.Rank,
+                    TeamName = r.TeamName,
+                    Wins = r.Wins,
+                    Losses = r.Losses,
+                    Draws = r.Draws,
+                    Points = r.Points
+                }).ToList() ?? new List<BotRankingDto>()
+            }).ToList() ?? new List<GroupDto>(),
+            RecentMatches = new List<RecentMatchDto>(),
+            NextMatch = source.NextMatch,
+            ScheduledStartTime = source.ScheduledStartTime,
+            GroupStandingsByEvent = source.GroupStandingsByEvent?.ToDictionary(
+                kvp => kvp.Key,
+                kvp => kvp.Value?.Select(g => new GroupDto
+                {
+                    GroupId = g.GroupId,
+                    GroupName = g.GroupName,
+                    EventName = g.EventName,
+                    EventId = g.EventId,
+                    Rankings = g.Rankings?.Select(r => new BotRankingDto
+                    {
+                        Rank = r.Rank,
+                        TeamName = r.TeamName,
+                        Wins = r.Wins,
+                        Losses = r.Losses,
+                        Draws = r.Draws,
+                        Points = r.Points
+                    }).ToList() ?? new List<BotRankingDto>()
+                }).ToList() ?? new List<GroupDto>()
+            ) ?? new Dictionary<int, List<GroupDto>>(),
+            LastUpdated = source.LastUpdated
+        };
     }
 
     /// <summary>
@@ -125,6 +242,15 @@ public class StateManagerService
                 }
             }
 
+            // Preserve GroupStandingsByEvent (historical group data per event index)
+            if (_currentState?.GroupStandingsByEvent?.Count > 0)
+            {
+                if (newState.GroupStandingsByEvent == null || newState.GroupStandingsByEvent.Count == 0)
+                {
+                    newState.GroupStandingsByEvent = _currentState.GroupStandingsByEvent;
+                }
+            }
+
             if (_standingsByEventId.Count > 0)
             {
                 var cumulativeLeaderboard = BuildCumulativeLeaderboard();
@@ -136,6 +262,8 @@ public class StateManagerService
 
             _currentState = newState;
             _currentState.LastUpdated = DateTime.UtcNow;
+            // Invalidate read cache so next reader picks up fresh data
+            Interlocked.Exchange(ref _readCacheTimeTicks, 0L);
             _logger.LogDebug("Dashboard state updated: {Status}", newState.Status);
         }
         finally
@@ -209,15 +337,24 @@ public class StateManagerService
         lock (_matchesLock)
         {
             var normalizedEvent = NormalizeEventKey(eventName);
-            if (!_matchesByEventAndGroup.TryGetValue(normalizedEvent, out var eventDict))
+            var candidateKeys = ResolveEventStorageKeys(normalizedEvent);
+            if (candidateKeys.Count == 0)
             {
                 return new List<RecentMatchDto>();
             }
 
             var allEventMatches = new List<RecentMatchDto>();
-            foreach (var matches in eventDict.Values)
+            foreach (var eventKey in candidateKeys)
             {
-                allEventMatches.AddRange(matches);
+                if (!_matchesByEventAndGroup.TryGetValue(eventKey, out var eventDict))
+                {
+                    continue;
+                }
+
+                foreach (var matches in eventDict.Values)
+                {
+                    allEventMatches.AddRange(matches);
+                }
             }
 
             return allEventMatches
@@ -241,17 +378,28 @@ public class StateManagerService
             var normalizedEvent = NormalizeEventKey(eventName);
             var normalizedGroup = NormalizeGroupKey(groupLabel);
 
-            if (!_matchesByEventAndGroup.TryGetValue(normalizedEvent, out var eventDict))
+            var candidateEventKeys = ResolveEventStorageKeys(normalizedEvent);
+            if (candidateEventKeys.Count == 0)
             {
                 return new List<RecentMatchDto>();
             }
 
-            if (!eventDict.TryGetValue(normalizedGroup, out var matches))
+            var eventGroupMatches = new List<RecentMatchDto>();
+
+            foreach (var eventKey in candidateEventKeys)
             {
-                return new List<RecentMatchDto>();
+                if (!_matchesByEventAndGroup.TryGetValue(eventKey, out var eventDict))
+                {
+                    continue;
+                }
+
+                if (eventDict.TryGetValue(normalizedGroup, out var matches))
+                {
+                    eventGroupMatches.AddRange(matches);
+                }
             }
 
-            return matches
+            return eventGroupMatches
                 .OrderByDescending(m => m.CompletedAt)
                 .ToList();
         }
@@ -259,28 +407,46 @@ public class StateManagerService
 
     /// <summary>
     /// Gets groups for a specific event, including standings when available.
+    /// Uses cached state to avoid lock contention during heavy tournament activity.
     /// </summary>
-    public virtual List<GroupDto> GetGroupsByEvent(string eventName)
+    public virtual async Task<List<GroupDto>> GetGroupsByEventAsync(string eventName)
     {
         if (string.IsNullOrWhiteSpace(eventName))
         {
             return new List<GroupDto>();
         }
 
-        lock (_matchesLock)
+        // Use the read-cached state copy (avoids holding _stateLock)
+        var cachedState = await GetCurrentStateAsync();
+
+        // Check groups from state's GroupStandings
+        var groupsFromState = cachedState.GroupStandings?
+            .Where(g => (g.EventName ?? string.Empty).Equals(eventName, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        if (groupsFromState != null && groupsFromState.Count > 0)
         {
-            var groupsFromState = _currentState?.GroupStandings?
-                .Where(g => (g.EventName ?? string.Empty).Equals(eventName, StringComparison.OrdinalIgnoreCase))
-                .ToList() ?? new List<GroupDto>();
-
-            if (groupsFromState.Count > 0)
-            {
-                return groupsFromState;
-            }
-
-            var eventMatches = GetMatchesByEvent(eventName);
-            return BuildGroupsFromMatches(eventName, eventMatches);
+            return groupsFromState;
         }
+
+        // Check GroupStandingsByEvent for historical events
+        if (cachedState.GroupStandingsByEvent != null)
+        {
+            foreach (var kvp in cachedState.GroupStandingsByEvent)
+            {
+                var eventGroups = kvp.Value?
+                    .Where(g => (g.EventName ?? string.Empty).Equals(eventName, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+                if (eventGroups != null && eventGroups.Count > 0)
+                {
+                    return eventGroups;
+                }
+            }
+        }
+
+        // Fallback: build groups from match data
+        var eventMatches = GetMatchesByEvent(eventName);
+        return BuildGroupsFromMatches(eventName, eventMatches);
     }
 
     /// <summary>
@@ -330,7 +496,8 @@ public class StateManagerService
             {
                 ResetMatchStorage();
             }
-            _logger.LogInformation("Dashboard state cleared");
+            Interlocked.Exchange(ref _readCacheTimeTicks, 0L);
+            _logger.LogDebug("Dashboard state cleared");
         }
         finally
         {
@@ -352,10 +519,18 @@ public class StateManagerService
                 Status = TournamentStatus.InProgress,
                 LastUpdated = DateTime.UtcNow
             };
+
+            var resolvedEventNumber = eventStarted.EventNumber;
+            if (resolvedEventNumber <= 0)
+            {
+                resolvedEventNumber = _currentState.TournamentState?.CurrentStepIndex
+                    ?? _currentState.TournamentProgress?.CurrentEventIndex
+                    ?? 1;
+            }
             
             _currentState.CurrentEvent = new CurrentEventDto
             {
-                TournamentNumber = eventStarted.EventNumber,
+                TournamentNumber = resolvedEventNumber,
                 GameType = eventStarted.GameType,
                 Stage = TournamentStage.GroupStage,
                 CurrentRound = 1,
@@ -368,8 +543,9 @@ public class StateManagerService
             _currentState.Status = TournamentStatus.InProgress;
             _currentState.Message = $"Event started: {eventStarted.GameType}";
             _currentState.LastUpdated = DateTime.UtcNow;
+            Interlocked.Exchange(ref _readCacheTimeTicks, 0L);
             
-            _logger.LogInformation("Event started: {Id} - {Name} - {GameType}", 
+            _logger.LogDebug("Event started: {Id} - {Name} - {GameType}", 
                 eventStarted.EventId, eventStarted.EventName, eventStarted.GameType);
         }
         finally
@@ -385,7 +561,7 @@ public class StateManagerService
     {
         await Task.Run(() => AddRecentMatch(match));
         var totalMatches = GetAllMatches().Count;
-        _logger.LogInformation("Match added: {Bot1} vs {Bot2}, Winner: {Winner}, Total matches: {Count}", 
+        _logger.LogDebug("Match added: {Bot1} vs {Bot2}, Winner: {Winner}, Total matches: {Count}", 
             match.Bot1Name, match.Bot2Name, match.WinnerName ?? "Draw", totalMatches);
     }
 
@@ -429,19 +605,47 @@ public class StateManagerService
                 // Use TournamentNumber as the event index (0-based or 1-based depending on the system)
                 int eventIndex = _currentState.CurrentEvent.TournamentNumber - 1; // Assuming 1-based, convert to 0-based
                 if (eventIndex < 0) eventIndex = 0; // Fallback
+                var eventIdentity = ResolveCurrentEventIdentity(eventIndex);
+                var eventTaggedGroups = TagGroupsWithEventIdentity(standingsEvent.GroupStandings, eventIdentity.eventId, eventIdentity.eventName);
                 
                 if (!_currentState.GroupStandingsByEvent.ContainsKey(eventIndex))
                 {
                     _currentState.GroupStandingsByEvent[eventIndex] = new List<GroupDto>();
                 }
                 
-                _currentState.GroupStandingsByEvent[eventIndex] = standingsEvent.GroupStandings;
+                // MERGE into existing groups (do not replace) so Group A-J are preserved
+                // when "Final Group-finalStandings" standings arrive at the end of an event.
+                var existingByEvent = _currentState.GroupStandingsByEvent[eventIndex];
+                foreach (var newGroup in eventTaggedGroups)
+                {
+                    var idx = existingByEvent.FindIndex(g =>
+                        g.GroupName.Equals(newGroup.GroupName, StringComparison.OrdinalIgnoreCase));
+                    if (idx >= 0)
+                        existingByEvent[idx] = newGroup;
+                    else
+                        existingByEvent.Add(newGroup);
+                }
             }
 
-            // Also update current group standings for display
+            // Also merge into current group standings for display (preserves all groups across all events)
             if (standingsEvent.GroupStandings != null && standingsEvent.GroupStandings.Count > 0)
             {
-                _currentState.GroupStandings = standingsEvent.GroupStandings;
+                var currentGroups = _currentState.GroupStandings ?? new List<GroupDto>();
+                var eventIndex = Math.Max(0, (_currentState.CurrentEvent?.TournamentNumber ?? 1) - 1);
+                var eventIdentity = ResolveCurrentEventIdentity(eventIndex);
+                var eventTaggedGroups = TagGroupsWithEventIdentity(standingsEvent.GroupStandings, eventIdentity.eventId, eventIdentity.eventName);
+
+                foreach (var newGroup in eventTaggedGroups)
+                {
+                    var idx = currentGroups.FindIndex(g =>
+                        g.GroupName.Equals(newGroup.GroupName, StringComparison.OrdinalIgnoreCase) &&
+                        (g.EventName ?? string.Empty).Equals(newGroup.EventName ?? string.Empty, StringComparison.OrdinalIgnoreCase));
+                    if (idx >= 0)
+                        currentGroups[idx] = newGroup;
+                    else
+                        currentGroups.Add(newGroup);
+                }
+                _currentState.GroupStandings = currentGroups;
             }
 
             var cumulativeLeaderboard = BuildCumulativeLeaderboard();
@@ -450,10 +654,11 @@ public class StateManagerService
                 _currentState.OverallLeaderboard = cumulativeLeaderboard;
             }
             _currentState.LastUpdated = DateTime.UtcNow;
+            Interlocked.Exchange(ref _readCacheTimeTicks, 0L);
             _logger.LogDebug(
                 "Standings updated for event {EventId}: {BotCount} bots. Aggregated leaderboard entries: {AggregatedCount}",
                 eventId,
-                standingsEvent.OverallStandings.Count,
+                standingsEvent.OverallStandings?.Count ?? 0,
                 _currentState.OverallLeaderboard.Count);
         }
         finally
@@ -476,7 +681,8 @@ public class StateManagerService
                 _currentState.CurrentEvent = null;
                 _currentState.Message = $"Event completed! Champion: {completedEvent.Champion}";
                 _currentState.LastUpdated = DateTime.UtcNow;
-                _logger.LogInformation("Event completed: {Champion} wins!", completedEvent.Champion);
+                Interlocked.Exchange(ref _readCacheTimeTicks, 0L);
+                _logger.LogDebug("Event completed: {Champion} wins!", completedEvent.Champion);
             }
         }
         finally
@@ -522,6 +728,7 @@ public class StateManagerService
 
             _logger.LogInformation("Tournament started: {TournamentName} with {TotalSteps} steps", tournamentEvent.TournamentName, tournamentEvent.TotalSteps);
             _currentState.LastUpdated = DateTime.UtcNow;
+            Interlocked.Exchange(ref _readCacheTimeTicks, 0L);
         }
         finally
         {
@@ -556,12 +763,13 @@ public class StateManagerService
                 }
                 
                 _currentState.TournamentState = progressEvent.TournamentState;
-                _logger.LogInformation("Tournament state updated: {TournamentName} - Step {CurrentStep}/{TotalSteps}",
+                _logger.LogDebug("Tournament state updated: {TournamentName} - Step {CurrentStep}/{TotalSteps}",
                     progressEvent.TournamentState.TournamentName,
                     progressEvent.TournamentState.CurrentStepIndex,
                     progressEvent.TournamentState.TotalSteps);
             }
             _currentState.LastUpdated = DateTime.UtcNow;
+            Interlocked.Exchange(ref _readCacheTimeTicks, 0L);
         }
         finally
         {
@@ -610,10 +818,11 @@ public class StateManagerService
             step.EventName = completedEvent.EventName;
             step.TournamentId = completedEvent.TournamentId;
 
-            _logger.LogInformation("Event step completed: {StepIndex} - {WinnerName}", completedEvent.StepIndex, completedEvent.WinnerName);
+            _logger.LogDebug("Event step completed: {StepIndex} - {WinnerName}", completedEvent.StepIndex, completedEvent.WinnerName);
 
             _currentState.TournamentState.LastUpdated = DateTime.UtcNow;
             _currentState.LastUpdated = DateTime.UtcNow;
+            Interlocked.Exchange(ref _readCacheTimeTicks, 0L);
         }
         finally
         {
@@ -652,8 +861,9 @@ public class StateManagerService
             _currentState.Message = $"Tournament completed! Champion: {completedEvent.Champion}";
             _currentState.Status = TournamentStatus.Completed;
             _currentState.LastUpdated = DateTime.UtcNow;
+            Interlocked.Exchange(ref _readCacheTimeTicks, 0L);
             
-            _logger.LogInformation("Tournament completed: {TournamentName} - Champion: {Champion}", 
+            _logger.LogDebug("Tournament completed: {TournamentName} - Champion: {Champion}", 
                 completedEvent.TournamentName, completedEvent.Champion);
         }
         finally
@@ -720,17 +930,26 @@ public class StateManagerService
         var eventName = string.IsNullOrWhiteSpace(match.EventName)
             ? match.GameType.ToString()
             : match.EventName;
+        var eventId = match.EventId;
         var groupLabel = match.GroupLabel ?? string.Empty;
 
-        if (string.IsNullOrWhiteSpace(eventName) || string.IsNullOrWhiteSpace(groupLabel))
+        if ((string.IsNullOrWhiteSpace(eventName) && string.IsNullOrWhiteSpace(eventId)) || string.IsNullOrWhiteSpace(groupLabel))
         {
             _logger.LogWarning("Cannot add match without event and group: Event={Event}, Group={Group}", 
-                eventName, groupLabel);
+                eventName ?? eventId, groupLabel);
             return;
         }
 
-        var normalizedEvent = NormalizeEventKey(eventName);
+        var normalizedEvent = !string.IsNullOrWhiteSpace(eventId)
+            ? NormalizeEventKey(eventId)
+            : NormalizeEventKey(eventName);
         var normalizedGroup = NormalizeGroupKey(groupLabel);
+
+        RegisterEventAlias(normalizedEvent, normalizedEvent);
+        if (!string.IsNullOrWhiteSpace(eventName))
+        {
+            RegisterEventAlias(normalizedEvent, NormalizeEventKey(eventName));
+        }
 
         // Ensure event dictionary exists
         if (!_matchesByEventAndGroup.TryGetValue(normalizedEvent, out var eventDict))
@@ -746,15 +965,149 @@ public class StateManagerService
             eventDict[normalizedGroup] = matches;
         }
 
+        var existingIndex = matches.FindIndex(existing => IsLikelySameMatch(existing, match));
+        if (existingIndex >= 0)
+        {
+            matches[existingIndex] = MergeMatch(matches[existingIndex], match);
+            _logger.LogDebug("Match merged in storage: Event={Event}, Group={Group}, MatchId={MatchId}",
+                normalizedEvent, normalizedGroup, match.MatchId);
+            return;
+        }
+
         // Add match to the list
         matches.Add(match);
         _logger.LogDebug("Match added to storage: Event={Event}, Group={Group}, MatchId={MatchId}", 
             normalizedEvent, normalizedGroup, match.MatchId);
     }
 
+    private static bool IsLikelySameMatch(RecentMatchDto left, RecentMatchDto right)
+    {
+        if (!string.IsNullOrWhiteSpace(left.MatchId) &&
+            !string.IsNullOrWhiteSpace(right.MatchId) &&
+            left.MatchId.Equals(right.MatchId, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (!left.Bot1Name.Equals(right.Bot1Name, StringComparison.OrdinalIgnoreCase) ||
+            !left.Bot2Name.Equals(right.Bot2Name, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (left.Bot1Score != right.Bot1Score || left.Bot2Score != right.Bot2Score)
+        {
+            return false;
+        }
+
+        var timeDiff = (left.CompletedAt - right.CompletedAt).Duration();
+        return timeDiff <= TimeSpan.FromSeconds(2);
+    }
+
+    private static RecentMatchDto MergeMatch(RecentMatchDto existing, RecentMatchDto incoming)
+    {
+        var incomingResolved = incoming.Outcome != MatchOutcome.Unknown;
+        var existingResolved = existing.Outcome != MatchOutcome.Unknown;
+
+        var primary = incomingResolved || !existingResolved ? incoming : existing;
+        var secondary = ReferenceEquals(primary, incoming) ? existing : incoming;
+
+        return new RecentMatchDto
+        {
+            MatchId = !string.IsNullOrWhiteSpace(primary.MatchId) ? primary.MatchId : secondary.MatchId,
+            TournamentId = !string.IsNullOrWhiteSpace(primary.TournamentId) ? primary.TournamentId : secondary.TournamentId,
+            TournamentName = !string.IsNullOrWhiteSpace(primary.TournamentName) ? primary.TournamentName : secondary.TournamentName,
+            EventId = !string.IsNullOrWhiteSpace(primary.EventId) ? primary.EventId : secondary.EventId,
+            EventName = !string.IsNullOrWhiteSpace(primary.EventName) ? primary.EventName : secondary.EventName,
+            Bot1Name = !string.IsNullOrWhiteSpace(primary.Bot1Name) ? primary.Bot1Name : secondary.Bot1Name,
+            Bot2Name = !string.IsNullOrWhiteSpace(primary.Bot2Name) ? primary.Bot2Name : secondary.Bot2Name,
+            Outcome = primary.Outcome != MatchOutcome.Unknown ? primary.Outcome : secondary.Outcome,
+            WinnerName = !string.IsNullOrWhiteSpace(primary.WinnerName) ? primary.WinnerName : secondary.WinnerName,
+            Bot1Score = primary.Bot1Score,
+            Bot2Score = primary.Bot2Score,
+            CompletedAt = primary.CompletedAt >= secondary.CompletedAt ? primary.CompletedAt : secondary.CompletedAt,
+            GameType = primary.GameType,
+            GroupId = !string.IsNullOrWhiteSpace(primary.GroupId) ? primary.GroupId : secondary.GroupId,
+            GroupLabel = !string.IsNullOrWhiteSpace(primary.GroupLabel) ? primary.GroupLabel : secondary.GroupLabel
+        };
+    }
+
     private void ResetMatchStorage()
     {
         _matchesByEventAndGroup.Clear();
+        _eventKeysByAlias.Clear();
+    }
+
+    private HashSet<string> ResolveEventStorageKeys(string normalizedEventOrAlias)
+    {
+        var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        if (_matchesByEventAndGroup.ContainsKey(normalizedEventOrAlias))
+        {
+            keys.Add(normalizedEventOrAlias);
+        }
+
+        if (_eventKeysByAlias.TryGetValue(normalizedEventOrAlias, out var aliasedKeys))
+        {
+            foreach (var key in aliasedKeys)
+            {
+                keys.Add(key);
+            }
+        }
+
+        return keys;
+    }
+
+    private void RegisterEventAlias(string eventStorageKey, string alias)
+    {
+        if (string.IsNullOrWhiteSpace(eventStorageKey) || string.IsNullOrWhiteSpace(alias))
+        {
+            return;
+        }
+
+        if (!_eventKeysByAlias.TryGetValue(alias, out var eventKeys))
+        {
+            eventKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            _eventKeysByAlias[alias] = eventKeys;
+        }
+
+        eventKeys.Add(eventStorageKey);
+    }
+
+    private (string eventId, string eventName) ResolveCurrentEventIdentity(int eventIndex)
+    {
+        var step = _currentState?.TournamentState?.Steps?
+            .FirstOrDefault(s => s.StepIndex == eventIndex + 1);
+
+        var resolvedEventId = !string.IsNullOrWhiteSpace(step?.EventId)
+            ? step!.EventId!
+            : _currentState?.TournamentId ?? string.Empty;
+
+        var resolvedEventName = !string.IsNullOrWhiteSpace(step?.EventName)
+            ? step!.EventName!
+            : step?.GameType.ToString() ?? _currentState?.CurrentEvent?.GameType.ToString() ?? string.Empty;
+
+        return (resolvedEventId, resolvedEventName);
+    }
+
+    private static List<GroupDto> TagGroupsWithEventIdentity(List<GroupDto> groups, string eventId, string eventName)
+    {
+        return groups.Select(group => new GroupDto
+        {
+            GroupId = group.GroupId,
+            GroupName = group.GroupName,
+            EventId = string.IsNullOrWhiteSpace(group.EventId) ? eventId : group.EventId,
+            EventName = string.IsNullOrWhiteSpace(group.EventName) ? eventName : group.EventName,
+            Rankings = group.Rankings?.Select(r => new BotRankingDto
+            {
+                Rank = r.Rank,
+                TeamName = r.TeamName,
+                Wins = r.Wins,
+                Losses = r.Losses,
+                Draws = r.Draws,
+                Points = r.Points
+            }).ToList() ?? new List<BotRankingDto>()
+        }).ToList();
     }
 
     private static List<GroupDto> BuildGroupsFromMatches(string eventName, List<RecentMatchDto> matches)

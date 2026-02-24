@@ -134,6 +134,9 @@ public sealed class ScoringSystem : IScoringSystem
         var standings = new Dictionary<string, TournamentStanding>(StringComparer.OrdinalIgnoreCase);
         foreach (var match in matchResults)
         {
+            if (IsTiebreakMatch(match))
+                continue;
+
             UpdateStandings(match, standings);
         }
 
@@ -192,6 +195,9 @@ public sealed class ScoringSystem : IScoringSystem
 
         foreach (var match in tournamentInfo.MatchResults)
         {
+            if (IsTiebreakMatch(match))
+                continue;
+
             UpdateStandings(match, standings);
         }
 
@@ -244,5 +250,11 @@ public sealed class ScoringSystem : IScoringSystem
             counts[key] = current + 1;
         else
             counts[key] = 1;
+    }
+
+    private static bool IsTiebreakMatch(MatchResult match)
+    {
+        return !string.IsNullOrWhiteSpace(match.GroupLabel)
+            && match.GroupLabel.IndexOf("tiebreak", StringComparison.OrdinalIgnoreCase) >= 0;
     }
 }

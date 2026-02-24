@@ -647,6 +647,76 @@ namespace MultiFileBlockedBot
     }
 
     [TestMethod]
+    public async Task LoadBotFromFolder_BlockedNamespaceInObjFile_IgnoredAndValid()
+    {
+        // Arrange
+        var teamName = "GeneratedFilesTeam";
+        var botFolder = Path.Combine(_testBotsDirectory, $"{teamName}_v1");
+        Directory.CreateDirectory(botFolder);
+
+        var botCode = @"
+using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+using TournamentEngine.Core.Common;
+
+public class GeneratedFilesBot : IBot
+{
+    public string TeamName => ""GeneratedFilesTeam"";
+    public GameType GameType => GameType.RPSLS;
+
+    public async Task<string> MakeMove(GameState gameState, CancellationToken cancellationToken)
+    {
+        await Task.CompletedTask;
+        return ""Rock"";
+    }
+
+    public async Task<int[]> AllocateTroops(GameState gameState, CancellationToken cancellationToken)
+    {
+        await Task.CompletedTask;
+        return new int[] { 20, 20, 20, 20, 20 };
+    }
+
+    public async Task<string> MakePenaltyDecision(GameState gameState, CancellationToken cancellationToken)
+    {
+        await Task.CompletedTask;
+        return ""Left"";
+    }
+
+    public async Task<string> MakeSecurityMove(GameState gameState, CancellationToken cancellationToken)
+    {
+        await Task.CompletedTask;
+        var role = gameState.State.TryGetValue(""Role"", out var r) ? r?.ToString() : ""Attacker"";
+        return role == ""Attacker"" ? ""0"" : ""10,10,10"";
+    }
+}";
+
+        await File.WriteAllTextAsync(Path.Combine(botFolder, "GeneratedFilesBot.cs"), botCode);
+
+        var generatedPath = Path.Combine(botFolder, "obj", "Debug", "net10.0");
+        Directory.CreateDirectory(generatedPath);
+        await File.WriteAllTextAsync(
+            Path.Combine(generatedPath, ".NETCoreApp,Version=v10.0.AssemblyAttributes.cs"),
+            "using System.Reflection;\n[assembly: AssemblyTitle(\"Generated\")]\n");
+
+        var botLoader = new Core.BotLoader.BotLoader();
+
+        // Act
+        var result = await botLoader.LoadBotFromFolderAsync(botFolder);
+
+        // Assert
+        if (!result.IsValid)
+        {
+            var errorsDesc = string.Join("; ", result.ValidationErrors);
+            Assert.Fail($"Expected valid but got errors: {errorsDesc}");
+        }
+        Assert.IsTrue(result.IsValid, "Blocked namespaces inside obj/generated files should be ignored");
+        Assert.IsNotNull(result.BotInstance, "Bot should still load when only generated files use blocked namespaces");
+        Assert.AreEqual(0, result.ValidationErrors.Count, "No validation errors expected from generated files");
+    }
+
+    [TestMethod]
     public async Task LoadBotFromFolder_AllowedNamespaces_CompilesSuccessfully()
     {
         // Arrange
@@ -705,6 +775,11 @@ public class CleanBot : IBot
         var result = await botLoader.LoadBotFromFolderAsync(botFolder);
 
         // Assert
+        if (!result.IsValid)
+        {
+            var errorsDesc = string.Join("; ", result.ValidationErrors);
+            Assert.Fail($"Expected valid but got errors: {errorsDesc}");
+        }
         Assert.IsTrue(result.IsValid, "Bot with only allowed namespaces should be valid");
         Assert.IsNotNull(result.BotInstance, "BotInstance should be created for clean bot");
         Assert.AreEqual(0, result.ValidationErrors.Count, "Clean bot should have no validation errors");

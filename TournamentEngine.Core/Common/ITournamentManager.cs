@@ -17,5 +17,7 @@ public interface ITournamentManager
         List<BotInfo> bots, 
         GameType gameType, 
         TournamentConfig config,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        int eventNumber = 1,
+        string? eventName = null);
 }

@@ -80,32 +80,72 @@ public static class TournamentQueryEndpoints
         try
         {
             var state = await stateManager.GetCurrentStateAsync();
-            var currentEventName = state.CurrentEvent?.GameType.ToString() 
-                ?? state.TournamentState?.Steps?.FirstOrDefault(s => s.StepIndex == state.TournamentState.CurrentStepIndex)?.GameType.ToString() 
-                ?? "Unknown";
-            
+            // Determine current event name using multiple fallbacks so that final
+            // tournament details (events) remain visible after completion. Prefer
+            // the explicit CurrentEvent, then TournamentState.Steps, then
+            // TournamentProgress.Events.
+            string currentEventName = "Unknown";
+            var currentEventIndex = state.TournamentProgress?.CurrentEventIndex ?? state.TournamentState?.CurrentStepIndex ?? -1;
+
+            if (state.CurrentEvent != null)
+            {
+                currentEventName = state.CurrentEvent.GameType.ToString();
+            }
+            else if (state.TournamentState?.Steps != null && state.TournamentState.Steps.Count > 0)
+            {
+                var step = state.TournamentState.Steps.FirstOrDefault(s => s.StepIndex == state.TournamentState.CurrentStepIndex) ?? state.TournamentState.Steps.LastOrDefault();
+                if (step != null) currentEventName = step.EventName ?? step.GameType.ToString();
+            }
+            else if (state.TournamentProgress?.Events != null && state.TournamentProgress.Events.Count > 0)
+            {
+                // Pick the event at CurrentEventIndex if available, otherwise the last event
+                var idx = Math.Max(0, (state.TournamentProgress.CurrentEventIndex > 0 ? state.TournamentProgress.CurrentEventIndex - 1 : state.TournamentProgress.Events.Count - 1));
+                idx = Math.Min(idx, state.TournamentProgress.Events.Count - 1);
+                var evt = state.TournamentProgress.Events.ElementAtOrDefault(idx);
+                if (evt != null) currentEventName = evt.GameType.ToString();
+            }
+
+            var totalEvents = state.TournamentState?.Steps?.Count ?? state.TournamentProgress?.Events?.Count ?? 0;
+
             return Results.Ok(new
             {
                 status = state.Status.ToString(),
                 message = state.Message,
                 tournamentName = state.TournamentName,
                 scheduledStartTime = state.ScheduledStartTime,
-                currentEventIndex = state.TournamentProgress?.CurrentEventIndex ?? state.TournamentState?.CurrentStepIndex ?? -1,
+                currentEventIndex = currentEventIndex,
                 currentEventName = currentEventName,
-                totalEvents = state.TournamentState?.Steps?.Count ?? 0
+                totalEvents = totalEvents
             });
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Error retrieving tournament status");
-            return Results.Ok(new 
-            { 
-                status = nameof(TournamentStatus.NotStarted),
-                message = "Tournament not initialized",
-                currentEventIndex = -1,
-                currentEventName = "Unknown",
-                totalEvents = 0
-            });
+            // Don't mask the real tournament status on transient errors -
+            // try to return at least the cached state status if possible
+            try
+            {
+                var fallbackState = await stateManager.GetCurrentStateAsync();
+                return Results.Ok(new 
+                { 
+                    status = fallbackState.Status.ToString(),
+                    message = fallbackState.Message ?? "Error retrieving full status",
+                    currentEventIndex = -1,
+                    currentEventName = "Unknown",
+                    totalEvents = 0
+                });
+            }
+            catch
+            {
+                return Results.Ok(new 
+                { 
+                    status = nameof(TournamentStatus.NotStarted),
+                    message = "Tournament not initialized",
+                    currentEventIndex = -1,
+                    currentEventName = "Unknown",
+                    totalEvents = 0
+                });
+            }
         }
     }
 
@@ -118,27 +158,48 @@ public static class TournamentQueryEndpoints
         try
         {
             var state = await stateManager.GetCurrentStateAsync();
-            if (state.TournamentState?.Steps == null || state.TournamentState.Steps.Count == 0)
+            // Preference order:
+            // 1. TournamentState.Steps (current running series)
+            // 2. TournamentProgress.Events (finalized series data stored on completion)
+
+            if (state.TournamentState?.Steps != null && state.TournamentState.Steps.Count > 0)
             {
-                logger.LogWarning("GetTournamentEvents: No steps available. TournamentState null={TsNull}, Steps null={StepsNull}",
-                    state.TournamentState == null, state.TournamentState?.Steps == null);
-                return Results.Json(Array.Empty<object>());
+                var events = state.TournamentState.Steps
+                    .OrderBy(s => s.StepIndex)
+                    .Select(step => new
+                    {
+                        stepIndex = step.StepIndex,
+                        eventName = step.EventName ?? step.GameType.ToString(),
+                        status = step.Status.ToString(),
+                        champion = step.Status == EventStepStatus.Completed ? step.WinnerName : null,
+                        eventId = step.EventId
+                    })
+                    .ToList();
+
+                logger.LogInformation("GetTournamentEvents: Returning {Count} events from TournamentState.Steps", events.Count);
+                return Results.Json(events);
+            }
+            
+            if (state.TournamentProgress?.Events != null && state.TournamentProgress.Events.Count > 0)
+            {
+                var events = state.TournamentProgress.Events
+                    .Select(evt => new
+                    {
+                        stepIndex = evt.EventNumber,
+                        eventName = evt.GameType.ToString(),
+                        status = evt.Status.ToString(),
+                        champion = evt.Status == EventItemStatus.Completed ? evt.Champion : null,
+                        eventId = (string?)null
+                    })
+                    .ToList();
+
+                logger.LogInformation("GetTournamentEvents: Returning {Count} events from TournamentProgress.Events", events.Count);
+                return Results.Json(events);
             }
 
-            var events = state.TournamentState.Steps
-                .OrderBy(s => s.StepIndex)
-                .Select(step => new
-                {
-                    stepIndex = step.StepIndex,
-                    eventName = step.GameType.ToString(),
-                    status = step.Status.ToString(),
-                    champion = step.Status == EventStepStatus.Completed ? step.WinnerName : null,
-                    eventId = step.EventId
-                })
-                .ToList();
-
-            logger.LogInformation("GetTournamentEvents: Returning {Count} events", events.Count);
-            return Results.Json(events);
+            logger.LogInformation("GetTournamentEvents: No events available (TournamentState={HasState}, TournamentProgress={HasProgress})",
+                state.TournamentState != null, state.TournamentProgress != null);
+            return Results.Json(Array.Empty<object>());
         }
         catch (Exception ex)
         {
@@ -173,7 +234,7 @@ public static class TournamentQueryEndpoints
     {
         try
         {
-            var groups = stateManager.GetGroupsByEvent(eventName);
+            var groups = await stateManager.GetGroupsByEventAsync(eventName);
             return Results.Ok(groups);
         }
         catch (Exception ex)
@@ -195,7 +256,7 @@ public static class TournamentQueryEndpoints
     {
         try
         {
-            var groups = stateManager.GetGroupsByEvent(eventName);
+            var groups = await stateManager.GetGroupsByEventAsync(eventName);
             var group = groups.FirstOrDefault(g => (g.GroupName ?? string.Empty).Equals(groupLabel, StringComparison.OrdinalIgnoreCase));
             var recentMatches = stateManager.GetMatchesByEventAndGroup(eventName, groupLabel);
 

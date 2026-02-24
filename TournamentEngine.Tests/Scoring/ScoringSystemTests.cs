@@ -216,6 +216,40 @@ public class ScoringSystemTests
     }
 
     [TestMethod]
+    public void GetCurrentRankings_ExcludesTiebreakMatchesFromTotalPoints()
+    {
+        // Arrange
+        var scoringSystem = _scoringSystem;
+        var bots = TestHelpers.CreateDummyBotInfos(3, GameType.RPSLS);
+
+        var regularMatch = TestHelpers.CreateMatchResult("Team1", "Team2", MatchOutcome.Player1Wins);
+        var tiebreakMatch = TestHelpers.CreateMatchResult("Team2", "Team3", MatchOutcome.Player1Wins);
+        tiebreakMatch.GroupLabel = "Event Finals Tiebreak";
+
+        var tournamentInfo = new TournamentInfo
+        {
+            TournamentId = Guid.NewGuid().ToString(),
+            GameType = GameType.RPSLS,
+            State = TournamentState.InProgress,
+            Bots = bots,
+            MatchResults = new List<MatchResult> { regularMatch, tiebreakMatch },
+            StartTime = DateTime.UtcNow
+        };
+
+        // Act
+        var rankings = scoringSystem.GetCurrentRankings(tournamentInfo);
+
+        // Assert
+        var team1 = rankings.Single(r => r.BotName == "Team1");
+        var team2 = rankings.Single(r => r.BotName == "Team2");
+        var team3 = rankings.Single(r => r.BotName == "Team3");
+
+        Assert.AreEqual(3, team1.TotalScore);
+        Assert.AreEqual(0, team2.TotalScore);
+        Assert.AreEqual(0, team3.TotalScore);
+    }
+
+    [TestMethod]
     public void GenerateFinalRankings_AssignsPlacementsInOrder()
     {
         // Arrange

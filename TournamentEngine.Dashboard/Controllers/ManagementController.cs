@@ -158,7 +158,7 @@ public class ManagementController : ControllerBase
         _logger.LogWarning("⚙️ API ENDPOINT: Configuration requested: Threshold={Threshold}s, ScheduledStart={ScheduledStart}", 
             request.FastMatchThresholdSeconds, request.ScheduledStartTime);
 
-        var result = await _managementService.SetFastMatchThresholdAsync(request.FastMatchThresholdSeconds ?? 10);
+        var result = await _managementService.SetFastMatchThresholdAsync(request.FastMatchThresholdSeconds ?? 5);
         if (!result.IsSuccess)
         {
             return BadRequest(new { success = false, message = result.Message });

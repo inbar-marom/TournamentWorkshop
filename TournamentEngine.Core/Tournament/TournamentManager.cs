@@ -27,7 +27,7 @@ public class TournamentManager : ITournamentManager
     /// <summary>
     /// Current fast match threshold in seconds. Can be updated before starting tournament.
     /// </summary>
-    public int FastMatchThresholdSeconds { get; set; } = 10;
+    public int FastMatchThresholdSeconds { get; set; } = 5;
 
     public TournamentManager(ITournamentEngine engine, IGameRunner gameRunner, IScoringSystem scoringSystem, ITournamentEventPublisher? eventPublisher = null)
     {
@@ -41,7 +41,9 @@ public class TournamentManager : ITournamentManager
         List<BotInfo> bots, 
         GameType gameType, 
         TournamentConfig config, 
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        int eventNumber = 1,
+        string? eventName = null)
     {
         if (bots == null || bots.Count < 2)
             throw new ArgumentException("At least 2 bots are required for a tournament", nameof(bots));
@@ -53,7 +55,9 @@ public class TournamentManager : ITournamentManager
 
         // Generate tournament ID and name once for this tournament
         var tournamentId = Interlocked.Increment(ref _tournamentCounter).ToString();
-        var tournamentName = $"{gameType} Tournament #{tournamentId} - {DateTime.UtcNow:MMM dd, yyyy HH:mm}";
+        var tournamentName = string.IsNullOrWhiteSpace(eventName)
+            ? $"{gameType} Tournament #{eventNumber}"
+            : eventName;
 
         // Publish tournament started event
         if (_eventPublisher != null)
@@ -66,7 +70,7 @@ public class TournamentManager : ITournamentManager
                 TotalBots = bots.Count,
                 StartedAt = DateTime.UtcNow,
                 TotalGroups = Math.Max(1, bots.Count / 10),
-                EventNumber = 1
+                EventNumber = eventNumber
             };
             await _eventPublisher.PublishEventStartedAsync(startedEvent);
         }
@@ -182,8 +186,8 @@ public class TournamentManager : ITournamentManager
                     {
                         TournamentId = tournamentId,
                         TournamentName = tournamentName,
-                        EventId = gameType.ToString(),
-                        EventName = gameType.ToString(),
+                        EventId = tournamentId,
+                        EventName = tournamentName,
                         Bot1Name = result.Bot1Name,
                         Bot2Name = result.Bot2Name,
                         Outcome = result.Outcome,
@@ -211,7 +215,7 @@ public class TournamentManager : ITournamentManager
                     {
                         var currentTournamentInfo = _engine.GetTournamentInfo();
                         var standings = CalculateStandingsFromMatches(currentTournamentInfo);
-                        var groupStandings = BuildCurrentGroupStandings(gameType);
+                        var groupStandings = BuildCurrentGroupStandings(tournamentId, tournamentName);
 
                         var standingsEvent = new StandingsUpdatedDto
                         {
@@ -246,7 +250,7 @@ public class TournamentManager : ITournamentManager
                 GameType = gameType,
                 TotalMatches = finalTournamentInfo.MatchResults?.Count ?? 0,
                 CompletedAt = DateTime.UtcNow,
-                EventNumber = 1,
+                EventNumber = eventNumber,
                 Duration = duration
             };
             await _eventPublisher.PublishEventCompletedAsync(completedEvent);
@@ -273,40 +277,64 @@ public class TournamentManager : ITournamentManager
         await Task.Delay(delayWithVariance, cancellationToken);
     }
 
-    private List<GroupDto> BuildCurrentGroupStandings(GameType gameType)
+    private List<GroupDto> BuildCurrentGroupStandings(string eventId, string eventName)
     {
         if (_engine is not GroupStageTournamentEngine groupEngine)
             return new List<GroupDto>();
 
         try
         {
-            var eventName = gameType.ToString();
             var summary = groupEngine.GetCurrentPhaseSummary();
+            var tournamentInfo = _engine.GetTournamentInfo();
+            var cumulativeStats = CalculateTeamStatsFromMatches(tournamentInfo);
             return summary.Groups
                 .Select(group =>
                 {
+                    var isFinalGroup = string.Equals(group.GroupId, "Final-Group", StringComparison.OrdinalIgnoreCase);
+
                     var ordered = group.Standings
+                        .Select(standing =>
+                        {
+                            if (isFinalGroup && cumulativeStats.TryGetValue(standing.BotName, out var totals))
+                            {
+                                return new BotRankingDto
+                                {
+                                    TeamName = standing.BotName,
+                                    Wins = totals.wins,
+                                    Losses = totals.losses,
+                                    Draws = totals.draws,
+                                    Points = totals.points
+                                };
+                            }
+
+                            return new BotRankingDto
+                            {
+                                TeamName = standing.BotName,
+                                Wins = standing.Wins,
+                                Losses = standing.Losses,
+                                Draws = standing.Draws,
+                                Points = standing.Points
+                            };
+                        })
                         .OrderByDescending(s => s.Points)
                         .ThenByDescending(s => s.Wins)
-                        .ThenBy(s => s.BotName, StringComparer.OrdinalIgnoreCase)
+                        .ThenBy(s => s.TeamName, StringComparer.OrdinalIgnoreCase)
                         .ToList();
 
                     var rankings = ordered
-                        .Select((standing, index) => new BotRankingDto
+                        .Select((standing, index) =>
                         {
-                            Rank = index + 1,
-                            TeamName = standing.BotName,
-                            Wins = standing.Wins,
-                            Losses = standing.Losses,
-                            Draws = standing.Draws,
-                            Points = standing.Points
+                            standing.Rank = index + 1;
+                            return standing;
                         })
                         .ToList();
 
                     return new GroupDto
                     {
+                        GroupId = group.GroupId,
                         GroupName = NormalizeGroupName(group.GroupId),
                         EventName = eventName,
+                        EventId = eventId,
                         Rankings = rankings
                     };
                 })
@@ -357,54 +385,74 @@ public class TournamentManager : ITournamentManager
     /// </summary>
     private List<TeamStandingDto> CalculateStandingsFromMatches(TournamentInfo tournamentInfo)
     {
-        // Aggregate tournament points from all matches using scoring system
-        var botScores = new Dictionary<string, (int wins, int tournamentPoints)>();
-
-        // Initialize with all bots
-        foreach (var bot in tournamentInfo.Bots)
-        {
-            botScores[bot.TeamName] = (0, 0);
-        }
-
-        // Calculate wins and tournament points from match results
-        foreach (var match in tournamentInfo.MatchResults ?? new List<MatchResult>())
-        {
-            // Use scoring system to calculate tournament points (3 for win, 1 for draw, 0 for loss)
-            var (player1Points, player2Points) = _scoringSystem.CalculateMatchScore(match);
-
-            // Handle Bot1
-            if (!botScores.ContainsKey(match.Bot1Name))
-                botScores[match.Bot1Name] = (0, 0);
-            
-            var bot1Stats = botScores[match.Bot1Name];
-            bot1Stats.tournamentPoints += player1Points;
-            if (match.Outcome == MatchOutcome.Player1Wins || match.Outcome == MatchOutcome.Player2Error)
-                bot1Stats.wins++;
-            botScores[match.Bot1Name] = bot1Stats;
-
-            // Handle Bot2
-            if (!botScores.ContainsKey(match.Bot2Name))
-                botScores[match.Bot2Name] = (0, 0);
-            
-            var bot2Stats = botScores[match.Bot2Name];
-            bot2Stats.tournamentPoints += player2Points;
-            if (match.Outcome == MatchOutcome.Player2Wins || match.Outcome == MatchOutcome.Player1Error)
-                bot2Stats.wins++;
-            botScores[match.Bot2Name] = bot2Stats;
-        }
+        var botScores = CalculateTeamStatsFromMatches(tournamentInfo);
 
         // Sort by tournament points first, then by wins
         var sortedStandings = botScores
-            .OrderByDescending(kv => kv.Value.tournamentPoints)
+            .OrderByDescending(kv => kv.Value.points)
             .ThenByDescending(kv => kv.Value.wins)
             .Select((kv, index) => new TeamStandingDto
             {
                 Rank = index + 1,
                 TeamName = kv.Key,
-                TotalPoints = kv.Value.tournamentPoints
+                TotalPoints = kv.Value.points,
+                TotalWins = kv.Value.wins,
+                TotalLosses = kv.Value.losses
             })
             .ToList();
 
         return sortedStandings;
+    }
+
+    private Dictionary<string, (int wins, int losses, int draws, int points)> CalculateTeamStatsFromMatches(TournamentInfo tournamentInfo)
+    {
+        var botScores = new Dictionary<string, (int wins, int losses, int draws, int points)>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var bot in tournamentInfo.Bots)
+        {
+            botScores[bot.TeamName] = (0, 0, 0, 0);
+        }
+
+        foreach (var match in tournamentInfo.MatchResults ?? new List<MatchResult>())
+        {
+            if (IsTiebreakMatch(match))
+                continue;
+
+            var (player1Points, player2Points) = _scoringSystem.CalculateMatchScore(match);
+
+            if (!botScores.ContainsKey(match.Bot1Name))
+                botScores[match.Bot1Name] = (0, 0, 0, 0);
+
+            var bot1Stats = botScores[match.Bot1Name];
+            bot1Stats.points += player1Points;
+            if (match.Outcome == MatchOutcome.Player1Wins || match.Outcome == MatchOutcome.Player2Error)
+                bot1Stats.wins++;
+            else if (match.Outcome == MatchOutcome.Player2Wins || match.Outcome == MatchOutcome.Player1Error)
+                bot1Stats.losses++;
+            else
+                bot1Stats.draws++;
+            botScores[match.Bot1Name] = bot1Stats;
+
+            if (!botScores.ContainsKey(match.Bot2Name))
+                botScores[match.Bot2Name] = (0, 0, 0, 0);
+
+            var bot2Stats = botScores[match.Bot2Name];
+            bot2Stats.points += player2Points;
+            if (match.Outcome == MatchOutcome.Player2Wins || match.Outcome == MatchOutcome.Player1Error)
+                bot2Stats.wins++;
+            else if (match.Outcome == MatchOutcome.Player1Wins || match.Outcome == MatchOutcome.Player2Error)
+                bot2Stats.losses++;
+            else
+                bot2Stats.draws++;
+            botScores[match.Bot2Name] = bot2Stats;
+        }
+
+        return botScores;
+    }
+
+    private static bool IsTiebreakMatch(MatchResult match)
+    {
+        return !string.IsNullOrWhiteSpace(match.GroupLabel)
+            && match.GroupLabel.IndexOf("tiebreak", StringComparison.OrdinalIgnoreCase) >= 0;
     }
 }

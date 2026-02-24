@@ -58,6 +58,7 @@ const UI_ELEMENTS = {
     leadersList: '#leadersList',
     eventTabs: '#eventTabs',
     groupList: '#groupList',
+    finalGroupStandingsNote: '#finalGroupStandingsNote',
     standingsTable: '#standingsTable',
     standingsBody: '#standingsBody',
     standingsEmpty: '#standingsEmpty',

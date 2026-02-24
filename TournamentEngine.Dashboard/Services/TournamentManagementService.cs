@@ -50,7 +50,7 @@ public class TournamentManagementService
             BotsReady = false,
             BotCount = 0,
             LastUpdated = DateTime.UtcNow,
-            FastMatchThresholdSeconds = 10,
+            FastMatchThresholdSeconds = 5,
             ScheduledStartTime = null,
             CurrentIsraelTime = DateTime.UtcNow
         };
@@ -570,6 +570,14 @@ public class TournamentManagementService
             var bots = await _botDashboard.LoadValidBotInfosAsync(cancellationToken);
             _logger.LogInformation("Loaded {Count} valid bots for tournament", bots.Count);
 
+            if (_tournamentManager is TournamentManager manager)
+            {
+                manager.FastMatchThresholdSeconds = _managementState.FastMatchThresholdSeconds;
+                _logger.LogInformation(
+                    "Applying fast match reporting delay threshold: {ThresholdSeconds}s to tournament manager",
+                    manager.FastMatchThresholdSeconds);
+            }
+
 
             if (bots.Count < 2)
             {
@@ -637,6 +645,9 @@ public class TournamentManagementService
                 1);
 
             // Create a minimal tournament series config with default settings
+            var cpuCount = Math.Max(2, Environment.ProcessorCount);
+            _logger.LogInformation("Using {CpuCount} parallel matches (based on CPU count)", cpuCount);
+
             var baseConfig = new TournamentConfig
             {
                 ImportTimeout = TimeSpan.FromSeconds(10),
@@ -648,7 +659,8 @@ public class TournamentManagementService
                 MaxRoundsPenaltyKicks = 10,
                 MaxRoundsSecurityGame = 5,
                 GroupCount = computedGroupCount,
-                FinalistsPerGroup = 1
+                FinalistsPerGroup = 1,
+                MaxParallelMatches = cpuCount
             };
 
             var seriesConfig = new TournamentSeriesConfig

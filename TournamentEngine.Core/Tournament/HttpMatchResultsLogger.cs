@@ -36,6 +36,7 @@ public class HttpMatchResultsLogger : IMatchResultsLogger
                 Bot2Name = matchResult.Bot2Name,
                 Bot1Score = matchResult.Bot1Score,
                 Bot2Score = matchResult.Bot2Score,
+                Outcome = matchResult.Outcome,
                 GameType = matchResult.GameType,
                 WinnerName = matchResult.WinnerName,
                 EventName = matchResult.GameType.ToString(),

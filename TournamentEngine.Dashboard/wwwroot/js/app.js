@@ -29,6 +29,10 @@ class TournamentDashboard {
         return String(statusValue || '').toLowerCase() === 'inprogress';
     }
 
+    isExpectedPollingError(error) {
+        return error?.name === 'AbortError' || error?.name === 'TimeoutError' || error?.isTimeout === true;
+    }
+
     /**
      * Initialize the dashboard
      */
@@ -72,9 +76,12 @@ class TournamentDashboard {
             }
 
             // Group items
-            if (e.target.classList.contains('group-item')) {
-                const groupLabel = e.target.dataset.group;
-                this.selectGroup(groupLabel);
+            if (e.target.classList.contains('group-item') || e.target.closest('.group-item')) {
+                const groupEl = e.target.classList.contains('group-item') ? e.target : e.target.closest('.group-item');
+                if (groupEl) {
+                    const groupLabel = groupEl.dataset.group;
+                    this.selectGroup(groupLabel);
+                }
             }
         });
 
@@ -130,6 +137,9 @@ class TournamentDashboard {
             true
         );
 
+        // Leaders (5 sec) - start immediately; will show data when available
+        this.startLeadersPolling();
+
         // Groups (only after event selected, 10 sec)
         // Will be started when event is selected
 
@@ -155,6 +165,7 @@ class TournamentDashboard {
                 uiRenderer.showError('Connection lost!');
             }
         } catch (error) {
+            if (this.isExpectedPollingError(error)) return;
             console.error('Connection poll error:', error);
         }
     }
@@ -187,21 +198,17 @@ class TournamentDashboard {
 
             console.log(`[Status] status=${data.status}, isRunning=${this.tournamentStatus.isRunning}, totalEvents=${data.totalEvents}, currentEvent=${data.currentEventName}`);
 
-            // Start leaders polling when tournament starts
-            if (!oldRunningState && this.tournamentStatus.isRunning) {
-                console.log('[Status] Tournament started → starting leaders polling');
-                this.startLeadersPolling();
-            }
-
-            // Stop leaders polling when tournament ends
+            // When tournament finishes, do a final leaders poll and auto-select event
             if (oldRunningState && !this.tournamentStatus.isRunning) {
-                pollingManager.stop('leaders');
+                // Final poll to get completed standings
+                this.pollLeaders();
                 
                 // Auto-select first event when tournament ends
                 this.onTournamentCompleted();
             }
 
         } catch (error) {
+            if (this.isExpectedPollingError(error)) return;
             console.error('Tournament status poll error:', error);
         }
     }
@@ -220,24 +227,38 @@ class TournamentDashboard {
 
             console.log(`[Events] Received ${data.length} events:`, data.length > 0 ? data.map(e => `${e.eventName}(${e.status})`).join(', ') : 'none');
 
-            this.data.events = data;
-
-            // Update event progress
-            uiRenderer.updateEventProgress(data);
-
-            // Update event champions
-            uiRenderer.updateEventChampions(data);
-
-            // Update event tabs (select first if none selected)
-            if (!this.selectedEvent && data.length > 0) {
-                this.selectEvent(data[0].eventName || data[0].name);
+            // Always preserve previous events when API returns empty - avoids flashing
+            // empty UI during brief gaps (e.g., between tournament init and series start)
+            if (data.length === 0) {
+                console.log('[Events] Empty events received - preserving previous events');
+            } else {
+                this.data.events = data;
             }
 
-            uiRenderer.updateEventTabs(data, 
-                this.selectedEvent ? { eventName: this.selectedEvent } : null
-            );
+            // Always render from cached events data (which may be preserved from prior poll)
+            const eventsToRender = this.data.events;
+            if (eventsToRender && eventsToRender.length > 0) {
+                // Update event progress
+                uiRenderer.updateEventProgress(eventsToRender);
+
+                // Update event champions
+                uiRenderer.updateEventChampions(eventsToRender);
+
+                // Update event tabs (select first if none selected)
+                if (!this.selectedEvent) {
+                    const firstEventName = eventsToRender[0].eventName || eventsToRender[0].name;
+                    if (firstEventName) {
+                        this.selectEvent(firstEventName);
+                    }
+                }
+
+                uiRenderer.updateEventTabs(eventsToRender,
+                    this.selectedEvent ? { eventName: this.selectedEvent } : null
+                );
+            }
 
         } catch (error) {
+            if (this.isExpectedPollingError(error)) return;
             console.error('Events poll error:', error);
         }
     }
@@ -270,10 +291,11 @@ class TournamentDashboard {
 
             this.data.leaders = data;
 
-            // Update overall leaders only if tournament is running
-            uiRenderer.updateOverallLeaders(data, this.tournamentStatus.isRunning);
+            // Always show leaders when we have data
+            uiRenderer.updateOverallLeaders(data, true);
 
         } catch (error) {
+            if (this.isExpectedPollingError(error)) return;
             console.error('Leaders poll error:', error);
         }
     }
@@ -306,30 +328,41 @@ class TournamentDashboard {
             
             if (!data || !Array.isArray(data)) {
                 console.warn(`[Groups] No data for event ${eventName}:`, data);
-                this.data.groups[eventName] = [];
                 return;
             }
 
             console.log(`[Groups] Received ${data.length} groups for ${eventName}:`, data.map(g => g.groupLabel || g.groupName || g.name || '?').join(', '));
 
-            this.data.groups[eventName] = data;
+            // Always preserve when no groups - avoids clearing UI during brief gaps
+            if (data.length === 0) {
+                console.log(`[Groups] Empty groups for ${eventName} - preserving previous groups`);
+            } else {
+                this.data.groups[eventName] = data;
 
-            // Update group list
-            uiRenderer.updateGroupList(data, this.selectedGroup);
+                // Update group list
+                uiRenderer.updateGroupList(data, this.selectedGroup);
 
-            const groupLabels = data
-                .map(group => typeof group === 'string'
-                    ? group
-                    : (group.groupLabel || group.groupName || group.name || ''))
-                .filter(label => !!label);
+                const groupLabels = data
+                    .map(group => typeof group === 'string'
+                        ? group
+                        : (group.groupLabel || group.groupName || group.name || ''))
+                    .filter(label => !!label);
 
-            // Clear selection only if current group truly no longer exists
-            if (this.selectedGroup && !groupLabels.some(label =>
-                String(label).toLowerCase() === String(this.selectedGroup).toLowerCase())) {
-                this.selectGroup(null);
+                // Auto-select first group if none is selected
+                if (!this.selectedGroup && groupLabels.length > 0) {
+                    console.log(`[Groups] Auto-selecting first group: ${groupLabels[0]}`);
+                    this.selectGroup(groupLabels[0]);
+                }
+
+                // Clear selection only if current group truly no longer exists
+                if (this.selectedGroup && !groupLabels.some(label =>
+                    String(label).toLowerCase() === String(this.selectedGroup).toLowerCase())) {
+                    this.selectGroup(null);
+                }
             }
 
         } catch (error) {
+            if (this.isExpectedPollingError(error)) return;
             console.error(`Groups poll error for ${eventName}:`, error);
         }
     }
@@ -368,12 +401,13 @@ class TournamentDashboard {
             this.data.groupDetails[key] = data;
 
             // Update standings
-            uiRenderer.updateGroupStandings(data.groupStanding || data.standings || []);
+            uiRenderer.updateGroupStandings(data.groupStanding || data.standings || [], groupLabel);
 
             // Update matches
             uiRenderer.updateMatches(data.recentMatches || data.matches || []);
 
         } catch (error) {
+            if (this.isExpectedPollingError(error)) return;
             console.error(`Group details poll error for ${eventName}/${groupLabel}:`, error);
         }
     }
@@ -409,7 +443,7 @@ class TournamentDashboard {
         this.startGroupsPolling(eventName);
 
         // Clear standings/matches
-        uiRenderer.updateGroupStandings([]);
+        uiRenderer.updateGroupStandings([], null);
         uiRenderer.updateMatches([]);
 
         console.log(`Event selected: ${eventName}`);
@@ -437,7 +471,7 @@ class TournamentDashboard {
             this.startGroupDetailsPolling(this.selectedEvent, groupLabel);
         } else {
             // Clear standings/matches if group deselected
-            uiRenderer.updateGroupStandings([]);
+            uiRenderer.updateGroupStandings([], null);
             uiRenderer.updateMatches([]);
         }
 

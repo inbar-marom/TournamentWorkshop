@@ -115,9 +115,16 @@ class UIRenderer {
         const labelsContainer = this.getElement('eventLabelsContainer');
         if (labelsContainer) {
             labelsContainer.innerHTML = events.map(event => {
-                const isCurrent = this.normalizeEventStatus(event.status) === 'inprogress';
+                const status = this.normalizeEventStatus(event.status);
+                const isCurrent = status === 'inprogress';
+                const isCompleted = status === 'completed';
                 const eventName = event.eventName || event.name || 'Unknown';
-                return `<div class="event-label ${isCurrent ? 'current' : ''}">${eventName}</div>`;
+                
+                let statusClass = 'not-started';
+                if (isCompleted) statusClass = 'completed';
+                else if (isCurrent) statusClass = 'current';
+                
+                return `<div class="event-label ${statusClass}">${eventName}</div>`;
             }).join('');
         }
     }
@@ -139,24 +146,32 @@ class UIRenderer {
         }
 
         championsList.innerHTML = events.map(event => {
-            let statusText = 'Pending';
-            let statusClass = '';
-
             const normalizedStatus = this.normalizeEventStatus(event.status);
+            const eventName = event.eventName || event.name || 'Unknown';
+            
+            let statusText = '';
+            let statusClass = 'pending';
+            let itemClass = 'pending';
+
             if (normalizedStatus === 'completed') {
-                statusText = event.champion || 'Pending';
+                statusText = event.champion || 'Unknown';
                 statusClass = 'completed';
+                itemClass = 'completed-event';
             } else if (normalizedStatus === 'inprogress') {
-                statusText = 'In Progress';
+                statusText = '\u25B6 In Progress';
+                statusClass = 'in-progress';
+                itemClass = 'in-progress';
+            } else {
+                statusText = '\u25CB Pending';
+                statusClass = 'pending';
+                itemClass = 'pending';
             }
 
-            const eventName = event.eventName || event.name || 'Unknown';
-
             return `
-                <div class="champion-item">
+                <div class="champion-item ${itemClass}">
                     <span class="champion-name">${eventName}</span>
                     <span class="champion-status ${statusClass}">
-                        ${normalizedStatus === 'completed' ? statusText : '◉ ' + statusText}
+                        ${statusText}
                     </span>
                 </div>
             `;
@@ -174,22 +189,19 @@ class UIRenderer {
         const leadersList = this.getElement('leadersList');
         if (!leadersList) return;
 
-        if (!isRunning) {
-            leadersList.innerHTML = '<p class="empty-state">No standings available</p>';
-            return;
-        }
-
         if (!leaders || leaders.length === 0) {
-            leadersList.innerHTML = '<p class="empty-state">No teams yet</p>';
+            leadersList.innerHTML = '<p class="empty-state">No standings available yet</p>';
             return;
         }
 
         leadersList.innerHTML = leaders.slice(0, 10).map((leader, index) => {
             const points = leader.totalPoints ?? leader.points ?? 0;
+            const wins = leader.totalWins ?? leader.wins ?? 0;
+            const losses = leader.totalLosses ?? leader.losses ?? 0;
             return `
                 <div class="leader-item">
                     <span class="leader-name">${index + 1}. ${leader.teamName}</span>
-                    <span class="leader-score">${points} pts</span>
+                    <span class="leader-score">${points} pts (${wins}W/${losses}L)</span>
                 </div>
             `;
         }).join('');
@@ -288,10 +300,16 @@ class UIRenderer {
     /**
      * Update group standings table
      */
-    updateGroupStandings(standings) {
+    updateGroupStandings(standings, selectedGroup = null) {
         const standingsBody = this.getElement('standingsBody');
         const standingsEmpty = this.getElement('standingsEmpty');
         const table = this.getElement('standingsTable');
+        const finalGroupStandingsNote = this.getElement('finalGroupStandingsNote');
+        const isFinalGroupStandings = String(selectedGroup || '').toLowerCase() === 'final group-finalstandings';
+
+        if (finalGroupStandingsNote) {
+            finalGroupStandingsNote.style.display = isFinalGroupStandings ? 'block' : 'none';
+        }
 
         if (!standingsBody || !standingsEmpty) return;
 

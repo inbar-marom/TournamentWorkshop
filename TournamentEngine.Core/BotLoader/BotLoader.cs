@@ -119,7 +119,10 @@ public class BotLoader : IBotLoader
                 };
             }
 
-            var csFiles = Directory.GetFiles(teamFolder, "*.cs", SearchOption.AllDirectories);
+            var csFiles = Directory
+                .EnumerateFiles(teamFolder, "*.cs", SearchOption.AllDirectories)
+                .Where(filePath => !IsBuildGeneratedFile(filePath))
+                .ToArray();
             if (csFiles.Length == 0)
             {
                 return new BotInfo
@@ -402,6 +405,17 @@ using System.Threading.Tasks;
         }
 
         return errors;
+    }
+
+    private static bool IsBuildGeneratedFile(string filePath)
+    {
+        var pathSegments = filePath
+            .Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar)
+            .Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries);
+
+        return pathSegments.Any(segment =>
+            string.Equals(segment, "obj", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(segment, "bin", StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>

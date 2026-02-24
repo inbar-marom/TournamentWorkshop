@@ -206,23 +206,59 @@ html, body {
 
 .event-labels {
     display: flex;
-    gap: 16px;
-    flex-wrap: wrap;
+    gap: 4px;
+    flex-wrap: nowrap;
 }
 
 .event-label {
-    padding: 8px 12px;
+    flex: 1;
+    padding: 10px 8px;
     background-color: var(--light-bg);
     border-radius: 4px;
     font-size: 12px;
-    color: var(--text-dark);
+    color: var(--text-light);
+    text-align: center;
     transition: all 0.2s ease;
+    border: 2px solid var(--border-color);
+    position: relative;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.event-label.completed {
+    background-color: #e8f5e9;
+    border-color: #4caf50;
+    color: #2e7d32;
+    font-weight: 600;
+}
+
+.event-label.completed::before {
+    content: '\2713 ';
+    font-weight: bold;
 }
 
 .event-label.current {
-    background-color: var(--primary-color);
-    color: var(--white);
+    background-color: #e3f2fd;
+    border-color: #2196f3;
+    color: #1565c0;
     font-weight: 600;
+    animation: eventPulse 2s ease-in-out infinite;
+}
+
+.event-label.current::before {
+    content: '\25B6 ';
+}
+
+.event-label.not-started {
+    background-color: #fafafa;
+    border-color: #e0e0e0;
+    color: #bdbdbd;
+}
+
+@keyframes eventPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(33, 150, 243, 0.3); }
+    50% { box-shadow: 0 0 0 4px rgba(33, 150, 243, 0.1); }
 }
 
 /* Champions and Leaders Section */
@@ -252,11 +288,30 @@ html, body {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    transition: all 0.2s ease;
 }
 
 .champion-item:hover,
 .leader-item:hover {
     background-color: #eeeeee;
+}
+
+/* Current event highlight in champions */
+.champion-item.in-progress {
+    background-color: #e3f2fd;
+    border-left-color: #2196f3;
+    border-left-width: 5px;
+    box-shadow: 0 0 0 1px rgba(33, 150, 243, 0.15);
+}
+
+.champion-item.pending {
+    background-color: var(--light-bg);
+    border-left-color: #bdbdbd;
+    opacity: 0.7;
+}
+
+.champion-item.completed-event {
+    border-left-color: #4caf50;
 }
 
 .champion-name,
@@ -275,6 +330,16 @@ html, body {
 .leader-status.completed {
     color: var(--success-color);
     font-weight: 600;
+}
+
+.champion-status.in-progress {
+    color: #1976d2;
+    font-weight: 600;
+}
+
+.champion-status.pending {
+    color: #bdbdbd;
+    font-style: italic;
 }
 
 .leader-score {
@@ -466,6 +531,16 @@ html, body {
     margin-bottom: 16px;
     padding-bottom: 12px;
     border-bottom: 1px solid var(--border-color);
+}
+
+.group-standings-note {
+    margin: -8px 0 12px;
+    padding: 8px 10px;
+    font-size: 12px;
+    color: var(--text-light);
+    background-color: var(--light-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
 }
 
 .standings-wrapper,

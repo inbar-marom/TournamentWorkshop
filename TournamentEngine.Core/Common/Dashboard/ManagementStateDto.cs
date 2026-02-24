@@ -20,9 +20,9 @@ public class ManagementStateDto
     
     /// <summary>
     /// Fast match reporting delay threshold in seconds (configurable).
-    /// Default: 10 seconds. Can be set via management page.
+    /// Default: 5 seconds. Can be set via management page.
     /// </summary>
-    public int FastMatchThresholdSeconds { get; set; } = 10;
+    public int FastMatchThresholdSeconds { get; set; } = 5;
     
     /// <summary>
     /// Current time in Israel timezone (for display on dashboard).

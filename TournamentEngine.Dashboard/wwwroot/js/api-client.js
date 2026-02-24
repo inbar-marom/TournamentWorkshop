@@ -5,7 +5,7 @@
 
 class ApiClient {
     constructor() {
-        this.timeout = 5000; // 5 seconds
+        this.timeout = 15000; // 15 seconds - generous to handle heavy tournament load
         this.retryAttempts = 2;
     }
 
@@ -13,10 +13,10 @@ class ApiClient {
      * Make a generic GET request with error handling
      */
     async get(url) {
-        try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
+        try {
             const response = await fetch(url, {
                 method: 'GET',
                 headers: {
@@ -25,16 +25,24 @@ class ApiClient {
                 signal: controller.signal
             });
 
-            clearTimeout(timeoutId);
-
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
 
             return await response.json();
         } catch (error) {
+            if (error?.name === 'AbortError') {
+                const timeoutError = new Error(`Request timed out after ${this.timeout}ms`);
+                timeoutError.name = 'TimeoutError';
+                timeoutError.url = url;
+                timeoutError.isTimeout = true;
+                throw timeoutError;
+            }
+
             console.error(`API Error (${url}):`, error);
             throw error;
+        } finally {
+            clearTimeout(timeoutId);
         }
     }
 

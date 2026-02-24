@@ -211,7 +211,7 @@ public class StateManagerServiceTests
             CompletedAt = DateTime.UtcNow.AddMinutes(-1)
         });
 
-        var groups = _service.GetGroupsByEvent("RPSLS");
+        var groups = await _service.GetGroupsByEventAsync("RPSLS");
 
         groups.Should().HaveCount(1);
         groups[0].GroupName.Should().Be("A");
@@ -571,5 +571,157 @@ public class StateManagerServiceTests
         state.OverallLeaderboard.Should().Contain(s => s.TeamName == "TeamA" && s.TotalPoints == 7);
         state.OverallLeaderboard.Should().Contain(s => s.TeamName == "TeamB" && s.TotalPoints == 4);
         state.OverallLeaderboard.First().TeamName.Should().Be("TeamA");
+    }
+
+    [Fact]
+    public async Task UpdateStandingsAsync_StoresGroupsPerEventIndex_AndKeepsHistoricalGroupsAccessible()
+    {
+        await _service.UpdateTournamentStartedAsync(new TournamentStartedEventDto
+        {
+            TournamentId = "series-events",
+            TournamentName = "Series Events",
+            TotalSteps = 2,
+            Steps = new List<EventStepDto>
+            {
+                new() { StepIndex = 1, GameType = GameType.RPSLS, Status = EventStepStatus.InProgress, EventName = "RPSLS Tournament #1", EventId = "event-1" },
+                new() { StepIndex = 2, GameType = GameType.ColonelBlotto, Status = EventStepStatus.NotStarted, EventName = "ColonelBlotto Tournament #2", EventId = "event-2" }
+            },
+            StartedAt = DateTime.UtcNow
+        });
+
+        await _service.UpdateEventStartedAsync(new EventStartedEventDto
+        {
+            EventId = "event-1",
+            EventName = "RPSLS Tournament #1",
+            EventNumber = 1,
+            GameType = GameType.RPSLS,
+            StartedAt = DateTime.UtcNow
+        });
+
+        await _service.UpdateStandingsAsync(new StandingsUpdatedDto
+        {
+            TournamentId = "event-1",
+            TournamentName = "RPSLS Tournament #1",
+            GroupStandings = new List<GroupDto>
+            {
+                new()
+                {
+                    GroupId = "Group-1",
+                    GroupName = "Group A",
+                    Rankings = new List<BotRankingDto>
+                    {
+                        new() { TeamName = "Alpha", Rank = 1, Points = 3 }
+                    }
+                }
+            },
+            UpdatedAt = DateTime.UtcNow
+        });
+
+        await _service.UpdateEventStartedAsync(new EventStartedEventDto
+        {
+            EventId = "event-2",
+            EventName = "ColonelBlotto Tournament #2",
+            EventNumber = 2,
+            GameType = GameType.ColonelBlotto,
+            StartedAt = DateTime.UtcNow
+        });
+
+        await _service.UpdateStandingsAsync(new StandingsUpdatedDto
+        {
+            TournamentId = "event-2",
+            TournamentName = "ColonelBlotto Tournament #2",
+            GroupStandings = new List<GroupDto>
+            {
+                new()
+                {
+                    GroupId = "Group-1",
+                    GroupName = "Group A",
+                    Rankings = new List<BotRankingDto>
+                    {
+                        new() { TeamName = "Bravo", Rank = 1, Points = 5 }
+                    }
+                }
+            },
+            UpdatedAt = DateTime.UtcNow
+        });
+
+        var state = await _service.GetCurrentStateAsync();
+        state.GroupStandingsByEvent.Should().ContainKey(0);
+        state.GroupStandingsByEvent.Should().ContainKey(1);
+        state.GroupStandingsByEvent[0].Single().EventName.Should().Be("RPSLS Tournament #1");
+        state.GroupStandingsByEvent[1].Single().EventName.Should().Be("ColonelBlotto Tournament #2");
+
+        var event1Groups = await _service.GetGroupsByEventAsync("RPSLS Tournament #1");
+        var event2Groups = await _service.GetGroupsByEventAsync("ColonelBlotto Tournament #2");
+
+        event1Groups.Should().ContainSingle();
+        event1Groups.Single().Rankings.Single().TeamName.Should().Be("Alpha");
+        event2Groups.Should().ContainSingle();
+        event2Groups.Single().Rankings.Single().TeamName.Should().Be("Bravo");
+    }
+
+    [Fact]
+    public async Task GetMatchesByEvent_SupportsEventIdAndEventNameAliases()
+    {
+        _service.AddRecentMatch(new MatchCompletedDto
+        {
+            MatchId = "match-e1",
+            EventId = "event-1",
+            EventName = "RPSLS Tournament #1",
+            GroupLabel = "Group A",
+            Bot1Name = "Bot1",
+            Bot2Name = "Bot2",
+            CompletedAt = DateTime.UtcNow.AddMinutes(-1)
+        });
+
+        _service.AddRecentMatch(new MatchCompletedDto
+        {
+            MatchId = "match-e2",
+            EventId = "event-2",
+            EventName = "RPSLS Tournament #2",
+            GroupLabel = "Group A",
+            Bot1Name = "Bot3",
+            Bot2Name = "Bot4",
+            CompletedAt = DateTime.UtcNow
+        });
+
+        var event1ById = _service.GetMatchesByEvent("event-1");
+        var event2ByName = _service.GetMatchesByEvent("RPSLS Tournament #2");
+
+        event1ById.Should().ContainSingle();
+        event1ById.Single().MatchId.Should().Be("match-e1");
+        event2ByName.Should().ContainSingle();
+        event2ByName.Single().MatchId.Should().Be("match-e2");
+    }
+
+    [Fact]
+    public async Task GetMatchesByEventAndGroup_SupportsEventNameAliasWhenStoredByEventId()
+    {
+        _service.AddRecentMatch(new MatchCompletedDto
+        {
+            MatchId = "match-e1-a1",
+            EventId = "event-1",
+            EventName = "RPSLS Tournament #1",
+            GroupLabel = "Group A",
+            Bot1Name = "Bot1",
+            Bot2Name = "Bot2",
+            CompletedAt = DateTime.UtcNow.AddMinutes(-1)
+        });
+
+        _service.AddRecentMatch(new MatchCompletedDto
+        {
+            MatchId = "match-e1-b1",
+            EventId = "event-1",
+            EventName = "RPSLS Tournament #1",
+            GroupLabel = "Group B",
+            Bot1Name = "Bot3",
+            Bot2Name = "Bot4",
+            CompletedAt = DateTime.UtcNow
+        });
+
+        var matchesByEventNameAndGroup = _service.GetMatchesByEventAndGroup("RPSLS Tournament #1", "Group A");
+
+        matchesByEventNameAndGroup.Should().ContainSingle();
+        matchesByEventNameAndGroup.Single().MatchId.Should().Be("match-e1-a1");
     }
 }
