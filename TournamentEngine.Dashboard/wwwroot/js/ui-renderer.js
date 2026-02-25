@@ -6,6 +6,8 @@
 class UIRenderer {
     constructor() {
         this.elements = {};
+        this._countdownInterval = null;
+        this._lastScheduled = null;
         this.cacheElements();
     }
 
@@ -43,16 +45,99 @@ class UIRenderer {
      */
     updateIsraelTime() {
         const now = new Date();
-        
-        // Format as HH:MM:SS (24-hour format with leading zeros)
-        const hours = String(now.getHours()).padStart(2, '0');
-        const minutes = String(now.getMinutes()).padStart(2, '0');
-        const seconds = String(now.getSeconds()).padStart(2, '0');
-        const timeString = `${hours}:${minutes}:${seconds}`;
-        
-        const element = this.getElement('currentTime');
-        if (element) {
-            element.textContent = timeString;
+
+        // Use Intl with Asia/Jerusalem timezone to display Israel time reliably
+        try {
+            const formatter = new Intl.DateTimeFormat('en-GB', {
+                hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'Asia/Jerusalem'
+            });
+            const timeString = formatter.format(now);
+            const element = this.getElement('currentTime');
+            if (element) element.textContent = timeString;
+        } catch (e) {
+            // Fallback to local time if Intl/timeZone not supported
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const seconds = String(now.getSeconds()).padStart(2, '0');
+            const timeString = `${hours}:${minutes}:${seconds}`;
+            const element = this.getElement('currentTime');
+            if (element) element.textContent = timeString;
+        }
+    }
+
+    /**
+     * Update scheduled start display and countdown (accepts UTC ISO string)
+     */
+    updateCountdown(scheduledStartUtc) {
+        const scheduledEl = this.getElement('scheduledStart');
+        const countdownEl = this.getElement('countdownTimer');
+
+        // Clear previous interval if scheduled changed
+        if (this._lastScheduled !== scheduledStartUtc) {
+            if (this._countdownInterval) {
+                clearInterval(this._countdownInterval);
+                this._countdownInterval = null;
+            }
+            this._lastScheduled = scheduledStartUtc;
+        }
+
+        if (!scheduledStartUtc) {
+            if (scheduledEl) scheduledEl.textContent = '--:--:--';
+            if (countdownEl) countdownEl.textContent = '--:--:--';
+            return;
+        }
+
+        // Parse scheduled time (assume ISO/UTC if provided as such)
+        const scheduledDate = new Date(scheduledStartUtc);
+        if (isNaN(scheduledDate.getTime())) {
+            if (scheduledEl) scheduledEl.textContent = 'Invalid date';
+            if (countdownEl) countdownEl.textContent = '--:--:--';
+            return;
+        }
+
+        // Helper to format scheduled time in Israel timezone
+        const formatIsraelTime = (date) => {
+            try {
+                return new Intl.DateTimeFormat('en-GB', {
+                    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'Asia/Jerusalem'
+                }).format(date);
+            } catch {
+                return new Date(date).toLocaleTimeString('en-GB', { hour12: false });
+            }
+        };
+
+        if (scheduledEl) scheduledEl.textContent = formatIsraelTime(scheduledDate);
+
+        const updateCountdownDisplay = () => {
+            const now = new Date();
+            const diffMs = scheduledDate.getTime() - now.getTime();
+            if (diffMs <= 0) {
+                if (countdownEl) countdownEl.textContent = 'Started';
+                if (this._countdownInterval) {
+                    clearInterval(this._countdownInterval);
+                    this._countdownInterval = null;
+                }
+                return;
+            }
+
+            const totalSeconds = Math.floor(diffMs / 1000);
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+
+            const parts = [];
+            if (hours > 0) parts.push(String(hours).padStart(2, '0'));
+            parts.push(String(minutes).padStart(2, '0'));
+            parts.push(String(seconds).padStart(2, '0'));
+
+            const display = hours > 0 ? parts.join(':') : parts.slice(-2).join(':');
+            if (countdownEl) countdownEl.textContent = display;
+        };
+
+        // Run immediately and then start interval if not already running
+        updateCountdownDisplay();
+        if (!this._countdownInterval) {
+            this._countdownInterval = setInterval(updateCountdownDisplay, 1000);
         }
     }
 
@@ -119,12 +204,13 @@ class UIRenderer {
                 const isCurrent = status === 'inprogress';
                 const isCompleted = status === 'completed';
                 const eventName = event.eventName || event.name || 'Unknown';
+                const displayEventName = this.getShortEventName(eventName) || eventName;
                 
                 let statusClass = 'not-started';
                 if (isCompleted) statusClass = 'completed';
                 else if (isCurrent) statusClass = 'current';
                 
-                return `<div class="event-label ${statusClass}">${eventName}</div>`;
+                return `<div class="event-label ${statusClass}">${displayEventName}</div>`;
             }).join('');
         }
     }
@@ -148,6 +234,7 @@ class UIRenderer {
         championsList.innerHTML = events.map(event => {
             const normalizedStatus = this.normalizeEventStatus(event.status);
             const eventName = event.eventName || event.name || 'Unknown';
+            const displayEventName = this.getShortEventName(eventName) || eventName;
             
             let statusText = '';
             let statusClass = 'pending';
@@ -169,7 +256,7 @@ class UIRenderer {
 
             return `
                 <div class="champion-item ${itemClass}">
-                    <span class="champion-name">${eventName}</span>
+                    <span class="champion-name">${displayEventName}</span>
                     <span class="champion-status ${statusClass}">
                         ${statusText}
                     </span>
@@ -194,13 +281,23 @@ class UIRenderer {
             return;
         }
 
+        // When the tournament has completed (isRunning === false), visually mark the winner
+        const isFinal = isRunning === false;
+
         leadersList.innerHTML = leaders.slice(0, 10).map((leader, index) => {
             const points = leader.totalPoints ?? leader.points ?? 0;
             const wins = leader.totalWins ?? leader.wins ?? 0;
             const losses = leader.totalLosses ?? leader.losses ?? 0;
+
+            // mark first place as winner only when final
+            const winnerClass = (isFinal && index === 0) ? ' winner' : '';
+
+            // Render trophy icon for final winner
+            const namePrefix = (isFinal && index === 0) ? '<span class="trophy">🏆</span> ' : '';
+
             return `
-                <div class="leader-item">
-                    <span class="leader-name">${index + 1}. ${leader.teamName}</span>
+                <div class="leader-item${winnerClass}">
+                    <span class="leader-name">${index + 1}. ${namePrefix}${leader.teamName}</span>
                     <span class="leader-score">${points} pts (${wins}W/${losses}L)</span>
                 </div>
             `;
@@ -225,6 +322,7 @@ class UIRenderer {
 
         tabsContainer.innerHTML = events.map(event => {
             const eventName = event.eventName || event.name || 'Unknown';
+            const displayEventName = this.getShortEventName(eventName) || eventName;
             const selectedEventName = selectedEvent?.eventName || selectedEvent?.name;
             const isActive = selectedEventName && selectedEventName === eventName;
             const status = this.normalizeEventStatus(event.status);
@@ -250,7 +348,7 @@ class UIRenderer {
                         data-event="${eventName}"
                         ${isNotStarted ? 'disabled' : ''}>
                     <span class="status-icon">${statusIcon}</span>
-                    ${eventName}
+                    ${displayEventName}
                 </button>
             `;
         }).join('');
@@ -299,8 +397,11 @@ class UIRenderer {
 
     /**
      * Update group standings table
+     * standings: array
+     * selectedGroup: string|null
+     * eventName: string|null
      */
-    updateGroupStandings(standings, selectedGroup = null) {
+    updateGroupStandings(standings, selectedGroup = null, eventName = null) {
         const standingsBody = this.getElement('standingsBody');
         const standingsEmpty = this.getElement('standingsEmpty');
         const table = this.getElement('standingsTable');
@@ -312,6 +413,21 @@ class UIRenderer {
         }
 
         if (!standingsBody || !standingsEmpty) return;
+
+        // Update the group standings title to include event + group when available
+        const gsTitleEl = this.getElement('groupStandingsTitle');
+        if (gsTitleEl) {
+            const shortEvent = this.getShortEventName(eventName);
+            if (shortEvent && selectedGroup) {
+                gsTitleEl.textContent = `GROUP STANDINGS (${shortEvent} - ${selectedGroup})`;
+            } else if (shortEvent) {
+                gsTitleEl.textContent = `GROUP STANDINGS (${shortEvent})`;
+            } else if (selectedGroup) {
+                gsTitleEl.textContent = `GROUP STANDINGS (${selectedGroup})`;
+            } else {
+                gsTitleEl.textContent = 'GROUP STANDINGS';
+            }
+        }
 
         if (!standings || standings.length === 0) {
             standingsEmpty.style.display = 'block';
@@ -351,11 +467,25 @@ class UIRenderer {
     /**
      * Update matches table
      */
-    updateMatches(matches) {
+    updateMatches(matches, eventName = null, selectedGroup = null) {
         const matchesBody = this.getElement('matchesBody');
         const matchesEmpty = this.getElement('matchesEmpty');
         const table = this.getElement('matchesTable');
 
+        // Update the matches title to include event + group when available
+        const matchesTitleEl = this.getElement('matchesTitle');
+        if (matchesTitleEl) {
+            const shortEvent = this.getShortEventName(eventName);
+            if (shortEvent && selectedGroup) {
+                matchesTitleEl.textContent = `MATCHES (${shortEvent} - ${selectedGroup})`;
+            } else if (shortEvent) {
+                matchesTitleEl.textContent = `MATCHES (${shortEvent})`;
+            } else if (selectedGroup) {
+                matchesTitleEl.textContent = `MATCHES (${selectedGroup})`;
+            } else {
+                matchesTitleEl.textContent = 'MATCHES (CURRENT GROUP)';
+            }
+        }
         if (!matchesBody || !matchesEmpty) return;
 
         if (!matches || matches.length === 0) {
@@ -428,6 +558,37 @@ class UIRenderer {
         };
 
         return outcomeMap[outcome] || outcome;
+    }
+
+    /**
+     * Derive a shortened event name for headings.
+     * Removes trailing "Tournament #N" suffixes, e.g. "RPSLS Tournament #1" -> "RPSLS"
+     */
+    getShortEventName(eventName) {
+        if (!eventName) return null;
+        let name = String(eventName).trim();
+
+        // Try to capture a trailing number that may follow the word 'Tournament'
+        // Examples handled:
+        //  - "RPSLS Tournament #1" -> base="RPSLS", num="1" => "RPSLS #1"
+        //  - "ColonelBlotto Tournament 2" -> base="ColonelBlotto", num="2" => "ColonelBlotto #2"
+        //  - "SecurityGame #4" -> base="SecurityGame", num="4" => "SecurityGame #4"
+        const match = name.match(/^(.*?)\s*(?:[Tt]ournament)?\s*(?:[#:\-]?\s*(\d+))\s*$/);
+        if (match) {
+            const base = (match[1] || '').trim();
+            const num = match[2];
+            if (base && num) {
+                return `${base} #${num}`;
+            }
+            if (base) {
+                // If there was no number, just return the base without the word 'Tournament'
+                return base;
+            }
+        }
+
+        // Fallback: remove the word 'Tournament' if present and return the trimmed result
+        name = name.replace(/\b[Tt]ournament\b/i, '').trim();
+        return name || eventName;
     }
 
     /**
